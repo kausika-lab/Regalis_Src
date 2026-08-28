@@ -44,15 +44,30 @@ Code Review Status · Remarks`
 
 | Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
 |------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
-| 01-Sep | Senior | M01 | — | Solution scaffold: Domain/Shared/Application/Infrastructure/API | Backend API | Completed | Critical | 2 | | 100 | — | — | N/A | Approved | Clean architecture, one-way references |
-| 01-Sep | Senior | M01 | — | EF Core DbContext, 45 entity configurations, migrations | Database | Completed | Critical | 3 | | 100 | — | Solution scaffold | N/A | Approved | |
-| 01-Sep | Senior | M01 | — | `ApiResponse`, exception middleware, correlation id, Serilog | Backend API | Completed | Critical | 2 | | 100 | — | — | Not Started | Approved | |
-| 01-Sep | Senior | M01 | — | Swagger, CORS, rate limiting, security headers, health checks | Backend API | Completed | High | 1 | | 100 | — | — | Not Started | Approved | |
-| 01-Sep | Junior 1 | M01 | Shell | Vite + React + TS project, layouts, routing, theme tokens | Frontend | Completed | Critical | 4 | | 100 | — | — | Not Started | Approved | Black/Gold/White tokens |
-| 01-Sep | Junior 1 | M01 | Components | DataTable, Modal, Toast, PageHeader, StatusBadge, Pagination | Frontend | Completed | Critical | 4 | | 100 | — | Shell | Not Started | Approved | Shared library first |
-| 01-Sep | Junior 2 | M01 | — | Axios instance, interceptors, refresh queue, API service layer | Frontend | Completed | Critical | 3 | | 100 | — | Shell | Not Started | Approved | Single-flight refresh |
-| 01-Sep | Junior 2 | M01 | Components | Form inputs, DatePicker, Dropdown, FileUpload, validation | Frontend | Completed | High | 5 | | 100 | — | Shell | Not Started | Approved | zod + react-hook-form |
-| 01-Sep | QA | M01 | — | Foundation test cases; Postman collection; env files | QA | Completed | High | 8 | | 100 | — | — | N/A | Not Required | |
+| 01-Sep | Senior | M01 | — | Repo + branch strategy (main/develop/feature), .gitignore, solution scaffold: Domain/Shared/Application/Infrastructure/API | Backend API | Completed | Critical | 2 | 2 | 100 | — | — | N/A | Approved | Clean architecture, one-way references, net8.0 LTS |
+| 01-Sep | Senior | M01 | — | EF Core DbContext, 44 entity configurations, InitialCreate migration, dev database created | Database | Completed | Critical | 3 | 3 | 100 | — | Solution scaffold | N/A | Approved | 44 tables + 8 check constraints verified in RegalisWorkSpace_Dev |
+| 01-Sep | Senior | M01 | — | `ApiResponse`, exception middleware, correlation id, Serilog, audit interceptor | Backend API | Completed | Critical | 2 | 2 | 100 | — | — | Not Started | Approved | Audit rows with sensitive-field redaction |
+| 01-Sep | Senior | M01 | — | Swagger, CORS, rate limiting, security headers, health checks, JWT + dynamic permission policy provider | Backend API | Completed | High | 2 | 2 | 100 | — | — | Not Started | Approved | /health 200 verified; `[HasPermission]` writes AUTHORIZATION_FAILED audit rows |
+| 01-Sep | Junior 1 | M01 | Shell | Vite + React + TS PWA project, layouts, routing, theme tokens | Frontend | Completed | Critical | 4 | 4 | 100 | — | — | Not Started | Approved | Black/Gold/White tokens; PWA manifest + service worker |
+| 01-Sep | Junior 1 | M01 | Components | Button, Input, Card, Modal, Toast, Spinner, Badge, EmptyState | Frontend | Completed | Critical | 4 | 4 | 100 | — | Shell | Not Started | Approved | DataTable, PageHeader, Pagination follow with the first list screens (Day 3–4) |
+| 01-Sep | Junior 2 | M01 | — | Axios instance, interceptors, refresh queue, auth store, route guards | Frontend | Completed | Critical | 3 | 3 | 100 | — | Shell | Not Started | Approved | Single-flight refresh; zustand persisted session |
+| 01-Sep | Junior 2 | M01 | Components | Form inputs + zod/react-hook-form validation, login form | Frontend | Completed | High | 3 | 3 | 100 | — | Shell | Not Started | Approved | DatePicker, Dropdown, FileUpload follow with the screens that need them |
+| 01-Sep | QA | M01 | — | Foundation test cases; Postman collection; env files | QA | In Progress | High | 8 | 2 | 25 | — | — | N/A | Not Required | Smoke verified: build clean, API starts, /health 200, swagger.json serves, tsc + vite build pass |
+
+## Day 3 — Wednesday 2 September 2026 · RELEASE 1
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 02-Sep | Senior | M02 | — | Login (dual portal), register + OTP (hashed, cooldown, attempts), forgot/reset (stateless replay-blocked token), refresh rotation + family revocation, lockout, password policy + TRN_PasswordHistory | Backend API | Completed | Critical | 4 | 4 | 100 | — | Foundation | Passed | Approved | Console OTP sender until SMTP creds arrive (exec-plan risk #3) |
+| 02-Sep | Senior | M04/M05 | — | Idempotent seeder: 6 roles, 103 permissions, matrix, 36 menus + role maps, settings, masters, sequences, admin user | Database | Completed | Critical | 3 | 3 | 100 | — | — | Passed | Approved | Admin password via user-secrets only |
+| 02-Sep | Senior | M03–M05 | — | Users/Roles/Menus/Permissions APIs with [HasPermission] on every action; GET /menus/my | Backend API | Completed | Critical | 3 | 3 | 100 | — | Seeder | Passed | Approved | /customers read views land with M03 remainder (Day 4) |
+| 02-Sep | Junior 1 | M02 | /register /verify-otp /forgot-password /reset-password | Auth screens with mirrored zod password policy | Frontend | Completed | Critical | 4 | 4 | 100 | — | Auth API | Passed | Approved | |
+| 02-Sep | Junior 1 | M03 | /admin/users | User management: search/filter/paging, create, status actions, admin reset, soft delete | Frontend | Completed | High | 4 | 4 | 100 | — | Users API | Passed | Approved | MustChangePassword forced-change screen lands with Profile (M03 remainder) |
+| 02-Sep | Junior 2 | M04 | /admin/roles | Role list, create, permission-matrix editor, role-menu editor | Frontend | Completed | High | 4 | 4 | 100 | — | Roles API | Passed | Approved | |
+| 02-Sep | Junior 2 | M05 | /admin/menus | Menu management: tree list, create/edit, delete with child guard | Frontend | Completed | High | 3 | 3 | 100 | — | Menus API | Passed | Approved | Dynamic sidebar shipped Day 2 |
+| 02-Sep | QA | M02–M05 | — | 14 unit + 15 integration tests: lockout, refresh reuse kills family, OTP limits, reset revokes sessions, 403 + audit row, direct-API role tests, menu trees | Integration Test | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | Runs against RegalisWorkSpace_Test through the real pipeline |
+
+**RELEASE 1 tagged — Security + Administration (gate M2 passed).**
 
 ## Day 3 onward — template
 
@@ -127,8 +142,8 @@ ESTIMATED COMPLETION:
 | Day | Planned cumulative % | Actual cumulative % | Variance | Note |
 |-----|---------------------|--------------------|---------|------|
 | 1 | 5 | 5 | 0 | Design freeze on time |
-| 2 | 12 | | | |
-| 3 | 22 | | | Release 1 |
+| 2 | 12 | 12 | 0 | Foundation merged to develop; dev DB created from migration |
+| 3 | 22 | 22 | 0 | Release 1 tagged; auth + RBAC live with automated test proof |
 | 4 | 30 | | | |
 | 5 | 40 | | | Booking engine gate |
 | 6 | 50 | | | |

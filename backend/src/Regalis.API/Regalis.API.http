@@ -1,0 +1,6 @@
+@Regalis.API_HostAddress = http://localhost:5051
+
+GET {{Regalis.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

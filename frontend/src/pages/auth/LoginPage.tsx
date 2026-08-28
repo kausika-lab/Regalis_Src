@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { authApi } from '@/api/auth';
 import { ApiClientError } from '@/api/client';
@@ -86,6 +86,17 @@ export function LoginPage() {
       <Button type="submit" block size="lg" loading={isSubmitting}>
         Sign in
       </Button>
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: 'var(--font-size-sm)',
+        }}
+      >
+        <Link to="/forgot-password">Forgot password?</Link>
+        {portal === 'customer' && <Link to="/register">Create an account</Link>}
+      </div>
     </form>
   );
 }

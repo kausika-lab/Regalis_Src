@@ -364,3 +364,154 @@
   font-weight: 600;
   color: var(--text-secondary);
 }
+
+/* ── Page header ────────────────────────────────────────────────────────── */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.page-header__title {
+  font-size: var(--font-size-xl);
+  font-weight: 800;
+}
+
+.page-header__description {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  margin-top: var(--space-1);
+}
+
+.page-header__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* ── Data table ─────────────────────────────────────────────────────────── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.data-table th {
+  text-align: left;
+  font-weight: 700;
+  color: var(--text-secondary);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 2px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+.data-table tbody tr:hover {
+  background: var(--neutral-50);
+}
+
+.data-table__pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.data-table__pager-info {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.data-table__pager-buttons {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.row-actions {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+/* ── Checkbox ───────────────────────────────────────────────────────────── */
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox input {
+  accent-color: var(--regalis-gold);
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Permission matrix ──────────────────────────────────────────────────── */
+.perm-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 55vh;
+  overflow-y: auto;
+  padding-right: var(--space-2);
+}
+
+.perm-matrix__module {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+
+.perm-matrix__module-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+
+.perm-matrix__module-name {
+  font-weight: 700;
+  font-size: var(--font-size-sm);
+}
+
+.perm-matrix__actions {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+/* ── Toolbar ────────────────────────────────────────────────────────────── */
+.toolbar {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.toolbar .field {
+  min-width: 180px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}

@@ -1574,6 +1574,33 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.ToTable("TRN_Otp", (string)null);
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Identity.PasswordHistory", b =>
+                {
+                    b.Property<long>("PasswordHistoryId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("PasswordHistoryId"));
+
+                    b.Property<DateTime>("ChangedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("PasswordHistoryId");
+
+                    b.HasIndex("UserId", "ChangedUtc")
+                        .HasDatabaseName("IX_PasswordHistory_User_Changed");
+
+                    b.ToTable("TRN_PasswordHistory", (string)null);
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Identity.Permission", b =>
                 {
                     b.Property<int>("PermissionId")
@@ -3547,6 +3574,17 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Navigation("ParentMenu");
 
                     b.Navigation("Permission");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Identity.PasswordHistory", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Identity.RefreshToken", b =>

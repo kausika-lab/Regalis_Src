@@ -24,6 +24,7 @@ public class RegalisDbContext(DbContextOptions<RegalisDbContext> options) : DbCo
     public DbSet<Otp> Otps => Set<Otp>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<LoginHistory> LoginHistories => Set<LoginHistory>();
+    public DbSet<PasswordHistory> PasswordHistories => Set<PasswordHistory>();
 
     // Masters
     public DbSet<Location> Locations => Set<Location>();

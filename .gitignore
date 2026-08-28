@@ -1,0 +1,47 @@
+# ── Client source documents (commercial proposals, requirement docs) ──
+# These are inputs to the project, not deliverables. Kept out of version
+# control so pushing the repo never leaks commercial material.
+Regalis/
+UI/*.zip
+
+# ── .NET ──
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+.vs/
+artifacts/
+TestResults/
+*.binlog
+project.lock.json
+
+# ── Frontend (Node) ──
+node_modules/
+dist/
+dist-ssr/
+coverage/
+*.local
+.vite/
+
+# ── Environment / secrets ──
+.env
+.env.*
+!.env.example
+appsettings.*.Local.json
+**/secrets.json
+
+# ── Logs ──
+logs/
+*.log
+npm-debug.log*
+
+# ── Editor / OS ──
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ── Claude Code local settings ──
+.claude/settings.local.json

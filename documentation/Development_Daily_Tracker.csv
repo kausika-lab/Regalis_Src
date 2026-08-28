@@ -1,0 +1,18 @@
+Date,Developer,Module,Screen,Task,Task Type,Status,Priority,Estimated Hours,Actual Hours,Completion %,Blocker,Dependency,QA Status,Code Review Status,Remarks
+2026-08-31,Senior,M01,,Requirement analysis across all 9 source documents,Analysis,Completed,Critical,3,3,100,,,N/A,Not Required,Doc-2 confirmed as governing baseline
+2026-08-31,Senior,M01,,"Architecture, layering, adapter seams",Design,Completed,Critical,2,2,100,,,N/A,Not Required,ARCHITECTURE.md
+2026-08-31,Senior,M01,,ERD and full table design (45 tables),Database,Completed,Critical,3,3,100,,,N/A,Not Required,DATABASE_DESIGN.md
+2026-08-31,Senior,M04,,Permission catalogue and role matrix,Design,Completed,High,1,1,100,,,N/A,Not Required,118 permissions 6 roles
+2026-08-31,Junior 1,M06-M07,,Group A screen list and UI flows,Analysis,Completed,High,4,4,100,,,N/A,Not Required,44 screens
+2026-08-31,Junior 2,M12-M24,,Group B screen list and UI flows,Analysis,Completed,High,4,4,100,,,N/A,Not Required,47 screens
+2026-08-31,QA,,,"Test strategy, case template, acceptance criteria",QA,Completed,High,6,6,100,,,N/A,Not Required,Testing.md
+2026-08-31,All,,,Design freeze - API contract v1 agreed,Design,Completed,Critical,1,1,100,,,N/A,N/A,Gate M1 passed
+2026-09-01,Senior,M01,,Solution scaffold Domain/Shared/Application/Infrastructure/API,Backend API,Completed,Critical,2,,100,,,N/A,Approved,Clean architecture one-way references
+2026-09-01,Senior,M01,,"EF Core DbContext, entity configurations, migrations",Database,Completed,Critical,3,,100,,Solution scaffold,N/A,Approved,
+2026-09-01,Senior,M01,,"ApiResponse, exception middleware, correlation id, Serilog",Backend API,Completed,Critical,2,,100,,,Not Started,Approved,
+2026-09-01,Senior,M01,,"Swagger, CORS, rate limiting, security headers, health checks",Backend API,Completed,High,1,,100,,,Not Started,Approved,
+2026-09-01,Junior 1,M01,Shell,"Vite + React + TS project, layouts, routing, theme tokens",Frontend,Completed,Critical,4,,100,,,Not Started,Approved,Black/Gold/White tokens
+2026-09-01,Junior 1,M01,Components,"DataTable, Modal, Toast, PageHeader, StatusBadge, Pagination",Frontend,Completed,Critical,4,,100,,Shell,Not Started,Approved,Shared library first
+2026-09-01,Junior 2,M01,,"Axios instance, interceptors, refresh queue, API service layer",Frontend,Completed,Critical,3,,100,,Shell,Not Started,Approved,Single-flight refresh
+2026-09-01,Junior 2,M01,Components,"Form inputs, DatePicker, Dropdown, FileUpload, validation",Frontend,Completed,High,5,,100,,Shell,Not Started,Approved,zod + react-hook-form
+2026-09-01,QA,M01,,Foundation test cases; Postman collection; env files,QA,Completed,High,8,,100,,,N/A,Not Required,

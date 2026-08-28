@@ -173,6 +173,20 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
     }
 }
 
+public class PasswordHistoryConfiguration : IEntityTypeConfiguration<PasswordHistory>
+{
+    public void Configure(EntityTypeBuilder<PasswordHistory> builder)
+    {
+        builder.ToTable("TRN_PasswordHistory");
+        builder.HasKey(x => x.PasswordHistoryId);
+        builder.Property(x => x.PasswordHash).HasMaxLength(400).IsRequired();
+        builder.HasIndex(x => new { x.UserId, x.ChangedUtc }).HasDatabaseName("IX_PasswordHistory_User_Changed");
+
+        builder.HasOne(x => x.User).WithMany()
+            .HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
 public class LoginHistoryConfiguration : IEntityTypeConfiguration<LoginHistory>
 {
     public void Configure(EntityTypeBuilder<LoginHistory> builder)

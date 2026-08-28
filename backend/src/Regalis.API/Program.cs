@@ -12,6 +12,7 @@ using Regalis.API.Middleware;
 using Regalis.API.Services;
 using Regalis.Application;
 using Regalis.Application.Abstractions;
+using Microsoft.EntityFrameworkCore;
 using Regalis.Infrastructure;
 using Regalis.Infrastructure.Persistence;
 using Regalis.Infrastructure.Security;
@@ -230,6 +231,21 @@ builder.Services.AddHealthChecks()
     .AddDbContextCheck<RegalisDbContext>("database", tags: ["ready"]);
 
 var app = builder.Build();
+
+// ── Migrate + seed (Development convenience; UAT/Production run the DBA
+//    scripts or a controlled `dotnet ef database update`) ────────────────────
+if (app.Configuration.GetValue("Database:MigrateOnStartup", false))
+{
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<RegalisDbContext>().Database.MigrateAsync();
+}
+if (app.Configuration.GetValue("Database:SeedOnStartup", false))
+{
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider
+        .GetRequiredService<Regalis.Infrastructure.Persistence.Seed.DatabaseSeeder>()
+        .SeedAsync();
+}
 
 // ── Pipeline (ARCHITECTURE §3) ──────────────────────────────────────────────
 app.UseMiddleware<CorrelationIdMiddleware>();

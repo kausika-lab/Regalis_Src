@@ -99,6 +99,93 @@ export interface SaveWorkspacePayload {
   amenityIds: number[];
 }
 
+/** Services & Coffee catalogue (M22). */
+export interface ServiceItem {
+  serviceItemId: number;
+  itemCode: string;
+  itemName: string;
+  category: string;
+  price: number;
+  unit: string | null;
+  imagePath: string | null;
+  description: string | null;
+  isAvailable: boolean;
+  displayOrder: number;
+  locationId: number | null;
+  isActive: boolean;
+}
+
+export interface SaveServiceItemPayload {
+  itemCode: string;
+  itemName: string;
+  category: string;
+  price: number;
+  unit?: string | null;
+  imagePath?: string | null;
+  description?: string | null;
+  isAvailable: boolean;
+  displayOrder: number;
+  locationId?: number | null;
+}
+
+/** Promotional banners (M23). */
+export interface Banner {
+  bannerId: number;
+  title: string;
+  subtitle: string | null;
+  imagePath: string;
+  linkUrl: string | null;
+  promotionalPrice: number | null;
+  displayOrder: number;
+  validFromUtc: string;
+  validToUtc: string;
+  locationId: number | null;
+  portalType: number; // 1 customer, 2 admin, 3 both
+  isActive: boolean;
+}
+
+export interface SaveBannerPayload {
+  title: string;
+  subtitle?: string | null;
+  imagePath: string;
+  linkUrl?: string | null;
+  promotionalPrice?: number | null;
+  displayOrder: number;
+  validFromUtc: string;
+  validToUtc: string;
+  locationId?: number | null;
+  portalType: number;
+}
+
+/** App settings (M23) — the "no hard-coding" table. */
+export interface AppSetting {
+  appSettingId: number;
+  settingKey: string;
+  settingValue: string;
+  settingGroup: string;
+  dataType: string;
+  description: string | null;
+  isEditableByAdmin: boolean;
+  isSecret: boolean;
+}
+
+export interface PublicSettings {
+  companyName: string;
+  companyEmail: string | null;
+  companyPhone: string | null;
+  companyAddress: string | null;
+  supportContactNumber: string | null;
+  supportEmail: string | null;
+  supportHours: string | null;
+  supportMessage: string | null;
+}
+
+export const PORTAL_TYPE_LABELS: Record<number, string> = {
+  1: 'Customer',
+  2: 'Admin',
+  3: 'Both',
+};
+
 export const WORKSPACE_STATUS_LABELS: Record<number, string> = {
   1: 'Available',
   2: 'Occupied',

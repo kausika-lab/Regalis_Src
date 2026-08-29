@@ -56,6 +56,9 @@ public static class DependencyInjection
         // Masters
         services.AddScoped<ILocationService, LocationService>();
         services.AddScoped<IWorkspaceService, WorkspaceService>();
+        services.AddScoped<IServiceCatalogueService, ServiceCatalogueService>();
+        services.AddScoped<IBannerService, BannerService>();
+        services.AddScoped<ISettingAdminService, SettingAdminService>();
 
         // Booking engine
         services.AddScoped<INumberSequenceService, NumberSequenceService>();
@@ -75,6 +78,8 @@ public static class DependencyInjection
 
         // Operations
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IHousekeepingService, HousekeepingService>();
+        services.AddScoped<IInventoryService, InventoryService>();
 
         // Access & attendance — the device and payroll seams are adapters
         // selected by configuration (Invariant 5, A01/A03).

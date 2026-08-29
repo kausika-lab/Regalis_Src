@@ -10,8 +10,36 @@ namespace Regalis.API.Controllers;
 /// the documented, expected outcome of losing a race — the frontend re-renders
 /// availability rather than showing a generic error.</summary>
 [Route("api/bookings")]
-public class BookingsController(IBookingService bookingService) : ApiControllerBase
+public class BookingsController(
+    IBookingService bookingService,
+    IBookingMutationService bookingMutations) : ApiControllerBase
 {
+    /// <summary>Cancels a booking (status change + history — never a delete). The
+    /// policy refund credits the personal wallet.</summary>
+    [HttpPost("{id:long}/cancel")]
+    [HasPermission(PermissionCodes.Booking.Edit)]
+    [ProducesResponseType(typeof(ApiResponse<CancelBookingResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Cancel(long id, CancelBookingRequest request, CancellationToken ct) =>
+        OkEnvelope(await bookingMutations.CancelAsync(id, request, ct), "Booking cancelled.");
+
+    /// <summary>Reschedules to a new start (same duration); re-runs the locked
+    /// availability check.</summary>
+    [HttpPut("{id:long}")]
+    [HasPermission(PermissionCodes.Booking.Edit)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Reschedule(long id, RescheduleBookingRequest request,
+        CancellationToken ct) =>
+        OkEnvelope(await bookingMutations.RescheduleAsync(id, request, ct), "Booking rescheduled.");
+
+    /// <summary>Extends the booking end; availability-checked, paid and invoiced.</summary>
+    [HttpPost("{id:long}/extend")]
+    [HasPermission(PermissionCodes.Booking.Edit)]
+    [ProducesResponseType(typeof(ApiResponse<ExtendBookingResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Extend(long id, ExtendBookingRequest request, CancellationToken ct) =>
+        OkEnvelope(await bookingMutations.ExtendAsync(id, request, ct), "Booking extended.");
+
     /// <summary>Price + GST breakdown before payment. No write.</summary>
     [HttpPost("quote")]
     [HasPermission(PermissionCodes.Booking.View)]

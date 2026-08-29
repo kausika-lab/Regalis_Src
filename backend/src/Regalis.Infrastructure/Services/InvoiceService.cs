@@ -42,6 +42,45 @@ public class InvoiceService(RegalisDbContext db, ICurrentUser currentUser) : IIn
             items.Select(ToDto).ToList(), request.Page, request.PageSize, totalCount);
     }
 
+    public async Task<PagedResult<InvoiceDto>> GetInvoicesAsync(AdminInvoiceListRequest request,
+        CancellationToken ct = default)
+    {
+        var query = db.Invoices.AsNoTracking();
+        if (request.Status is not null)
+        {
+            query = query.Where(i => (byte)i.Status == request.Status);
+        }
+        if (request.CustomerId is not null)
+        {
+            query = query.Where(i => i.CustomerId == request.CustomerId);
+        }
+        if (request.From is not null)
+        {
+            query = query.Where(i => i.InvoiceDate >= request.From);
+        }
+        if (request.To is not null)
+        {
+            query = query.Where(i => i.InvoiceDate <= request.To);
+        }
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var term = request.Search.Trim();
+            query = query.Where(i => i.InvoiceNumber.Contains(term) ||
+                                     i.CustomerName.Contains(term) ||
+                                     i.CustomerEmail.Contains(term));
+        }
+        query = query.OrderByDescending(i => i.InvoiceId);
+
+        var totalCount = await query.CountAsync(ct);
+        var items = await query
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .Include(i => i.Lines)
+            .ToListAsync(ct);
+        return PagedResult<InvoiceDto>.Create(
+            items.Select(ToDto).ToList(), request.Page, request.PageSize, totalCount);
+    }
+
     public async Task<byte[]> GetInvoicePdfAsync(long invoiceId, CancellationToken ct = default)
     {
         var invoice = await LoadScopedAsync(invoiceId, ct);

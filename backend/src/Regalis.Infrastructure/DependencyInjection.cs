@@ -7,6 +7,7 @@ using Regalis.Application.Auth;
 using Regalis.Application.Bookings;
 using Regalis.Application.Finance;
 using Regalis.Application.Masters;
+using Regalis.Application.Operations;
 using Regalis.Infrastructure.Adapters;
 using Regalis.Infrastructure.BackgroundJobs;
 using Regalis.Infrastructure.Persistence;
@@ -62,11 +63,17 @@ public static class DependencyInjection
         services.AddHostedService<BookingHoldSweeper>();
 
         services.AddScoped<ICalendarService, CalendarService>();
+        services.AddScoped<IBookingMutationService, BookingMutationService>();
 
         // Finance
         services.AddScoped<IWalletService, WalletService>();
+        services.AddScoped<IWalletAdminService, WalletAdminService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
         services.AddScoped<IPaymentService, PaymentService>();
+        services.AddScoped<IPassService, PassService>();
+
+        // Operations
+        services.AddScoped<INotificationService, NotificationService>();
 
         // Payment gateway — chosen by Payments:Provider (Invariant 5). Sandbox is
         // registered alongside so the demo checkout can sign in dev/test.

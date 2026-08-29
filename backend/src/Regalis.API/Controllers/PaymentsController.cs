@@ -12,6 +12,25 @@ namespace Regalis.API.Controllers;
 [Route("api/payments")]
 public class PaymentsController(IPaymentService paymentService) : ApiControllerBase
 {
+    /// <summary>Payments grid (admin/finance).</summary>
+    [HttpGet]
+    [HasPermission(PermissionCodes.Payment.View)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<PaymentDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAll([FromQuery] PaymentListRequest request, CancellationToken ct)
+    {
+        if (User.FindFirst("user_type")?.Value == "1")
+        {
+            request.CustomerId = long.Parse(User.FindFirst("sub")!.Value);
+        }
+        return OkEnvelope(await paymentService.GetPaymentsAsync(request, ct));
+    }
+
+    [HttpGet("{id:long}")]
+    [HasPermission(PermissionCodes.Payment.View)]
+    [ProducesResponseType(typeof(ApiResponse<PaymentDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetById(long id, CancellationToken ct) =>
+        OkEnvelope(await paymentService.GetPaymentAsync(id, ct));
+
     /// <summary>Creates the gateway order for a Pending booking. The client then
     /// runs checkout and confirms the booking with the returned credentials.</summary>
     [HttpPost("order")]

@@ -163,6 +163,16 @@ exactly the schedule window; the inventory ledger carries a complete audit histo
 **FEATURE COMPLETE on target:** every Phase-1 module has its backend and screens;
 remaining days are hardening (Day 11) and Release 3 / code freeze (Day 12).
 
+## Day 11 — Monday 14 September 2026 · Hardening
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 14-Sep | Senior | — | — | Authorization hardening: fallback policy (auth is the default; health probes anonymous by declaration); reflection test proving every action declares [Authorize]/[HasPermission]/[AllowAnonymous]; anonymous auth POSTs verified behind the "auth" rate-limit policy | Security | Completed | Critical | 3 | 3 | 100 | — | — | Passed | Approved | An unannotated endpoint can no longer be public |
+| 14-Sep | Senior | — | — | Finding fixed: /dashboard/admin was reachable with the customer's DASHBOARD.VIEW — operational aggregates now admin-portal only. Secrets audit clean (no credentials outside tests; committed appsettings empty; dev key ephemeral). Security headers/CORS/rate limits/401-403 envelopes re-verified, headers asserted by test | Security | Completed | Critical | 3 | 3 | 100 | — | — | Passed | Approved | Found by the new negative sweep |
+| 14-Sep | Senior | — | — | Performance: all routes converted to lazy chunks (59) and the full lucide icon map evicted from the eager layout for a seeded-menu icon registry — first-paint JS 1,079 KB → 430 KB (−60%). Pagination clamps and error/logging middleware re-verified; audit interceptor redaction list reviewed | Performance | Completed | High | 4 | 4 | 100 | — | — | Passed | Approved | |
+| 14-Sep | QA | all | — | Role/permission matrix executed in full: Manager/Finance/Support/Housekeeping users provisioned live and probed against 15 endpoints from matrix §4 + ACCESS.OVERRIDE as a distinct privilege; customer negative sweep across all administration surfaces; security-header and health-probe tests | Security Test | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | Suite: 101 automated tests green (87 integration + 14 unit) |
+| 14-Sep | QA | all | — | Responsive: breakpoints verified in code (sidebar → bottom nav < 768 px); the seven-width visual pass and Chrome/Edge/Firefox matrix are manual and scheduled with the Day 12 UAT deployment | Manual QA | In progress | High | 2 | 1 | 50 | Needs deployed UAT | Day 12 deploy | Pending | — | Honest carry-over, not a defect |
+
 ## Day 3 onward — template
 
 Copy the block below for each day. **Every row must be filled — an empty Actual Hours or
@@ -245,7 +255,7 @@ ESTIMATED COMPLETION:
 | 8 | 70 | 70 | 0 | Gate M6: housekeeping blocks the real calendar; inventory ledger live |
 | 9 | 78 | 78 | 0 | Tickets + reports 1–8 live; e2e journey proven by automated test |
 | 10 | 86 | 86 | 0 | Feature complete on target; regression pass 1 green |
-| 11 | 92 | | | Hardening |
+| 11 | 92 | 92 | 0 | Hardening: matrix proven by test, bundle −60%, 2 authz findings fixed |
 | 12 | 100 | | | Release 3, code freeze |
 | 13 | buffer | | | Defect fixing |
 | 14 | buffer | | | UAT |

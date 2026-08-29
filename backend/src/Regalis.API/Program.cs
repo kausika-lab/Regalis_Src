@@ -154,7 +154,13 @@ builder.Services
     });
 
 // ── Dynamic permission authorization (ARCHITECTURE §5) ──────────────────────
-builder.Services.AddAuthorization();
+// Hardening (Day 11): the fallback policy makes authentication the default —
+// an endpoint that forgets its attribute is authenticated-only, never
+// accidentally public. Anonymous endpoints must say [AllowAnonymous].
+builder.Services.AddAuthorization(options =>
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build());
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
@@ -281,14 +287,16 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+// Health probes stay anonymous by declaration — the fallback policy would
+// otherwise require a token from the load balancer.
 app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = _ => false // liveness: process is up
-});
+}).AllowAnonymous();
 app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = check => check.Tags.Contains("ready")
-});
+}).AllowAnonymous();
 
 app.Run();
 

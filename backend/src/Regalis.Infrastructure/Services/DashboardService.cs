@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Regalis.Application.Abstractions;
+using Regalis.Application.Common.Exceptions;
 using Regalis.Application.Reporting;
 using Regalis.Domain.Entities.Booking;
 using Regalis.Domain.Enums;
@@ -20,6 +21,12 @@ public class DashboardService(
 {
     public async Task<AdminDashboardDto> GetAdminAsync(CancellationToken ct = default)
     {
+        // DASHBOARD.VIEW is held by customers too (their own home) — the operational
+        // aggregates are admin-portal only (Day 11 hardening finding).
+        if (currentUser.UserType == UserType.Customer)
+        {
+            throw new ForbiddenException();
+        }
         var nowUtc = clock.UtcNow;
         var todayIst = IstClock.IstDateOf(nowUtc);
         var monthStartIst = new DateOnly(todayIst.Year, todayIst.Month, 1);

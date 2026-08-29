@@ -69,11 +69,10 @@ public class FeatureCompleteTests(RegalisApiFactory factory)
         customerDash.WalletBalance.Should().Be(0m);
         customerDash.TodaysBooking.Should().BeNull();
 
-        // The admin dashboard is DASHBOARD.VIEW — customers hold it too (their home),
-        // but the admin aggregate endpoint returns operational data, so verify the
-        // customer endpoint is what a customer consumes and admin cards need the perm.
+        // Customers hold DASHBOARD.VIEW for their own home, but the operational
+        // aggregates are admin-portal only (Day 11 hardening).
         (await customer.GetAsync("/api/dashboard/admin")).StatusCode
-            .Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Forbidden);
+            .Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]

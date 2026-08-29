@@ -1,20 +1,27 @@
 using Microsoft.EntityFrameworkCore;
+using Regalis.Application.Abstractions;
 using Regalis.Application.Common.Exceptions;
 using Regalis.Application.Masters;
 using Regalis.Infrastructure.Persistence;
 using Regalis.Shared.Api;
+using Regalis.Shared.Constants;
 
 namespace Regalis.Infrastructure.Services;
 
 /// <summary>Services &amp; Coffee catalogue (M22). Customers browse available items;
 /// the admin grid manages the full list.</summary>
-public class ServiceCatalogueService(RegalisDbContext db) : IServiceCatalogueService
+public class ServiceCatalogueService(RegalisDbContext db, ICurrentUser currentUser)
+    : IServiceCatalogueService
 {
     public async Task<PagedResult<ServiceItemDto>> GetItemsAsync(ServiceItemListRequest request,
         CancellationToken ct = default)
     {
         var query = db.ServiceItems.AsNoTracking();
-        if (request.IncludeUnavailable != true)
+        // Hidden items are an admin-grid concern: includeUnavailable is honoured only
+        // for callers who can manage the catalogue (Day 10 security review).
+        var canSeeHidden = request.IncludeUnavailable == true &&
+                           currentUser.HasPermission(PermissionCodes.Service.Edit);
+        if (!canSeeHidden)
         {
             query = query.Where(s => s.IsAvailable);
         }

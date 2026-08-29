@@ -19,6 +19,16 @@ public class BannerService(
         CancellationToken ct = default)
     {
         var query = db.Banners.AsNoTracking();
+        // Customers hold BANNER.VIEW for the carousel; the full grid — future,
+        // expired and admin-portal banners — is management-side only (Day 10
+        // security review).
+        if (currentUser.UserType == UserType.Customer)
+        {
+            var nowUtc = clock.UtcNow;
+            query = query.Where(b =>
+                b.ValidFromUtc <= nowUtc && nowUtc < b.ValidToUtc &&
+                (b.PortalType == PortalType.Customer || b.PortalType == PortalType.Both));
+        }
         var totalCount = await query.CountAsync(ct);
         var items = await query
             .OrderBy(b => b.DisplayOrder).ThenByDescending(b => b.BannerId)

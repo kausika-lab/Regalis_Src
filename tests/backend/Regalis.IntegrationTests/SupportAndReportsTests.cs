@@ -241,18 +241,14 @@ public class SupportAndReportsTests(RegalisApiFactory factory)
     // ── Reports ──────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Reports_CatalogueListsSixteen_Day9SetAvailable()
+    public async Task Reports_CatalogueListsSixteen()
     {
         var admin = await AdminClientAsync();
         var catalogue = (await admin.GetFromJsonAsync<ApiResponse<List<ReportInfo>>>(
             "/api/reports"))!.Data!;
         catalogue.Should().HaveCount(16);
-        catalogue.Count(r => r.IsAvailable).Should().Be(8);
-
-        // A Day 10 key is catalogued but politely refused for now.
-        (await admin.GetAsync("/api/reports/qr-access"))
-            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        // An unknown key is 404.
+        // Day 9 shipped the first 8; availability of all 16 is asserted by
+        // FeatureCompleteTests (Day 10). An unknown key stays 404.
         (await admin.GetAsync("/api/reports/nonsense"))
             .StatusCode.Should().Be(HttpStatusCode.NotFound);
     }

@@ -85,8 +85,11 @@ public static class DependencyInjection
         services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
         services.AddScoped<ITicketService, TicketService>();
 
-        // Reporting
+        // Reporting & dashboards
         services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IAuditService, AuditService>();
+        services.AddScoped<IProfileService, ProfileService>();
 
         // Access & attendance — the device and payroll seams are adapters
         // selected by configuration (Invariant 5, A01/A03).

@@ -29,14 +29,14 @@ public class ReportService(RegalisDbContext db, IDateTimeProvider clock) : IRepo
         ("cabin", "Cabin Booking Report", "The booking report scoped to cabins.", true),
         ("meeting-room", "Meeting Room Report", "The booking report scoped to meeting rooms.", true),
         ("day-pass", "Day Pass Report", "Day passes sold in the window.", true),
-        ("monthly-pass", "Monthly Pass Report", "Monthly passes sold in the window.", false),
-        ("payment", "Payment Report", "Every payment with method, gateway and status.", false),
-        ("invoice", "Invoice Report", "GST invoices with tax break-up.", false),
-        ("wallet", "Wallet Report", "Wallet ledger by customer and category.", false),
-        ("coffee", "Services & Coffee Report", "Service orders by item and day.", false),
-        ("ticket", "Support Ticket Report", "Tickets by category, status and resolution time.", false),
-        ("check-in-out", "Check-in/out Report", "Attendance sessions in the window.", false),
-        ("qr-access", "QR Access Report", "Every gate decision, granted or denied.", false)
+        ("monthly-pass", "Monthly Pass Report", "Monthly passes sold in the window.", true),
+        ("payment", "Payment Report", "Every payment with method, gateway and status.", true),
+        ("invoice", "Invoice Report", "GST invoices with tax break-up.", true),
+        ("wallet", "Wallet Report", "Wallet ledger by customer and category.", true),
+        ("coffee", "Services & Coffee Report", "Service orders in the window.", true),
+        ("ticket", "Support Ticket Report", "Tickets by category, status and response time.", true),
+        ("check-in-out", "Check-in/out Report", "Attendance sessions in the window.", true),
+        ("qr-access", "QR Access Report", "Every gate decision, granted or denied.", true)
     ];
 
     public List<ReportInfo> GetCatalogue() =>
@@ -94,6 +94,14 @@ public class ReportService(RegalisDbContext db, IDateTimeProvider clock) : IRepo
             "customer" => await BuildCustomerAsync(filters, from, to, rowCap, ct),
             "occupancy" => await BuildOccupancyAsync(filters, from, to, ct),
             "day-pass" => await BuildPassAsync(filters, from, to, rowCap, PassType.DayPass, ct),
+            "monthly-pass" => await BuildPassAsync(filters, from, to, rowCap, PassType.MonthlyPass, ct),
+            "payment" => await BuildPaymentAsync(filters, from, to, rowCap, ct),
+            "invoice" => await BuildInvoiceAsync(filters, from, to, rowCap, ct),
+            "wallet" => await BuildWalletAsync(filters, from, to, rowCap, ct),
+            "coffee" => await BuildServiceOrderAsync(filters, from, to, rowCap, ct),
+            "ticket" => await BuildTicketAsync(filters, from, to, rowCap, ct),
+            "check-in-out" => await BuildAttendanceAsync(filters, from, to, rowCap, ct),
+            "qr-access" => await BuildAccessAsync(filters, from, to, rowCap, ct),
             _ => throw new NotFoundException("Report", key)
         };
 
@@ -508,6 +516,458 @@ public class ReportService(RegalisDbContext db, IDateTimeProvider clock) : IRepo
             new("Passes sold", totalRows.ToString()),
             new("Active now", data.Count(p => p.Status == CustomerPassStatus.Active).ToString()),
             new("Value", $"₹ {data.Sum(p => p.TotalAmount):N2}")
+        };
+        return (columns, rows, summary, totalRows);
+    }
+
+    // ── 10 · Payments ───────────────────────────────────────────────────────
+
+    private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
+        BuildPaymentAsync(ReportFilterRequest filters, DateOnly from, DateOnly to, int rowCap,
+            CancellationToken ct)
+    {
+        var fromUtc = IstClock.ToUtc(from.ToDateTime(TimeOnly.MinValue));
+        var toUtc = IstClock.ToUtc(to.AddDays(1).ToDateTime(TimeOnly.MinValue));
+        var query = db.Payments.AsNoTracking()
+            .Where(p => p.CreatedDate >= fromUtc && p.CreatedDate < toUtc);
+        if (filters.CustomerId is not null)
+        {
+            query = query.Where(p => p.CustomerId == filters.CustomerId);
+        }
+        if (filters.PaymentStatus is not null)
+        {
+            query = query.Where(p => (byte)p.Status == filters.PaymentStatus);
+        }
+
+        var totalRows = await query.CountAsync(ct);
+        var data = await query
+            .OrderBy(p => p.PaymentId)
+            .Take(rowCap)
+            .Select(p => new
+            {
+                p.PaymentNumber,
+                Customer = db.Users.Where(u => u.UserId == p.CustomerId)
+                    .Select(u => u.FullName).First(),
+                p.PaymentMethod,
+                p.Gateway,
+                p.Status,
+                p.CreatedDate,
+                p.PaidUtc,
+                p.Amount,
+                p.RefundedAmount
+            })
+            .ToListAsync(ct);
+
+        var columns = new List<ReportColumn>
+        {
+            new("number", "Payment", "string"),
+            new("customer", "Customer", "string"),
+            new("method", "Method", "string"),
+            new("gateway", "Gateway", "string"),
+            new("status", "Status", "string"),
+            new("paid", "Paid (IST)", "datetime"),
+            new("amount", "Amount", "money"),
+            new("refunded", "Refunded", "money")
+        };
+        var rows = data.Select(p => Row(
+            ("number", p.PaymentNumber),
+            ("customer", p.Customer),
+            ("method", p.PaymentMethod.ToString()),
+            ("gateway", p.Gateway),
+            ("status", p.Status.ToString()),
+            ("paid", p.PaidUtc),
+            ("amount", p.Amount),
+            ("refunded", p.RefundedAmount)))
+            .ToList();
+        var summary = new List<ReportSummaryItem>
+        {
+            new("Payments", totalRows.ToString()),
+            new("Captured", $"₹ {data.Where(p => p.Status == PaymentStatus.Success).Sum(p => p.Amount):N2}"),
+            new("Refunded", $"₹ {data.Sum(p => p.RefundedAmount ?? 0m):N2}"),
+            new("Failed", data.Count(p => p.Status == PaymentStatus.Failed).ToString())
+        };
+        return (columns, rows, summary, totalRows);
+    }
+
+    // ── 11 · Invoices ───────────────────────────────────────────────────────
+
+    private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
+        BuildInvoiceAsync(ReportFilterRequest filters, DateOnly from, DateOnly to, int rowCap,
+            CancellationToken ct)
+    {
+        var query = db.Invoices.AsNoTracking()
+            .Where(i => i.InvoiceDate >= from && i.InvoiceDate <= to);
+        if (filters.CustomerId is not null)
+        {
+            query = query.Where(i => i.CustomerId == filters.CustomerId);
+        }
+        if (filters.LocationId is not null)
+        {
+            query = query.Where(i => i.LocationId == filters.LocationId);
+        }
+
+        var totalRows = await query.CountAsync(ct);
+        var data = await query
+            .OrderBy(i => i.InvoiceId)
+            .Take(rowCap)
+            .Select(i => new
+            {
+                i.InvoiceNumber, i.CustomerName, i.InvoiceDate, i.TaxableAmount,
+                i.CgstAmount, i.SgstAmount, i.TotalAmount, i.OutstandingAmount, i.Status
+            })
+            .ToListAsync(ct);
+
+        var columns = new List<ReportColumn>
+        {
+            new("number", "Invoice", "string"),
+            new("customer", "Customer", "string"),
+            new("date", "Date", "date"),
+            new("taxable", "Taxable", "money"),
+            new("cgst", "CGST", "money"),
+            new("sgst", "SGST", "money"),
+            new("total", "Total", "money"),
+            new("outstanding", "Outstanding", "money"),
+            new("status", "Status", "string")
+        };
+        var rows = data.Select(i => Row(
+            ("number", i.InvoiceNumber),
+            ("customer", i.CustomerName),
+            ("date", i.InvoiceDate),
+            ("taxable", i.TaxableAmount),
+            ("cgst", i.CgstAmount),
+            ("sgst", i.SgstAmount),
+            ("total", i.TotalAmount),
+            ("outstanding", i.OutstandingAmount),
+            ("status", i.Status.ToString())))
+            .ToList();
+        var summary = new List<ReportSummaryItem>
+        {
+            new("Invoices", totalRows.ToString()),
+            new("Invoiced", $"₹ {data.Sum(i => i.TotalAmount):N2}"),
+            new("GST collected", $"₹ {data.Sum(i => i.CgstAmount + i.SgstAmount):N2}"),
+            new("Outstanding", $"₹ {data.Sum(i => i.OutstandingAmount):N2}")
+        };
+        return (columns, rows, summary, totalRows);
+    }
+
+    // ── 12 · Wallet ─────────────────────────────────────────────────────────
+
+    private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
+        BuildWalletAsync(ReportFilterRequest filters, DateOnly from, DateOnly to, int rowCap,
+            CancellationToken ct)
+    {
+        var fromUtc = IstClock.ToUtc(from.ToDateTime(TimeOnly.MinValue));
+        var toUtc = IstClock.ToUtc(to.AddDays(1).ToDateTime(TimeOnly.MinValue));
+        var query = db.WalletTransactions.AsNoTracking()
+            .Where(t => t.TransactionUtc >= fromUtc && t.TransactionUtc < toUtc);
+        if (filters.CustomerId is not null)
+        {
+            query = query.Where(t => t.CustomerId == filters.CustomerId);
+        }
+
+        var totalRows = await query.CountAsync(ct);
+        var data = await query
+            .OrderBy(t => t.WalletTransactionId)
+            .Take(rowCap)
+            .Select(t => new
+            {
+                t.TransactionNumber,
+                Customer = db.Users.Where(u => u.UserId == t.CustomerId)
+                    .Select(u => u.FullName).First(),
+                t.Direction, t.Category, t.Amount, t.BalanceAfter, t.TransactionUtc
+            })
+            .ToListAsync(ct);
+
+        var columns = new List<ReportColumn>
+        {
+            new("number", "Transaction", "string"),
+            new("customer", "Customer", "string"),
+            new("when", "When (IST)", "datetime"),
+            new("direction", "Direction", "string"),
+            new("category", "Category", "string"),
+            new("amount", "Amount", "money"),
+            new("balance", "Balance after", "money")
+        };
+        var rows = data.Select(t => Row(
+            ("number", t.TransactionNumber),
+            ("customer", t.Customer),
+            ("when", t.TransactionUtc),
+            ("direction", t.Direction.ToString()),
+            ("category", t.Category.ToString()),
+            ("amount", t.Amount),
+            ("balance", t.BalanceAfter)))
+            .ToList();
+        var credits = data.Where(t => t.Direction == WalletDirection.Credit).Sum(t => t.Amount);
+        var debits = data.Where(t => t.Direction == WalletDirection.Debit).Sum(t => t.Amount);
+        var summary = new List<ReportSummaryItem>
+        {
+            new("Transactions", totalRows.ToString()),
+            new("Credits", $"₹ {credits:N2}"),
+            new("Debits", $"₹ {debits:N2}"),
+            new("Net", $"₹ {credits - debits:N2}")
+        };
+        return (columns, rows, summary, totalRows);
+    }
+
+    // ── 13 · Services & Coffee ──────────────────────────────────────────────
+
+    private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
+        BuildServiceOrderAsync(ReportFilterRequest filters, DateOnly from, DateOnly to, int rowCap,
+            CancellationToken ct)
+    {
+        var fromUtc = IstClock.ToUtc(from.ToDateTime(TimeOnly.MinValue));
+        var toUtc = IstClock.ToUtc(to.AddDays(1).ToDateTime(TimeOnly.MinValue));
+        var query = db.ServiceOrders.AsNoTracking()
+            .Where(o => o.OrderUtc >= fromUtc && o.OrderUtc < toUtc);
+        if (filters.CustomerId is not null)
+        {
+            query = query.Where(o => o.CustomerId == filters.CustomerId);
+        }
+        if (filters.LocationId is not null)
+        {
+            query = query.Where(o => o.LocationId == filters.LocationId);
+        }
+
+        var totalRows = await query.CountAsync(ct);
+        var data = await query
+            .OrderBy(o => o.ServiceOrderId)
+            .Take(rowCap)
+            .Select(o => new
+            {
+                o.OrderNumber,
+                Customer = db.Users.Where(u => u.UserId == o.CustomerId)
+                    .Select(u => u.FullName).First(),
+                o.OrderUtc,
+                Items = o.Lines.Count,
+                o.SubTotal, o.TaxAmount, o.TotalAmount, o.Status
+            })
+            .ToListAsync(ct);
+
+        var columns = new List<ReportColumn>
+        {
+            new("number", "Order", "string"),
+            new("customer", "Customer", "string"),
+            new("when", "Placed (IST)", "datetime"),
+            new("items", "Items", "number"),
+            new("subtotal", "Sub-total", "money"),
+            new("tax", "GST", "money"),
+            new("total", "Total", "money"),
+            new("status", "Status", "string")
+        };
+        var rows = data.Select(o => Row(
+            ("number", o.OrderNumber),
+            ("customer", o.Customer),
+            ("when", o.OrderUtc),
+            ("items", o.Items),
+            ("subtotal", o.SubTotal),
+            ("tax", o.TaxAmount),
+            ("total", o.TotalAmount),
+            ("status", o.Status.ToString())))
+            .ToList();
+        var summary = new List<ReportSummaryItem>
+        {
+            new("Orders", totalRows.ToString()),
+            new("Value", $"₹ {data.Sum(o => o.TotalAmount):N2}"),
+            new("Delivered", data.Count(o => o.Status == ServiceOrderStatus.Delivered).ToString())
+        };
+        return (columns, rows, summary, totalRows);
+    }
+
+    // ── 14 · Tickets ────────────────────────────────────────────────────────
+
+    private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
+        BuildTicketAsync(ReportFilterRequest filters, DateOnly from, DateOnly to, int rowCap,
+            CancellationToken ct)
+    {
+        var fromUtc = IstClock.ToUtc(from.ToDateTime(TimeOnly.MinValue));
+        var toUtc = IstClock.ToUtc(to.AddDays(1).ToDateTime(TimeOnly.MinValue));
+        var query = db.Tickets.AsNoTracking()
+            .Where(t => t.CreatedDate >= fromUtc && t.CreatedDate < toUtc);
+        if (filters.CustomerId is not null)
+        {
+            query = query.Where(t => t.CustomerId == filters.CustomerId);
+        }
+
+        var totalRows = await query.CountAsync(ct);
+        var data = await query
+            .OrderBy(t => t.TicketId)
+            .Take(rowCap)
+            .Select(t => new
+            {
+                t.TicketNumber,
+                Customer = db.Users.Where(u => u.UserId == t.CustomerId)
+                    .Select(u => u.FullName).First(),
+                Category = t.TicketCategory.CategoryName,
+                IssueType = t.TicketIssueType.IssueTypeName,
+                t.Priority, t.Status, t.CreatedDate, t.FirstResponseUtc, t.ResolvedUtc,
+                Assignee = t.AssignedToUserId == null
+                    ? null
+                    : db.Users.Where(u => u.UserId == t.AssignedToUserId)
+                        .Select(u => u.FullName).First()
+            })
+            .ToListAsync(ct);
+
+        var columns = new List<ReportColumn>
+        {
+            new("number", "Ticket", "string"),
+            new("customer", "Customer", "string"),
+            new("category", "Category", "string"),
+            new("issue", "Issue type", "string"),
+            new("priority", "Priority", "string"),
+            new("status", "Status", "string"),
+            new("raised", "Raised (IST)", "datetime"),
+            new("responseHrs", "First response (h)", "number"),
+            new("assignee", "Assignee", "string")
+        };
+        var rows = data.Select(t => Row(
+            ("number", t.TicketNumber),
+            ("customer", t.Customer),
+            ("category", t.Category),
+            ("issue", t.IssueType),
+            ("priority", t.Priority.ToString()),
+            ("status", t.Status.ToString()),
+            ("raised", t.CreatedDate),
+            ("responseHrs", t.FirstResponseUtc is null
+                ? null
+                : (object)Math.Round((decimal)(t.FirstResponseUtc.Value - t.CreatedDate).TotalHours, 1)),
+            ("assignee", t.Assignee)))
+            .ToList();
+        var responded = data.Where(t => t.FirstResponseUtc is not null).ToList();
+        var summary = new List<ReportSummaryItem>
+        {
+            new("Tickets", totalRows.ToString()),
+            new("Open now", data.Count(t => t.Status is not (TicketStatus.Resolved or TicketStatus.Closed))
+                .ToString()),
+            new("Resolved/closed", data.Count(t => t.Status is TicketStatus.Resolved or TicketStatus.Closed)
+                .ToString()),
+            new("Avg first response", responded.Count == 0
+                ? "—"
+                : $"{responded.Average(t => (t.FirstResponseUtc!.Value - t.CreatedDate).TotalHours):0.#} h")
+        };
+        return (columns, rows, summary, totalRows);
+    }
+
+    // ── 15 · Check-in / check-out ───────────────────────────────────────────
+
+    private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
+        BuildAttendanceAsync(ReportFilterRequest filters, DateOnly from, DateOnly to, int rowCap,
+            CancellationToken ct)
+    {
+        var query = db.Attendances.AsNoTracking()
+            .Where(a => a.AttendanceDate >= from && a.AttendanceDate <= to);
+        if (filters.CustomerId is not null)
+        {
+            query = query.Where(a => a.UserId == filters.CustomerId);
+        }
+        if (filters.LocationId is not null)
+        {
+            query = query.Where(a => a.LocationId == filters.LocationId);
+        }
+
+        var totalRows = await query.CountAsync(ct);
+        var data = await query
+            .OrderBy(a => a.AttendanceId)
+            .Take(rowCap)
+            .Select(a => new
+            {
+                Person = db.Users.Where(u => u.UserId == a.UserId).Select(u => u.FullName).First(),
+                a.SubjectType, a.AttendanceDate, a.CheckInUtc, a.CheckOutUtc,
+                a.TotalMinutes, a.CheckInMethod, a.IsCorrected
+            })
+            .ToListAsync(ct);
+
+        var columns = new List<ReportColumn>
+        {
+            new("person", "Person", "string"),
+            new("kind", "Kind", "string"),
+            new("date", "Date", "date"),
+            new("in", "In (IST)", "datetime"),
+            new("out", "Out (IST)", "datetime"),
+            new("hours", "Hours", "number"),
+            new("method", "Method", "string"),
+            new("corrected", "Corrected", "string")
+        };
+        var rows = data.Select(a => Row(
+            ("person", a.Person),
+            ("kind", a.SubjectType.ToString()),
+            ("date", a.AttendanceDate),
+            ("in", a.CheckInUtc),
+            ("out", a.CheckOutUtc),
+            ("hours", a.TotalMinutes is null ? null : (object)Math.Round(a.TotalMinutes.Value / 60m, 1)),
+            ("method", a.CheckInMethod.ToString()),
+            ("corrected", a.IsCorrected ? "Yes" : "")))
+            .ToList();
+        var summary = new List<ReportSummaryItem>
+        {
+            new("Sessions", totalRows.ToString()),
+            new("Total hours", Math.Round(data.Sum(a => a.TotalMinutes ?? 0) / 60m, 1).ToString("0.#")),
+            new("Still open", data.Count(a => a.CheckOutUtc is null).ToString()),
+            new("Corrected", data.Count(a => a.IsCorrected).ToString())
+        };
+        return (columns, rows, summary, totalRows);
+    }
+
+    // ── 16 · QR access ──────────────────────────────────────────────────────
+
+    private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
+        BuildAccessAsync(ReportFilterRequest filters, DateOnly from, DateOnly to, int rowCap,
+            CancellationToken ct)
+    {
+        var fromUtc = IstClock.ToUtc(from.ToDateTime(TimeOnly.MinValue));
+        var toUtc = IstClock.ToUtc(to.AddDays(1).ToDateTime(TimeOnly.MinValue));
+        var query = db.AccessLogs.AsNoTracking()
+            .Where(l => l.LoggedUtc >= fromUtc && l.LoggedUtc < toUtc);
+        if (filters.CustomerId is not null)
+        {
+            query = query.Where(l => l.UserId == filters.CustomerId);
+        }
+        if (filters.LocationId is not null)
+        {
+            query = query.Where(l => l.LocationId == filters.LocationId);
+        }
+
+        var totalRows = await query.CountAsync(ct);
+        var data = await query
+            .OrderBy(l => l.AccessLogId)
+            .Take(rowCap)
+            .Select(l => new
+            {
+                l.LoggedUtc,
+                Person = l.UserId == null
+                    ? null
+                    : db.Users.Where(u => u.UserId == l.UserId).Select(u => u.FullName).First(),
+                l.Direction, l.AccessMethod, l.Result, l.DenyReason, l.DeviceId, l.IsManualOverride
+            })
+            .ToListAsync(ct);
+
+        var columns = new List<ReportColumn>
+        {
+            new("when", "When (IST)", "datetime"),
+            new("person", "Person", "string"),
+            new("direction", "Direction", "string"),
+            new("method", "Method", "string"),
+            new("result", "Result", "string"),
+            new("reason", "Deny reason", "string"),
+            new("device", "Device", "string"),
+            new("override", "Override", "string")
+        };
+        var rows = data.Select(l => Row(
+            ("when", l.LoggedUtc),
+            ("person", l.Person),
+            ("direction", l.Direction.ToString()),
+            ("method", l.AccessMethod.ToString()),
+            ("result", l.Result.ToString()),
+            ("reason", l.DenyReason),
+            ("device", l.DeviceId),
+            ("override", l.IsManualOverride ? "Yes" : "")))
+            .ToList();
+        var summary = new List<ReportSummaryItem>
+        {
+            new("Attempts", totalRows.ToString()),
+            new("Granted", data.Count(l => l.Result == AccessResult.Granted).ToString()),
+            new("Denied", data.Count(l => l.Result == AccessResult.Denied).ToString()),
+            new("Device errors", data.Count(l => l.Result == AccessResult.DeviceError).ToString()),
+            new("Overrides", data.Count(l => l.IsManualOverride).ToString())
         };
         return (columns, rows, summary, totalRows);
     }

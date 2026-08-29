@@ -1,16 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  Bell,
-  CalendarPlus,
-  Coffee,
-  LifeBuoy,
-  QrCode,
-  Ticket,
-  Wallet,
-  icons,
-  type LucideIcon,
-} from 'lucide-react';
+import { Bell, CalendarPlus, Coffee, LifeBuoy, QrCode, Ticket, Wallet } from 'lucide-react';
+import { resolveMenuIcon } from '@/utils/menuIcons';
 import { bannersApi, servicesApi } from '@/api/masters';
 import { dashboardApi, type CustomerDashboard } from '@/api/reports';
 import { Badge, Button, Card } from '@/components/ui';
@@ -132,7 +123,7 @@ export function CustomerHomePage() {
 
       <div className="dash-grid">
         {tiles.map((tile) => {
-          const Icon = resolveIcon(tile.icon);
+          const Icon = resolveMenuIcon(tile.icon);
           return (
             <Link key={tile.menuId} to={tile.route!} className="dash-tile">
               <span className="dash-tile__icon"><Icon size={26} /></span>
@@ -195,11 +186,4 @@ function BannerCarousel({ banners }: { banners: Banner[] }) {
       )}
     </div>
   );
-}
-
-function resolveIcon(name: string | null): LucideIcon {
-  if (name && name in icons) {
-    return icons[name as keyof typeof icons];
-  }
-  return icons.LayoutGrid;
 }

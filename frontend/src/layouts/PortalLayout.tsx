@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, icons, LogOut, MenuIcon, type LucideIcon } from 'lucide-react';
+import { Bell, LogOut, MenuIcon } from 'lucide-react';
+import { resolveMenuIcon } from '@/utils/menuIcons';
 import { authApi } from '@/api/auth';
 import { notificationApi } from '@/api/finance';
 import { Button } from '@/components/ui';
@@ -113,7 +114,7 @@ export function PortalLayout({ title }: { title: string }) {
 }
 
 function SidebarLink({ item, onNavigate }: { item: MenuItem; onNavigate: () => void }) {
-  const Icon = resolveIcon(item.icon);
+  const Icon = resolveMenuIcon(item.icon);
   if (!item.route) {
     // Pure grouping node: render its children flat for now.
     return (
@@ -130,12 +131,4 @@ function SidebarLink({ item, onNavigate }: { item: MenuItem; onNavigate: () => v
       <span>{item.displayName}</span>
     </NavLink>
   );
-}
-
-/** Resolves a lucide icon by the name stored in MST_Menu.Icon. */
-function resolveIcon(name: string | null): LucideIcon {
-  if (name && name in icons) {
-    return icons[name as keyof typeof icons];
-  }
-  return icons.Circle;
 }

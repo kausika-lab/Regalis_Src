@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { icons, type LucideIcon } from 'lucide-react';
 import { dashboardApi, type AdminDashboard } from '@/api/reports';
 import { Card, EmptyState } from '@/components/ui';
 import { useAuthStore } from '@/store/authStore';
+import { resolveMenuIcon } from '@/utils/menuIcons';
 
 /** Admin dashboard: live aggregate cards + module tiles from the menu tree. */
 export function AdminDashboardPage() {
@@ -63,7 +63,7 @@ export function AdminDashboardPage() {
       ) : (
         <div className="dash-grid">
           {tiles.map((tile) => {
-            const Icon = resolveIcon(tile.icon);
+            const Icon = resolveMenuIcon(tile.icon);
             return (
               <Link key={tile.menuId} to={tile.route!} className="dash-tile">
                 <span className="dash-tile__icon">
@@ -77,11 +77,4 @@ export function AdminDashboardPage() {
       )}
     </>
   );
-}
-
-function resolveIcon(name: string | null): LucideIcon {
-  if (name && name in icons) {
-    return icons[name as keyof typeof icons];
-  }
-  return icons.LayoutGrid;
 }

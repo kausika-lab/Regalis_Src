@@ -655,3 +655,81 @@
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--space-3);
 }
+
+/* ── Admin calendar timeline ────────────────────────────────────────────── */
+.cal {
+  min-width: 900px;
+}
+
+.cal__row {
+  display: flex;
+  border-bottom: 1px solid var(--border-subtle);
+  min-height: 56px;
+}
+
+.cal__row--head {
+  min-height: 34px;
+  border-bottom: 2px solid var(--border-subtle);
+}
+
+.cal__label {
+  width: 160px;
+  flex: none;
+  padding: var(--space-2) var(--space-3);
+  border-right: 1px solid var(--border-subtle);
+}
+
+.cal__timeline {
+  position: relative;
+  flex: 1;
+}
+
+.cal__hour {
+  position: absolute;
+  top: 6px;
+  transform: translateX(-50%);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.cal__grid-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--neutral-100);
+}
+
+.cal__item {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  padding: 0 var(--space-2);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  text-align: left;
+}
+
+.cal__item--booking {
+  background: rgb(201 162 39 / 22%);
+  color: var(--regalis-gold-dark);
+  border-left: 3px solid var(--regalis-gold);
+}
+
+.cal__item--pending {
+  background: rgb(217 119 6 / 15%);
+  color: var(--color-warning);
+  border-left-color: var(--color-warning);
+}
+
+.cal__item--block {
+  background: var(--neutral-200);
+  color: var(--neutral-700);
+  border-left: 3px solid var(--neutral-500);
+}

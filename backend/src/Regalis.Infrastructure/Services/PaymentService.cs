@@ -24,6 +24,61 @@ public class PaymentService(
     IConfiguration configuration,
     ILogger<PaymentService> logger) : IPaymentService
 {
+    public async Task<Shared.Api.PagedResult<PaymentDto>> GetPaymentsAsync(PaymentListRequest request,
+        CancellationToken ct = default)
+    {
+        var query = db.Payments.AsNoTracking();
+        if (request.Status is not null)
+        {
+            query = query.Where(p => (byte)p.Status == request.Status);
+        }
+        if (request.PaymentMethod is not null)
+        {
+            query = query.Where(p => (byte)p.PaymentMethod == request.PaymentMethod);
+        }
+        if (request.CustomerId is not null)
+        {
+            query = query.Where(p => p.CustomerId == request.CustomerId);
+        }
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var term = request.Search.Trim();
+            query = query.Where(p => p.PaymentNumber.Contains(term) ||
+                                     (p.GatewayOrderId != null && p.GatewayOrderId.Contains(term)));
+        }
+        var totalCount = await query.CountAsync(ct);
+        var items = await query
+            .OrderByDescending(p => p.PaymentId)
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .Join(db.Users, p => p.CustomerId, u => u.UserId, (p, u) => new { p, u.FullName })
+            .Select(x => new PaymentDto(
+                x.p.PaymentId, x.p.PaymentNumber, x.p.CustomerId, x.FullName, x.p.BookingId,
+                x.p.InvoiceId, x.p.CustomerPassId, x.p.Amount, (byte)x.p.PaymentMethod, x.p.Gateway,
+                x.p.GatewayOrderId, x.p.IsSignatureVerified, (byte)x.p.Status, x.p.PaidUtc,
+                x.p.FailureReason, x.p.CreatedDate))
+            .ToListAsync(ct);
+        return Shared.Api.PagedResult<PaymentDto>.Create(items, request.Page, request.PageSize, totalCount);
+    }
+
+    public async Task<PaymentDto> GetPaymentAsync(long paymentId, CancellationToken ct = default)
+    {
+        var payment = await db.Payments.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.PaymentId == paymentId, ct)
+            ?? throw new NotFoundException("Payment", paymentId);
+        if (currentUser.UserType == UserType.Customer && payment.CustomerId != currentUser.UserId)
+        {
+            throw new NotFoundException("Payment", paymentId);
+        }
+        var customerName = await db.Users.Where(u => u.UserId == payment.CustomerId)
+            .Select(u => u.FullName).FirstAsync(ct);
+        return new PaymentDto(payment.PaymentId, payment.PaymentNumber, payment.CustomerId,
+            customerName, payment.BookingId, payment.InvoiceId, payment.CustomerPassId,
+            payment.Amount, (byte)payment.PaymentMethod, payment.Gateway, payment.GatewayOrderId,
+            payment.IsSignatureVerified, (byte)payment.Status, payment.PaidUtc,
+            payment.FailureReason, payment.CreatedDate);
+    }
+
     public async Task<PaymentOrderResponse> CreateOrderAsync(CreatePaymentOrderRequest request,
         CancellationToken ct = default)
     {

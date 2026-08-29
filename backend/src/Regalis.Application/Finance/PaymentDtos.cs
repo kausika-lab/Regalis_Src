@@ -36,8 +36,38 @@ public class SandboxCompleteRequestValidator : AbstractValidator<SandboxComplete
     }
 }
 
+public record PaymentDto(
+    long PaymentId,
+    string PaymentNumber,
+    long CustomerId,
+    string CustomerName,
+    long? BookingId,
+    long? InvoiceId,
+    long? CustomerPassId,
+    decimal Amount,
+    byte PaymentMethod,
+    string? Gateway,
+    string? GatewayOrderId,
+    bool IsSignatureVerified,
+    byte Status,
+    DateTime? PaidUtc,
+    string? FailureReason,
+    DateTime CreatedDate);
+
+public class PaymentListRequest : Shared.Api.PagedRequest
+{
+    public byte? Status { get; set; }
+    public byte? PaymentMethod { get; set; }
+    public long? CustomerId { get; set; }
+}
+
 public interface IPaymentService
 {
+    Task<Shared.Api.PagedResult<PaymentDto>> GetPaymentsAsync(PaymentListRequest request,
+        CancellationToken ct = default);
+
+    Task<PaymentDto> GetPaymentAsync(long paymentId, CancellationToken ct = default);
+
     /// <summary>Creates the gateway order for a Pending booking and a Pending
     /// TRN_Payment row carrying the order id.</summary>
     Task<PaymentOrderResponse> CreateOrderAsync(CreatePaymentOrderRequest request,

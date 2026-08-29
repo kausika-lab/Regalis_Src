@@ -44,7 +44,11 @@ if (string.IsNullOrWhiteSpace(signingKey))
 
 // ── MVC + validation ────────────────────────────────────────────────────────
 builder.Services.AddScoped<ValidationActionFilter>();
-builder.Services.AddControllers(options => options.Filters.AddService<ValidationActionFilter>());
+builder.Services.AddControllers(options => options.Filters.AddService<ValidationActionFilter>())
+    .AddJsonOptions(options =>
+        // Timestamps are stored UTC but come back from SQL as Unspecified; stamp
+        // the Z so every client parses them as UTC (A13).
+        options.JsonSerializerOptions.Converters.Add(new Regalis.API.UtcDateTimeConverter()));
 
 // Model-binding failures produce the same envelope as FluentValidation failures.
 builder.Services.Configure<ApiBehaviorOptions>(options =>

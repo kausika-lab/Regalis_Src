@@ -622,41 +622,9 @@ public class BookingService(
     /// inside the caller's serializable transaction — the range lock blocks a
     /// concurrent insert of a conflicting row until we commit. On confirmation the
     /// booking's own Pending row is excluded.</summary>
-    private async Task<int> CountConflictsWithRangeLocksAsync(int workspaceId,
-        DateTime startUtc, DateTime endUtc, long? excludeBookingId, CancellationToken ct)
-    {
-        var connection = db.Database.GetDbConnection();
-        if (connection.State != ConnectionState.Open)
-        {
-            await connection.OpenAsync(ct);
-        }
-        await using var command = connection.CreateCommand();
-        command.Transaction = db.Database.CurrentTransaction!.GetDbTransaction();
-        command.CommandText = """
-            SELECT
-              (SELECT COUNT(*) FROM dbo.TRN_Booking WITH (UPDLOCK, HOLDLOCK)
-                WHERE WorkspaceId = @workspaceId AND IsDeleted = 0
-                  AND Status IN (1,2,3)
-                  AND BookingId <> @excludeBookingId
-                  AND StartUtc < @endUtc AND @startUtc < EndUtc)
-            + (SELECT COUNT(*) FROM dbo.TRN_WorkspaceBlock WITH (UPDLOCK, HOLDLOCK)
-                WHERE WorkspaceId = @workspaceId AND IsDeleted = 0 AND IsActive = 1
-                  AND StartUtc < @endUtc AND @startUtc < EndUtc);
-            """;
-        AddParameter(command, "@workspaceId", workspaceId);
-        AddParameter(command, "@startUtc", startUtc);
-        AddParameter(command, "@endUtc", endUtc);
-        AddParameter(command, "@excludeBookingId", excludeBookingId ?? -1L);
-        return Convert.ToInt32(await command.ExecuteScalarAsync(ct));
-    }
-
-    private static void AddParameter(System.Data.Common.DbCommand command, string name, object value)
-    {
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = name;
-        parameter.Value = value;
-        command.Parameters.Add(parameter);
-    }
+    private Task<int> CountConflictsWithRangeLocksAsync(int workspaceId,
+        DateTime startUtc, DateTime endUtc, long? excludeBookingId, CancellationToken ct) =>
+        BookingEngineLocks.CountConflictsAsync(db, workspaceId, startUtc, endUtc, excludeBookingId, ct);
 
     // ── Business rules (all configurable — Invariant 6) ─────────────────────
 

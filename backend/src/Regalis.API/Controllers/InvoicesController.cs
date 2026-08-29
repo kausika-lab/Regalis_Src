@@ -11,6 +11,20 @@ namespace Regalis.API.Controllers;
 [Route("api/invoices")]
 public class InvoicesController(IInvoiceService invoiceService) : ApiControllerBase
 {
+    /// <summary>Admin list with the common filter set; customers use /invoices/my.</summary>
+    [HttpGet]
+    [HasPermission(PermissionCodes.Invoice.View)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<InvoiceDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAll([FromQuery] AdminInvoiceListRequest request, CancellationToken ct)
+    {
+        if (User.FindFirst("user_type")?.Value == "1")
+        {
+            return OkEnvelope(await invoiceService.GetMyInvoicesAsync(
+                new InvoiceListRequest { Page = request.Page, PageSize = request.PageSize }, ct));
+        }
+        return OkEnvelope(await invoiceService.GetInvoicesAsync(request, ct));
+    }
+
     [HttpGet("{id:long}")]
     [HasPermission(PermissionCodes.Invoice.View)]
     [ProducesResponseType(typeof(ApiResponse<InvoiceDto>), StatusCodes.Status200OK)]

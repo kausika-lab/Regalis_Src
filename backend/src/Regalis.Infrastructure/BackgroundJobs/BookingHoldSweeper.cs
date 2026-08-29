@@ -84,5 +84,20 @@ public class BookingHoldSweeper(IServiceScopeFactory scopeFactory, ILogger<Booki
         }
         await db.SaveChangesAsync(ct);
         logger.LogInformation("Expired {Count} stale booking hold(s)", staleHolds.Count);
+
+        // Passes past their last valid day → Expired (usp_ExpirePasses equivalent).
+        var todayIst = Shared.IstClock.IstDateOf(nowUtc);
+        var stalePasses = await db.CustomerPasses
+            .Where(p => p.Status == Domain.Enums.CustomerPassStatus.Active && p.ValidTo < todayIst)
+            .ToListAsync(ct);
+        if (stalePasses.Count > 0)
+        {
+            foreach (var pass in stalePasses)
+            {
+                pass.Status = Domain.Enums.CustomerPassStatus.Expired;
+            }
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Expired {Count} pass(es)", stalePasses.Count);
+        }
     }
 }

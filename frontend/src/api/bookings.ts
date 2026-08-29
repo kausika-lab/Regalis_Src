@@ -52,6 +52,49 @@ export const bookingsApi = {
   }) => unwrap<ConfirmResult>(api.post('/bookings/admin', payload)),
 };
 
+export interface CalendarItem {
+  kind: 'booking' | 'block';
+  referenceId: number;
+  startUtc: string;
+  endUtc: string;
+  title: string;
+  bookingStatus: number | null;
+  blockReason: number | null;
+  isOwn: boolean;
+}
+
+export interface CalendarWorkspaceRow {
+  workspaceId: number;
+  workspaceCode: string;
+  workspaceName: string;
+  workspaceTypeName: string;
+  items: CalendarItem[];
+}
+
+export interface CalendarGrid {
+  view: string;
+  rangeStartUtc: string;
+  rangeEndUtc: string;
+  workspaces: CalendarWorkspaceRow[];
+}
+
+export const calendarApi = {
+  get: (view: 'day' | 'week' | 'month', date: string, filters: {
+    locationId?: number;
+    workspaceTypeId?: number;
+    workspaceId?: number;
+  } = {}) =>
+    unwrap<CalendarGrid>(api.get('/calendar', { params: { view, date, ...filters } })),
+  block: (payload: {
+    workspaceId: number;
+    startUtc: string;
+    endUtc: string;
+    blockReason: number;
+    reasonNotes?: string | null;
+  }) => unwrap<{ workspaceBlockId: number }>(api.post('/calendar/block', payload)),
+  unblock: (blockId: number) => api.post(`/calendar/unblock/${blockId}`),
+};
+
 export const paymentsApi = {
   createOrder: (bookingId: number) =>
     unwrap<PaymentOrder>(api.post('/payments/order', { bookingId })),

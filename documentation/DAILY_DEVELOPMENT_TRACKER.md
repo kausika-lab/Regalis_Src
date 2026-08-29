@@ -81,6 +81,21 @@ Code Review Status · Remarks`
 | 03-Sep | Junior 2 | M13 | — | Wallet balance + self-checking ledger (BalanceAfter, WTX numbers), credit/debit primitives, GET /wallet/me (+transactions) | Backend API | Completed | High | 3 | 3 | 100 | — | — | Passed | Approved | Recharge UI Day 6 |
 | 03-Sep | QA | M06–M08 | — | 17 new integration tests: quote maths, 409 overlap, half-open adjacency, rule violations (5 variants), block conflict, availability reflects holds, row scoping, masters CRUD/RBAC/duplicates, wallet zero-state, concurrency test | Integration Test | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | Suite total: 45 tests green |
 
+## Day 5 — Friday 4 September 2026 · Gate M3
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 04-Sep | Senior | M08 | — | Atomic confirm transaction: range-locked re-verify (excl. own hold), wallet/gateway/cash settlement, GST invoice with snapshots, signed QR token, notification, history — all or nothing (Invariant 4) | Backend API | Completed | Critical | 5 | 5 | 100 | — | Engine | Passed | Approved | Tampered signature leaves zero side effects (tested) |
+| 04-Sep | Senior | M09 | — | Calendar API day/week/month for both portals (admin detail vs anonymized customer view); block/unblock with confirmed-booking guard | Backend API | Completed | Critical | 3 | 3 | 100 | — | Engine | Passed | Approved | Calendar UI grids land Day 6 |
+| 04-Sep | Senior | M11 | — | Admin booking (hold + immediate cash/wallet settlement); booking lists (my-tabs + admin filters) | Backend API | Completed | High | 2 | 2 | 100 | — | Confirm | Passed | Approved | |
+| 04-Sep | Junior 1 | M10 | /book | Customer booking wizard: type → date → slots (IST) → duration → workspace cards → GST summary → wallet/online pay → confirmation with invoice download; 409 race handling refreshes availability | Frontend | Completed | Critical | 6 | 6 | 100 | — | APIs | Passed | Approved | |
+| 04-Sep | Junior 1 | M11 | /admin/bookings | Admin booking list (filters/search), detail modal, front-desk booking modal (customer search, live slots, cash/wallet) | Frontend | Completed | High | 4 | 4 | 100 | — | APIs | Passed | Approved | |
+| 04-Sep | Junior 1 | M02 | /login /register /verify-otp /forgot-password /reset-password | Auth screens rebuilt to the client's "Regalis Login" design canvas: parchment ground, Cormorant Garamond/Lora, crown + wordmark, iconed cream inputs, gold-gradient actions, medallions, ornaments | Frontend | Completed | High | 4 | 4 | 100 | — | Design zip | Passed | Approved | Portal reskin to the same design language (WorkSpace Admin UI artboard) is queued |
+| 04-Sep | Junior 2 | M12/M14 | — | Payment orders + sandbox checkout simulation + signature-verified idempotent webhook; invoice reads + QuestPDF GST invoice on demand | Backend API | Completed | Critical | 4 | 4 | 100 | — | Gateway seam | Passed | Approved | |
+| 04-Sep | QA | M08–M14 | — | 12 confirm-path + 4 calendar integration tests; manual end-to-end on dev: register → OTP → book → sandbox pay → confirm → PDF → admin calendar | Integration Test | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | Suite: 57 automated tests green |
+
+**Gate M3 passed:** booking engine demo end-to-end, one calendar serving both portals, overlap prevention proven (Day 4 concurrency test).
+
 ## Day 3 onward — template
 
 Copy the block below for each day. **Every row must be filled — an empty Actual Hours or
@@ -157,7 +172,7 @@ ESTIMATED COMPLETION:
 | 2 | 12 | 12 | 0 | Foundation merged to develop; dev DB created from migration |
 | 3 | 22 | 22 | 0 | Release 1 tagged; auth + RBAC live with automated test proof |
 | 4 | 30 | 30 | 0 | Booking engine live with concurrency proof (M3 evidence early) |
-| 5 | 40 | | | Booking engine gate |
+| 5 | 40 | 40 | 0 | Booking engine gate M3 passed; auth screens on the client design |
 | 6 | 50 | | | |
 | 7 | 60 | | | Release 2 |
 | 8 | 70 | | | |

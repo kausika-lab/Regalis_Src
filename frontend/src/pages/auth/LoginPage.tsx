@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Lock, Mail } from 'lucide-react';
 import { z } from 'zod';
 import { authApi } from '@/api/auth';
 import { ApiClientError } from '@/api/client';
-import { Button, Input } from '@/components/ui';
+import { AuthField } from '@/components/auth/AuthField';
 import { useToast } from '@/components/ui/Toast';
+import { AuthBrand } from '@/layouts/AuthLayout';
 import type { Portal } from '@/models/auth';
 import { useAuthStore } from '@/store/authStore';
 
@@ -37,66 +39,74 @@ export function LoginPage() {
       const from = (location.state as { from?: string } | null)?.from;
       navigate(from ?? (portal === 'admin' ? '/admin' : '/'), { replace: true });
     } catch (error) {
-      if (error instanceof ApiClientError) {
-        toast.error(error.message);
-      } else {
-        toast.error('Sign in failed. Please try again.');
-      }
+      toast.error(error instanceof ApiClientError ? error.message : 'Sign in failed. Please try again.');
     }
   });
 
   return (
-    <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-      <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-        <Button
-          block
-          variant={portal === 'customer' ? 'primary' : 'outline'}
+    <div className="auth__panel">
+      <AuthBrand />
+      <h1 className="auth__title">Welcome Back</h1>
+      <p className="auth__subtitle">Please enter your details to sign in</p>
+
+      <div className="auth__seg" role="tablist" aria-label="Portal">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={portal === 'customer'}
+          className={`auth__seg-opt${portal === 'customer' ? ' auth__seg-opt--active' : ''}`}
           onClick={() => setPortal('customer')}
         >
           Customer
-        </Button>
-        <Button
-          block
-          variant={portal === 'admin' ? 'primary' : 'outline'}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={portal === 'admin'}
+          className={`auth__seg-opt${portal === 'admin' ? ' auth__seg-opt--active' : ''}`}
           onClick={() => setPortal('admin')}
         >
           Admin
-        </Button>
+        </button>
       </div>
 
-      <Input
-        label="Email"
-        type="email"
-        autoComplete="email"
-        placeholder="you@example.com"
-        required
-        error={errors.email?.message}
-        {...register('email')}
-      />
-      <Input
-        label="Password"
-        type="password"
-        autoComplete="current-password"
-        placeholder="Your password"
-        required
-        error={errors.password?.message}
-        {...register('password')}
-      />
+      <form onSubmit={onSubmit} noValidate>
+        <AuthField
+          label="Email Address"
+          icon={<Mail size={19} strokeWidth={1.8} />}
+          type="email"
+          placeholder="name@company.com"
+          autoComplete="email"
+          error={errors.email?.message}
+          registration={register('email')}
+        />
+        <AuthField
+          label="Password"
+          icon={<Lock size={19} strokeWidth={1.8} />}
+          type="password"
+          placeholder="Enter your password"
+          autoComplete="current-password"
+          error={errors.password?.message}
+          registration={register('password')}
+        />
+        <div className="auth__row-right">
+          <Link to="/forgot-password">Forgot Password?</Link>
+        </div>
+        <button type="submit" className="auth__btn" disabled={isSubmitting}>
+          {isSubmitting ? 'Signing in…' : 'Sign In'}
+        </button>
+      </form>
 
-      <Button type="submit" block size="lg" loading={isSubmitting}>
-        Sign in
-      </Button>
-
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: 'var(--font-size-sm)',
-        }}
-      >
-        <Link to="/forgot-password">Forgot password?</Link>
-        {portal === 'customer' && <Link to="/register">Create an account</Link>}
-      </div>
-    </form>
+      {portal === 'customer' && (
+        <>
+          <div className="auth__divider">
+            <span>OR</span>
+          </div>
+          <p className="auth__footer">
+            Don&apos;t have an account? <Link to="/register">Create Account</Link>
+          </p>
+        </>
+      )}
+    </div>
   );
 }

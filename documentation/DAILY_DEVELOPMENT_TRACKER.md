@@ -173,6 +173,16 @@ remaining days are hardening (Day 11) and Release 3 / code freeze (Day 12).
 | 14-Sep | QA | all | — | Role/permission matrix executed in full: Manager/Finance/Support/Housekeeping users provisioned live and probed against 15 endpoints from matrix §4 + ACCESS.OVERRIDE as a distinct privilege; customer negative sweep across all administration surfaces; security-header and health-probe tests | Security Test | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | Suite: 101 automated tests green (87 integration + 14 unit) |
 | 14-Sep | QA | all | — | Responsive: breakpoints verified in code (sidebar → bottom nav < 768 px); the seven-width visual pass and Chrome/Edge/Firefox matrix are manual and scheduled with the Day 12 UAT deployment | Manual QA | In progress | High | 2 | 1 | 50 | Needs deployed UAT | Day 12 deploy | Pending | — | Honest carry-over, not a defect |
 
+## Day 12 — Tuesday 15 September 2026 · RELEASE 3 (Gate M7) — prepared locally
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 15-Sep | Senior | — | — | Release build: v1.0.0-rc.1 stamped (assemblies + frontend), `dotnet publish -c Release` produced and smoke-tested live (health/ready 200, unauth 401, admin login, dashboard, reports + Excel export 200, security headers verified); production frontend bundle green | Release | Completed | Critical | 3 | 3 | 100 | — | — | Passed | Approved | |
+| 15-Sep | Senior | — | — | Deployment kit: appsettings.UAT.json placeholder template (no secrets, app never migrates in UAT), deploy/sql/release-3-idempotent.sql DBA hand-off, deploy/DEPLOYMENT.md runbook (env vars, same-origin proxy shape + split-host override, smoke checklist, rollback, freeze rules), RELEASE_NOTES.md for Releases 1–3 with honest known-items | Release | Completed | Critical | 4 | 4 | 100 | — | — | Passed | Approved | |
+| 15-Sep | QA | all | — | Full regression on the release configuration: entire suite re-run under `-c Release` — 87 integration + 14 unit green | Integration Test | Completed | Critical | 3 | 3 | 100 | — | — | Passed | Approved | Same evidence backs the UAT deploy |
+| 15-Sep | Senior | — | — | Tag `release-3` cut on main; **code freeze in effect — only defect fixes merge until go-live** | Release | Completed | Critical | 1 | 1 | 100 | — | — | — | Approved | Gate M7 |
+| 15-Sep | Team | — | — | Deploy to UAT + on-deployment smoke (runbook §6) + responsive/browser matrix + release approval sign-off | Manual | Pending | Critical | 4 | — | 0 | Needs the UAT host | UAT environment | Pending | Pending | Everything preparable locally is done; this row needs the environment and the human sign-off |
+
 ## Day 3 onward — template
 
 Copy the block below for each day. **Every row must be filled — an empty Actual Hours or
@@ -256,7 +266,7 @@ ESTIMATED COMPLETION:
 | 9 | 78 | 78 | 0 | Tickets + reports 1–8 live; e2e journey proven by automated test |
 | 10 | 86 | 86 | 0 | Feature complete on target; regression pass 1 green |
 | 11 | 92 | 92 | 0 | Hardening: matrix proven by test, bundle −60%, 2 authz findings fixed |
-| 12 | 100 | | | Release 3, code freeze |
+| 12 | 100 | 98 | −2 | Release 3 tagged, freeze on; UAT deploy + sign-off await the environment |
 | 13 | buffer | | | Defect fixing |
 | 14 | buffer | | | UAT |
 | 15 | buffer | | | Go-live |

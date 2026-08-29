@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Regalis.Application.Abstractions;
+using Regalis.Application.Access;
 using Regalis.Application.Administration;
 using Regalis.Application.Auth;
 using Regalis.Application.Bookings;
@@ -74,6 +75,14 @@ public static class DependencyInjection
 
         // Operations
         services.AddScoped<INotificationService, NotificationService>();
+
+        // Access & attendance — the device and payroll seams are adapters
+        // selected by configuration (Invariant 5, A01/A03).
+        services.AddScoped<AttendanceRecorder>();
+        services.AddScoped<IAccessService, AccessService>();
+        services.AddScoped<IAttendanceService, AttendanceService>();
+        services.AddScoped<IAccessControlAdapter, MockAccessControlAdapter>();
+        services.AddScoped<IPayrollExporter, CsvPayrollExporter>();
 
         // Payment gateway — chosen by Payments:Provider (Invariant 5). Sandbox is
         // registered alongside so the demo checkout can sign in dev/test.

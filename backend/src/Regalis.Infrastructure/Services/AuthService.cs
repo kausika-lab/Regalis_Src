@@ -147,13 +147,20 @@ public class AuthService(
         User user;
         if (existing is not null)
         {
-            // A half-finished registration may retry with corrected details;
-            // a verified account may not be re-registered.
+            // A half-finished registration may retry with corrected details.
+            // A verified account may not be re-registered — but the response must be
+            // indistinguishable from a fresh registration, or this endpoint becomes an
+            // account-enumeration oracle over the member base (SECURITY.md F-01).
+            // Nothing is created and no OTP exists, so verification cannot proceed;
+            // the real owner signs in or uses Forgot Password. When SMTP lands, also
+            // notify them out-of-band here.
             if (existing.Status != UserStatus.PendingVerification)
             {
-                throw new BusinessRuleException(
-                    "An account with this email or mobile number already exists.",
-                    ErrorCodes.DuplicateRecord);
+                logger.LogWarning(
+                    "Registration attempted against an existing account (user {UserId}); " +
+                    "generic response returned", existing.UserId);
+                var ttl = await settings.GetIntAsync(AppSettingKeys.Security.OtpTtlMinutes, 10, ct);
+                return new RegisterResponse(email, ttl);
             }
             user = existing;
             user.FullName = request.FullName.Trim();

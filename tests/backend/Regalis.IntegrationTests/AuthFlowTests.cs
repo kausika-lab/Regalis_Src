@@ -61,17 +61,27 @@ public class AuthFlowTests(RegalisApiFactory factory)
     }
 
     [Fact]
-    public async Task Register_DuplicateVerifiedEmail_Returns422DuplicateRecord()
+    public async Task Register_DuplicateVerifiedEmail_IsIndistinguishable_AndChangesNothing()
     {
         var client = factory.CreateClient();
-        var (email, _, _) = await client.RegisterCustomerAsync(factory);
+        var (email, password, _) = await client.RegisterCustomerAsync(factory);
 
+        // The response must look exactly like a fresh registration — this endpoint
+        // must not confirm which addresses hold accounts (SECURITY.md F-01).
         var response = await client.PostAsJsonAsync("/api/auth/register",
             new RegisterRequest("Imposter", email, "9123456780", "Other!Pass1", "Other!Pass1", null));
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = (await response.Content
+            .ReadFromJsonAsync<ApiResponse<RegisterResponse>>())!.Data!;
+        body.Destination.Should().Be(email);
+        body.OtpTtlMinutes.Should().BeGreaterThan(0);
 
-        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        var envelope = await response.Content.ReadFromJsonAsync<ApiResponse>();
-        envelope!.Errors.Should().ContainSingle(e => e.Code == ErrorCodes.DuplicateRecord);
+        // …but nothing was created or overwritten: the impostor's password does not
+        // work, the original one still does.
+        var imposterLogin = await client.PostAsJsonAsync("/api/auth/login",
+            new LoginRequest(email, "Other!Pass1", "customer"));
+        imposterLogin.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await client.LoginAsync(email, password, "customer")).AccessToken.Should().NotBeNullOrEmpty();
     }
 
     [Fact]

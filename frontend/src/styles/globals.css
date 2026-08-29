@@ -17,8 +17,12 @@ body {
   font-family: var(--font-sans);
   font-size: var(--font-size-md);
   color: var(--text-primary);
-  background: var(--surface-page);
+  background:
+    radial-gradient(1100px 500px at 85% -10%, rgb(var(--accent-rgb) / 7%), transparent),
+    var(--surface-page);
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
+  transition: background 250ms ease, color 250ms ease;
 }
 
 h1,
@@ -27,6 +31,47 @@ h3,
 h4,
 p {
   margin: 0;
+}
+
+h1,
+h2 {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+::selection {
+  background: rgb(var(--accent-rgb) / 30%);
+}
+
+/* Slim, theme-aware scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 a {

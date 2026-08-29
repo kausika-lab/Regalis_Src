@@ -1,9 +1,15 @@
 import type { PagedRequest, PagedResult } from '@/models/api';
 import type {
   Amenity,
+  AppSetting,
+  Banner,
   Location,
+  PublicSettings,
+  SaveBannerPayload,
   SaveLocationPayload,
+  SaveServiceItemPayload,
   SaveWorkspacePayload,
+  ServiceItem,
   Workspace,
   WorkspaceListQuery,
   WorkspaceType,
@@ -28,6 +34,41 @@ export const amenitiesApi = {
   list: () => unwrap<Amenity[]>(api.get('/amenities')),
   create: (payload: { amenityName: string; iconName?: string | null; displayOrder: number }) =>
     unwrap<Amenity>(api.post('/amenities', payload)),
+};
+
+export interface ServiceItemListQuery extends PagedRequest {
+  category?: string;
+  locationId?: number;
+  includeUnavailable?: boolean;
+}
+
+export const servicesApi = {
+  list: (query: ServiceItemListQuery = {}) =>
+    unwrap<PagedResult<ServiceItem>>(api.get('/services', { params: query })),
+  categories: () => unwrap<string[]>(api.get('/services/categories')),
+  create: (payload: SaveServiceItemPayload) =>
+    unwrap<ServiceItem>(api.post('/services', payload)),
+  update: (id: number, payload: SaveServiceItemPayload) =>
+    unwrap<ServiceItem>(api.put(`/services/${id}`, payload)),
+  remove: (id: number) => api.delete(`/services/${id}`),
+};
+
+export const bannersApi = {
+  list: (query: PagedRequest = {}) =>
+    unwrap<PagedResult<Banner>>(api.get('/banners', { params: query })),
+  active: (locationId?: number) =>
+    unwrap<Banner[]>(api.get('/banners/active', { params: { locationId } })),
+  create: (payload: SaveBannerPayload) => unwrap<Banner>(api.post('/banners', payload)),
+  update: (id: number, payload: SaveBannerPayload) =>
+    unwrap<Banner>(api.put(`/banners/${id}`, payload)),
+  remove: (id: number) => api.delete(`/banners/${id}`),
+};
+
+export const settingsApi = {
+  list: () => unwrap<AppSetting[]>(api.get('/settings')),
+  update: (settings: { settingKey: string; settingValue: string }[]) =>
+    unwrap<AppSetting[]>(api.put('/settings', { settings })),
+  public: () => unwrap<PublicSettings>(api.get('/settings/public')),
 };
 
 export const workspacesApi = {

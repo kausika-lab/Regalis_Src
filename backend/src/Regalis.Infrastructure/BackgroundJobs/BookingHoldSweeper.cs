@@ -99,5 +99,34 @@ public class BookingHoldSweeper(IServiceScopeFactory scopeFactory, ILogger<Booki
             await db.SaveChangesAsync(ct);
             logger.LogInformation("Expired {Count} pass(es)", stalePasses.Count);
         }
+
+        // Attendance left open past Attendance.AutoCheckoutHour (IST) → AutoClosed
+        // (usp_AutoCloseAttendance equivalent). Corrections stay auditable.
+        var autoCloseHour = await settings.GetIntAsync(
+            Shared.Constants.AppSettingKeys.Attendance.AutoCheckoutHour, 23, ct);
+        var openRows = await db.Attendances
+            .Where(a => a.Status == Domain.Enums.AttendanceStatus.CheckedIn)
+            .ToListAsync(ct);
+        var closed = 0;
+        foreach (var attendance in openRows)
+        {
+            var closeAtUtc = Shared.IstClock.ToUtc(
+                attendance.AttendanceDate.ToDateTime(new TimeOnly(Math.Min(autoCloseHour, 23), 0)));
+            if (nowUtc >= closeAtUtc)
+            {
+                attendance.CheckOutUtc = closeAtUtc;
+                attendance.TotalMinutes = (int)Math.Max(0,
+                    Math.Round((closeAtUtc - attendance.CheckInUtc).TotalMinutes));
+                attendance.Status = Domain.Enums.AttendanceStatus.AutoClosed;
+                attendance.IsException = true;
+                attendance.ExceptionNotes = $"Auto-closed at {autoCloseHour}:00 IST — no check-out recorded.";
+                closed++;
+            }
+        }
+        if (closed > 0)
+        {
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Auto-closed {Count} attendance record(s)", closed);
+        }
     }
 }

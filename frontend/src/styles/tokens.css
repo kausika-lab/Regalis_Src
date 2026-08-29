@@ -1,16 +1,33 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Regalis WorkSpace design tokens (ARCHITECTURE §10)
-   Black / Gold / White — dark surface for chrome, light surface for content.
+
+   Themeable since the Day-13 appearance pass:
+   - `data-theme`  on <html>: light (default, the client's ivory/gold design
+     language) or dark (black/gold chrome throughout). "System" is resolved to
+     one of the two by the theme store before render.
+   - `data-accent` on <html>: gold (brand default) | emerald | sapphire |
+     ruby | violet. Components reference --accent* (or the legacy
+     --regalis-gold* aliases, which follow the accent) — never raw hex.
    ──────────────────────────────────────────────────────────────────────────── */
 :root {
-  /* Brand */
+  /* Brand constants (the chrome stays Regalis black in both themes) */
   --regalis-black: #0b0b0d;
-  --regalis-gold: #c9a227;
-  --regalis-gold-light: #e3c767;
-  --regalis-gold-dark: #a2831c;
   --regalis-white: #ffffff;
 
-  /* Neutral ramp */
+  /* Accent — gold by default; see [data-accent] blocks below.
+     --accent-rgb powers alpha tints: rgb(var(--accent-rgb) / 15%). */
+  --accent: #c9a227;
+  --accent-bright: #e3c767;
+  --accent-strong: #a2831c;
+  --accent-rgb: 201 162 39;
+  --accent-contrast: #0b0b0d;
+
+  /* Legacy aliases — existing components keep working and follow the accent */
+  --regalis-gold: var(--accent);
+  --regalis-gold-light: var(--accent-bright);
+  --regalis-gold-dark: var(--accent-strong);
+
+  /* Neutral ramp (used sparingly; prefer the semantic tokens below) */
   --neutral-50: #fafafa;
   --neutral-100: #f4f4f5;
   --neutral-200: #e4e4e7;
@@ -22,30 +39,51 @@
   --neutral-800: #27272a;
   --neutral-900: #18181b;
 
-  /* Semantic */
+  /* Semantic status */
   --color-success: #16a34a;
   --color-warning: #d97706;
   --color-danger: #dc2626;
   --color-info: #2563eb;
 
-  /* Surfaces */
-  --surface-page: var(--neutral-100);
-  --surface-card: var(--regalis-white);
+  /* ── LIGHT theme (default): the client's warm ivory / parchment look ──── */
+  --surface-page: #f6f1e7;
+  --surface-card: #fffdf8;
+  --surface-inset: #f2ebdc;
+  --surface-hover: #f6efe2;
   --surface-chrome: var(--regalis-black);
   --surface-chrome-raised: #17171b;
+  --chrome-border: #26262c;
 
-  /* Text */
-  --text-primary: var(--neutral-900);
-  --text-secondary: var(--neutral-600);
-  --text-muted: var(--neutral-500);
+  --text-primary: #2a2417;
+  --text-secondary: #6b6250;
+  --text-muted: #8b8270;
   --text-on-chrome: var(--neutral-100);
   --text-on-chrome-muted: var(--neutral-400);
-  --text-on-gold: var(--regalis-black);
+  --text-on-gold: var(--accent-contrast);
 
-  /* Borders & focus */
-  --border-subtle: var(--neutral-200);
-  --border-strong: var(--neutral-300);
-  --focus-ring: 0 0 0 3px rgb(201 162 39 / 35%);
+  --border-subtle: #eadfc7;
+  --border-strong: #d9caa8;
+  --focus-ring: 0 0 0 3px rgb(var(--accent-rgb) / 35%);
+
+  /* Depth — layered shadows give the raised, "3D" material feel */
+  --shadow-color: 43 34 12;
+  --shadow-sm: 0 1px 2px rgb(var(--shadow-color) / 6%);
+  --shadow-md:
+    0 1px 2px rgb(var(--shadow-color) / 5%),
+    0 4px 12px rgb(var(--shadow-color) / 9%);
+  --shadow-lg:
+    0 2px 4px rgb(var(--shadow-color) / 6%),
+    0 12px 32px rgb(var(--shadow-color) / 16%);
+  --shadow-raised:
+    0 1px 1px rgb(var(--shadow-color) / 5%),
+    0 3px 8px rgb(var(--shadow-color) / 7%),
+    0 10px 24px rgb(var(--shadow-color) / 7%);
+  --shadow-float:
+    0 2px 6px rgb(var(--shadow-color) / 8%),
+    0 10px 22px rgb(var(--shadow-color) / 12%),
+    0 24px 48px rgb(var(--shadow-color) / 14%);
+  --card-sheen: linear-gradient(180deg, rgb(255 255 255 / 60%), transparent 32%);
+  --glass-bg: rgb(255 253 248 / 78%);
 
   /* Radii */
   --radius-sm: 6px;
@@ -64,20 +102,16 @@
   --space-10: 40px;
   --space-12: 48px;
 
-  /* Typography */
+  /* Typography — serif display headings per the client design language */
   --font-sans:
     'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: Georgia, 'Palatino Linotype', 'Times New Roman', serif;
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-md: 1rem;
   --font-size-lg: 1.125rem;
   --font-size-xl: 1.375rem;
   --font-size-2xl: 1.75rem;
-
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgb(11 11 13 / 6%);
-  --shadow-md: 0 4px 12px rgb(11 11 13 / 10%);
-  --shadow-lg: 0 12px 32px rgb(11 11 13 / 18%);
 
   /* Layout */
   --sidebar-width: 264px;
@@ -86,4 +120,84 @@
   /* Motion */
   --transition-fast: 120ms ease;
   --transition-base: 200ms ease;
+
+  color-scheme: light;
 }
+
+/* ── DARK theme ──────────────────────────────────────────────────────────── */
+:root[data-theme='dark'] {
+  --surface-page: #101014;
+  --surface-card: #17171d;
+  --surface-inset: #1f1f27;
+  --surface-hover: #21212b;
+  --surface-chrome: #0b0b0d;
+  --surface-chrome-raised: #1a1a20;
+  --chrome-border: #26262c;
+
+  --text-primary: #efede5;
+  --text-secondary: #b5b2a4;
+  --text-muted: #8c897c;
+
+  --border-subtle: #272730;
+  --border-strong: #3a3a46;
+
+  /* Brighter accent text on dark grounds — links, prices, icons stay legible */
+  --accent-strong: var(--accent-bright);
+  --text-on-gold: #0b0b0d;
+
+  --shadow-color: 0 0 0;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-md: 0 1px 2px rgb(0 0 0 / 35%), 0 4px 12px rgb(0 0 0 / 45%);
+  --shadow-lg: 0 2px 4px rgb(0 0 0 / 40%), 0 12px 32px rgb(0 0 0 / 55%);
+  --shadow-raised:
+    0 1px 1px rgb(0 0 0 / 30%),
+    0 3px 8px rgb(0 0 0 / 35%),
+    0 10px 24px rgb(0 0 0 / 35%);
+  --shadow-float:
+    0 2px 6px rgb(0 0 0 / 40%),
+    0 10px 22px rgb(0 0 0 / 50%),
+    0 24px 48px rgb(0 0 0 / 55%);
+  --card-sheen: linear-gradient(180deg, rgb(255 255 255 / 5%), transparent 32%);
+  --glass-bg: rgb(23 23 29 / 72%);
+
+  color-scheme: dark;
+}
+
+/* ── Accent palettes ─────────────────────────────────────────────────────── */
+:root[data-accent='emerald'] {
+  --accent: #0e9f6e;
+  --accent-bright: #34d399;
+  --accent-strong: #047857;
+  --accent-rgb: 14 159 110;
+  --accent-contrast: #04150e;
+}
+
+:root[data-accent='sapphire'] {
+  --accent: #2563eb;
+  --accent-bright: #60a5fa;
+  --accent-strong: #1d4ed8;
+  --accent-rgb: 37 99 235;
+  --accent-contrast: #ffffff;
+}
+
+:root[data-accent='ruby'] {
+  --accent: #e11d48;
+  --accent-bright: #fb7185;
+  --accent-strong: #be123c;
+  --accent-rgb: 225 29 72;
+  --accent-contrast: #ffffff;
+}
+
+:root[data-accent='violet'] {
+  --accent: #7c3aed;
+  --accent-bright: #a78bfa;
+  --accent-strong: #6d28d9;
+  --accent-rgb: 124 58 237;
+  --accent-contrast: #ffffff;
+}
+
+/* Dark theme keeps accent text bright regardless of the chosen palette */
+:root[data-theme='dark'][data-accent='emerald'] { --accent-strong: #34d399; }
+:root[data-theme='dark'][data-accent='sapphire'] { --accent-strong: #60a5fa; }
+:root[data-theme='dark'][data-accent='ruby'] { --accent-strong: #fb7185; }
+:root[data-theme='dark'][data-accent='violet'] { --accent-strong: #a78bfa; }

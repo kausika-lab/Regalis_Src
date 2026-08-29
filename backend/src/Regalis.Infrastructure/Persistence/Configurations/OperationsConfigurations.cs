@@ -30,8 +30,11 @@ public class InventoryTransactionConfiguration : IEntityTypeConfiguration<Invent
 {
     public void Configure(EntityTypeBuilder<InventoryTransaction> builder)
     {
+        // Adjustment (type 5) is the only signed row — a compensating entry must be
+        // able to move stock down as well as up. Everything else is strictly positive.
         builder.ToTable("TRN_InventoryTransaction", t =>
-            t.HasCheckConstraint("CK_InvTxn_Quantity", "[Quantity] > 0"));
+            t.HasCheckConstraint("CK_InvTxn_Quantity",
+                "[Quantity] > 0 OR ([TransactionType] = 5 AND [Quantity] <> 0)"));
         builder.HasKey(x => x.InventoryTransactionId);
         builder.Property(x => x.TransactionNumber).HasMaxLength(30).IsRequired();
         builder.Property(x => x.Quantity).HasPrecision(18, 3);

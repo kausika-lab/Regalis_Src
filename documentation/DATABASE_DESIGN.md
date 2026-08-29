@@ -551,7 +551,9 @@ Append-only. `InventoryTransactionId BIGINT IDENTITY PK`, `InventoryItemId`,
 `ReferenceNumber NVARCHAR(80) NULL`, `UnitCost DECIMAL(18,2) NULL`,
 `DamageDescription NVARCHAR(500) NULL`, `DamageCause NVARCHAR(300) NULL`,
 `PhotoPath NVARCHAR(500) NULL`, `LocationId`, `EnteredByUserId`, `Notes`, + audit.
-`CK_InvTxn_Quantity CHECK (Quantity > 0)`,
+`CK_InvTxn_Quantity CHECK (Quantity > 0 OR (TransactionType = 5 AND Quantity <> 0))`
+(amended Day 8: an `Adjustment` is the one signed row — a compensating entry must be
+able to move stock down as well as up; every other type stays strictly positive),
 `IX_InvTxn_Item_Date`, `IX_InvTxn_Type_Date`.
 There is **no update or delete endpoint**; a mistake is corrected with a compensating
 `Adjustment` row, so the audit history is complete.

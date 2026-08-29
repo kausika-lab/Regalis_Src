@@ -2,9 +2,15 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Regalis.Application.Abstractions;
+using Regalis.Application.Access;
 using Regalis.Application.Administration;
 using Regalis.Application.Auth;
+using Regalis.Application.Bookings;
+using Regalis.Application.Finance;
+using Regalis.Application.Masters;
+using Regalis.Application.Operations;
 using Regalis.Infrastructure.Adapters;
+using Regalis.Infrastructure.BackgroundJobs;
 using Regalis.Infrastructure.Persistence;
 using Regalis.Infrastructure.Persistence.Interceptors;
 using Regalis.Infrastructure.Persistence.Seed;
@@ -46,6 +52,47 @@ public static class DependencyInjection
         // Adapter selection by configuration (Invariant 5): only the console
         // channel exists until SMTP credentials arrive (execution-plan risk #3).
         services.AddScoped<IOtpSender, ConsoleOtpSender>();
+
+        // Masters
+        services.AddScoped<ILocationService, LocationService>();
+        services.AddScoped<IWorkspaceService, WorkspaceService>();
+
+        // Booking engine
+        services.AddScoped<INumberSequenceService, NumberSequenceService>();
+        services.AddScoped<IAvailabilityService, AvailabilityService>();
+        services.AddScoped<IBookingService, BookingService>();
+        services.AddHostedService<BookingHoldSweeper>();
+
+        services.AddScoped<ICalendarService, CalendarService>();
+        services.AddScoped<IBookingMutationService, BookingMutationService>();
+
+        // Finance
+        services.AddScoped<IWalletService, WalletService>();
+        services.AddScoped<IWalletAdminService, WalletAdminService>();
+        services.AddScoped<IInvoiceService, InvoiceService>();
+        services.AddScoped<IPaymentService, PaymentService>();
+        services.AddScoped<IPassService, PassService>();
+
+        // Operations
+        services.AddScoped<INotificationService, NotificationService>();
+
+        // Access & attendance — the device and payroll seams are adapters
+        // selected by configuration (Invariant 5, A01/A03).
+        services.AddScoped<AttendanceRecorder>();
+        services.AddScoped<IAccessService, AccessService>();
+        services.AddScoped<IAttendanceService, AttendanceService>();
+        services.AddScoped<IAccessControlAdapter, MockAccessControlAdapter>();
+        services.AddScoped<IPayrollExporter, CsvPayrollExporter>();
+
+        // Payment gateway — chosen by Payments:Provider (Invariant 5). Sandbox is
+        // registered alongside so the demo checkout can sign in dev/test.
+        services.AddScoped<SandboxPaymentGateway>();
+        services.AddHttpClient<RazorpayPaymentGateway>();
+        services.AddScoped<IPaymentGateway>(provider =>
+            string.Equals(configuration["Payments:Provider"], RazorpayPaymentGateway.Name,
+                StringComparison.OrdinalIgnoreCase)
+                ? provider.GetRequiredService<RazorpayPaymentGateway>()
+                : provider.GetRequiredService<SandboxPaymentGateway>());
 
         return services;
     }

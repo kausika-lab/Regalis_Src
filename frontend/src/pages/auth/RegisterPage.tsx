@@ -1,11 +1,13 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
+import { Building2, Lock, Mail, Phone, UserRound } from 'lucide-react';
 import { z } from 'zod';
 import { authApi } from '@/api/auth';
 import { ApiClientError } from '@/api/client';
-import { Button, Input } from '@/components/ui';
+import { AuthField } from '@/components/auth/AuthField';
 import { useToast } from '@/components/ui/Toast';
+import { AuthBrand } from '@/layouts/AuthLayout';
 
 const passwordRule = z
   .string()
@@ -42,10 +44,7 @@ export function RegisterPage() {
 
   const onSubmit = handleSubmit(async (values) => {
     try {
-      const result = await authApi.register({
-        ...values,
-        companyName: values.companyName || null,
-      });
+      const result = await authApi.register({ ...values, companyName: values.companyName || null });
       toast.success('Verification code sent. Check your inbox.');
       navigate('/verify-otp', {
         state: { destination: result.destination, purpose: 'registration' },
@@ -56,19 +55,76 @@ export function RegisterPage() {
   });
 
   return (
-    <form onSubmit={onSubmit} className="form-stack">
-      <Input label="Full name" required autoComplete="name" error={errors.fullName?.message} {...register('fullName')} />
-      <Input label="Email" type="email" required autoComplete="email" error={errors.email?.message} {...register('email')} />
-      <Input label="Mobile number" required autoComplete="tel" placeholder="10-digit mobile" error={errors.mobileNumber?.message} {...register('mobileNumber')} />
-      <Input label="Company name" hint="Optional — individuals are welcome" error={errors.companyName?.message} {...register('companyName')} />
-      <Input label="Password" type="password" required autoComplete="new-password" error={errors.password?.message} {...register('password')} />
-      <Input label="Confirm password" type="password" required autoComplete="new-password" error={errors.confirmPassword?.message} {...register('confirmPassword')} />
-      <Button type="submit" block size="lg" loading={isSubmitting}>
-        Create account
-      </Button>
-      <p style={{ textAlign: 'center', fontSize: 'var(--font-size-sm)' }}>
-        Already a member? <Link to="/login">Sign in</Link>
+    <div className="auth__panel auth__panel--wide">
+      <AuthBrand />
+      <h1 className="auth__title">Create Account</h1>
+      <p className="auth__subtitle">
+        Join Regalis WorkSpace. Mandatory fields are marked with{' '}
+        <span className="auth__required">*</span>
       </p>
-    </form>
+
+      <form onSubmit={onSubmit} noValidate>
+        <div className="auth__grid">
+          <AuthField
+            label="Full Name"
+            icon={<UserRound size={19} strokeWidth={1.9} />}
+            placeholder="Enter full name"
+            autoComplete="name"
+            error={errors.fullName?.message}
+            registration={register('fullName')}
+          />
+          <AuthField
+            label="Email Address"
+            icon={<Mail size={19} strokeWidth={1.9} />}
+            type="email"
+            placeholder="Enter email address"
+            autoComplete="email"
+            error={errors.email?.message}
+            registration={register('email')}
+          />
+          <AuthField
+            label="Phone Number"
+            icon={<Phone size={19} strokeWidth={1.9} />}
+            placeholder="Enter phone number"
+            autoComplete="tel"
+            error={errors.mobileNumber?.message}
+            registration={register('mobileNumber')}
+          />
+          <AuthField
+            label="Company Name"
+            icon={<Building2 size={19} strokeWidth={1.9} />}
+            placeholder="Enter company name"
+            optional
+            error={errors.companyName?.message}
+            registration={register('companyName')}
+          />
+          <AuthField
+            label="Password"
+            icon={<Lock size={19} strokeWidth={1.9} />}
+            type="password"
+            placeholder="Create a password"
+            autoComplete="new-password"
+            error={errors.password?.message}
+            registration={register('password')}
+          />
+          <AuthField
+            label="Confirm Password"
+            icon={<Lock size={19} strokeWidth={1.9} />}
+            type="password"
+            placeholder="Re-enter the password"
+            autoComplete="new-password"
+            error={errors.confirmPassword?.message}
+            registration={register('confirmPassword')}
+          />
+        </div>
+        <button type="submit" className="auth__btn" disabled={isSubmitting}>
+          {isSubmitting ? 'Creating account…' : 'Create Account'}
+        </button>
+      </form>
+
+      <p className="auth__footer">
+        Already a member? <Link to="/login">Sign In</Link>
+      </p>
+    </div>
   );
 }

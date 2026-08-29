@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { icons, LogOut, MenuIcon, type LucideIcon } from 'lucide-react';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Bell, icons, LogOut, MenuIcon, type LucideIcon } from 'lucide-react';
 import { authApi } from '@/api/auth';
+import { notificationApi } from '@/api/finance';
 import { Button } from '@/components/ui';
 import type { MenuItem } from '@/models/auth';
 import { useAuthStore } from '@/store/authStore';
@@ -13,8 +14,15 @@ import { useAuthStore } from '@/store/authStore';
  */
 export function PortalLayout({ title }: { title: string }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, roles, refreshToken, menus, setMenus, clearSession } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Refresh the bell on navigation — cheap and keeps the badge honest.
+  useEffect(() => {
+    notificationApi.unreadCount().then(setUnreadCount).catch(() => {});
+  }, [location.pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,6 +89,12 @@ export function PortalLayout({ title }: { title: string }) {
             <h1 className="portal__topbar-title">{title}</h1>
           </div>
           <div className="portal__user">
+            <Link to="/notifications" className="portal__bell" aria-label="Notifications">
+              <Bell size={20} />
+              {unreadCount > 0 && (
+                <span className="portal__bell-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+              )}
+            </Link>
             <div style={{ textAlign: 'right' }}>
               <div className="portal__user-name">{user?.fullName}</div>
               <div className="portal__user-role">{roles.join(', ')}</div>

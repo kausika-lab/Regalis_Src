@@ -69,6 +69,61 @@ Code Review Status · Remarks`
 
 **RELEASE 1 tagged — Security + Administration (gate M2 passed).**
 
+## Day 4 — Thursday 3 September 2026
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 03-Sep | Senior | M08 | — | Central availability & booking engine: IAvailabilityService (slots/free-workspaces/check), quote with GST, CreateHold under Serializable + UPDLOCK/HOLDLOCK range locks, deadlock retry with tracker reset, gap-free REG- numbers in-transaction, configurable rules, hold sweeper | Backend API | Completed | Critical | 6 | 6 | 100 | — | Masters | Passed | Approved | Confirm transaction (invoice+QR+notification) is Day 5 |
+| 03-Sep | Senior | M08 | — | Concurrency proof: 20 parallel holds on one slot → exactly 1 occupancy row | Integration Test | Completed | Critical | 1 | 1 | 100 | — | Engine | Passed | Approved | Gate M3 evidence, a day early |
+| 03-Sep | Junior 1 | M06 | /admin/locations | Locations CRUD API + UI (working hours/days, default flag, delete guards) | Backend API | Completed | High | 3 | 3 | 100 | — | — | Passed | Approved | |
+| 03-Sep | Junior 1 | M07 | /admin/workspaces (+desks/cabins/meeting-rooms) | Workspaces CRUD API + UI: filters, amenity mapping, status patch, future-occupancy delete guard; workspace types + amenities endpoints | Backend API | Completed | High | 5 | 5 | 100 | — | M06 | Passed | Approved | Type sub-menus pre-filter the same screen |
+| 03-Sep | Junior 2 | M12 | — | IPaymentGateway seam: Razorpay adapter (REST orders + server-side HMAC verify, keys from config) + Sandbox adapter (same HMAC scheme), provider selected by configuration | Backend API | Completed | High | 3 | 3 | 100 | — | — | Passed | Approved | Payments controller lands with confirm flow (Day 5) |
+| 03-Sep | Junior 2 | M13 | — | Wallet balance + self-checking ledger (BalanceAfter, WTX numbers), credit/debit primitives, GET /wallet/me (+transactions) | Backend API | Completed | High | 3 | 3 | 100 | — | — | Passed | Approved | Recharge UI Day 6 |
+| 03-Sep | QA | M06–M08 | — | 17 new integration tests: quote maths, 409 overlap, half-open adjacency, rule violations (5 variants), block conflict, availability reflects holds, row scoping, masters CRUD/RBAC/duplicates, wallet zero-state, concurrency test | Integration Test | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | Suite total: 45 tests green |
+
+## Day 5 — Friday 4 September 2026 · Gate M3
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 04-Sep | Senior | M08 | — | Atomic confirm transaction: range-locked re-verify (excl. own hold), wallet/gateway/cash settlement, GST invoice with snapshots, signed QR token, notification, history — all or nothing (Invariant 4) | Backend API | Completed | Critical | 5 | 5 | 100 | — | Engine | Passed | Approved | Tampered signature leaves zero side effects (tested) |
+| 04-Sep | Senior | M09 | — | Calendar API day/week/month for both portals (admin detail vs anonymized customer view); block/unblock with confirmed-booking guard | Backend API | Completed | Critical | 3 | 3 | 100 | — | Engine | Passed | Approved | Calendar UI grids land Day 6 |
+| 04-Sep | Senior | M11 | — | Admin booking (hold + immediate cash/wallet settlement); booking lists (my-tabs + admin filters) | Backend API | Completed | High | 2 | 2 | 100 | — | Confirm | Passed | Approved | |
+| 04-Sep | Junior 1 | M10 | /book | Customer booking wizard: type → date → slots (IST) → duration → workspace cards → GST summary → wallet/online pay → confirmation with invoice download; 409 race handling refreshes availability | Frontend | Completed | Critical | 6 | 6 | 100 | — | APIs | Passed | Approved | |
+| 04-Sep | Junior 1 | M11 | /admin/bookings | Admin booking list (filters/search), detail modal, front-desk booking modal (customer search, live slots, cash/wallet) | Frontend | Completed | High | 4 | 4 | 100 | — | APIs | Passed | Approved | |
+| 04-Sep | Junior 1 | M02 | /login /register /verify-otp /forgot-password /reset-password | Auth screens rebuilt to the client's "Regalis Login" design canvas: parchment ground, Cormorant Garamond/Lora, crown + wordmark, iconed cream inputs, gold-gradient actions, medallions, ornaments | Frontend | Completed | High | 4 | 4 | 100 | — | Design zip | Passed | Approved | Portal reskin to the same design language (WorkSpace Admin UI artboard) is queued |
+| 04-Sep | Junior 2 | M12/M14 | — | Payment orders + sandbox checkout simulation + signature-verified idempotent webhook; invoice reads + QuestPDF GST invoice on demand | Backend API | Completed | Critical | 4 | 4 | 100 | — | Gateway seam | Passed | Approved | |
+| 04-Sep | QA | M08–M14 | — | 12 confirm-path + 4 calendar integration tests; manual end-to-end on dev: register → OTP → book → sandbox pay → confirm → PDF → admin calendar | Integration Test | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | Suite: 57 automated tests green |
+
+**Gate M3 passed:** booking engine demo end-to-end, one calendar serving both portals, overlap prevention proven (Day 4 concurrency test).
+
+## Day 6 — Monday 7 September 2026 · Gate M4
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 07-Sep | Senior | M09 | /admin/calendar | Calendar day-timeline UI (workspaces × IST hours), booking/block popups, block dialog with confirmed-booking guard, unblock | Frontend | Completed | Critical | 5 | 5 | 100 | — | Calendar API | Passed | Approved | Week/month API live; grid views iterate with the design reskin |
+| 07-Sep | Senior | M08 | — | Cancel/reschedule/extend engine: policy refunds to wallet, locked availability re-check, QR window follows, supplementary GST invoice for extensions; shared BookingEngineLocks | Backend API | Completed | Critical | 5 | 5 | 100 | — | Engine | Passed | Approved | UTC JSON converter fixed browser-local date parsing |
+| 07-Sep | Junior 1 | M10/M11 | /bookings | My Bookings tabs + cancel (policy messaging) / reschedule / extend dialogs | Frontend | Completed | Critical | 4 | 4 | 100 | — | Mutation APIs | Passed | Approved | |
+| 07-Sep | Junior 1 | M20 | /notifications | Notification centre (read/read-all/delete, action links) + topbar bell with unread badge; broadcast API | Frontend | Completed | High | 3 | 3 | 100 | — | — | Passed | Approved | |
+| 07-Sep | Junior 2 | M13 | /wallet /admin/wallet | Wallet screens: balance tiles, sandbox recharge (limits enforced), running-balance ledger; admin wallet search + audited adjust | Frontend | Completed | Critical | 5 | 5 | 100 | — | Recharge API | Passed | Approved | |
+| 07-Sep | Junior 2 | M14 | /invoices /admin/invoices /admin/payments | Invoice tabs + PDF download, admin invoice grid with GST columns, payments grid | Frontend | Completed | High | 4 | 4 | 100 | — | — | Passed | Approved | |
+| 07-Sep | Junior 2 | M15 | /day-pass /monthly-pass /passes /admin/passes/* | Pass plans browse + wallet/gateway purchase, my passes, admin plan editor + purchases with cancel/refund | Frontend | Completed | Critical | 5 | 5 | 100 | — | Pass APIs | Passed | Approved | Pass expiry in the background sweeper |
+| 07-Sep | QA | M08–M15 | — | 11 new integration tests + dev smoke (recharge WTX-000001, 100% refund ₹708, notifications) | Integration Test | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | Suite: 68 automated tests green |
+
+**Gate M4 passed** (proven Day 5 and regression-held): paid booking → id + invoice PDF + QR + notification + calendar, and the full money cycle now closes with refunds.
+
+## Day 7 — Tuesday 8 September 2026 · RELEASE 2 (Gate M5)
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 08-Sep | Senior | M16 | — | /access/validate: HMAC-first payload check, token/window/usage/booking/workspace rules, attendance gate, door via IAccessControlAdapter (Mock, A01), append-only access log for every attempt; grants bump usage + attendance + booking transitions | Backend API | Completed | Critical | 6 | 6 | 100 | — | QR tokens | Passed | Approved | Invariant 9: device offline = DeviceError, never a grant |
+| 08-Sep | Senior | M16 | — | Manual override behind distinct ACCESS.OVERRIDE: mandatory reason, exception log row + ACCESS_OVERRIDE audit entry (A10); token revoke endpoint | Backend API | Completed | Critical | 2 | 2 | 100 | — | — | Passed | Approved | |
+| 08-Sep | Junior 1 | M16 | /qr /work-status | My QR (client-rendered QR codes per active token) and My Work Status (self check-in/out with live-basis rule, history) | Frontend | Completed | Critical | 4 | 4 | 100 | — | Access APIs | Passed | Approved | qrcode npm package |
+| 08-Sep | Junior 1 | M16 | /admin/access /admin/access/logs | Scan/validate console with grant/deny panel + override dialog; access log grid with result filter and override badges | Frontend | Completed | High | 4 | 4 | 100 | — | — | Passed | Approved | OFFLINE-* device ids simulate the downed reader |
+| 08-Sep | Junior 2 | M17 | /admin/attendance /admin/attendance/payroll | Attendance grid (original times shown next to corrections), correction dialog with mandatory reason, payroll CSV export page; CsvPayrollExporter behind IPayrollExporter (A03); auto-close in the sweeper | Backend API | Completed | Critical | 6 | 6 | 100 | — | Recorder | Passed | Approved | XLSX variant joins with the reporting toolkit (Day 9) |
+| 08-Sep | QA | M16–M17 | — | 9 access/attendance integration tests + live smoke: pass PASS-000001 → gate in → offline DeviceError → gate out → attendance closed → payroll CSV | Integration Test | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | Suite: 77 automated tests green |
+
+**RELEASE 2 tagged — core business modules (gate M5 passed).**
+
 ## Day 3 onward — template
 
 Copy the block below for each day. **Every row must be filled — an empty Actual Hours or
@@ -144,10 +199,10 @@ ESTIMATED COMPLETION:
 | 1 | 5 | 5 | 0 | Design freeze on time |
 | 2 | 12 | 12 | 0 | Foundation merged to develop; dev DB created from migration |
 | 3 | 22 | 22 | 0 | Release 1 tagged; auth + RBAC live with automated test proof |
-| 4 | 30 | | | |
-| 5 | 40 | | | Booking engine gate |
-| 6 | 50 | | | |
-| 7 | 60 | | | Release 2 |
+| 4 | 30 | 30 | 0 | Booking engine live with concurrency proof (M3 evidence early) |
+| 5 | 40 | 40 | 0 | Booking engine gate M3 passed; auth screens on the client design |
+| 6 | 50 | 50 | 0 | Money complete: refunds, recharge, passes, invoices, calendar UI |
+| 7 | 60 | 60 | 0 | Release 2 tagged: QR access, attendance, payroll export live |
 | 8 | 70 | | | |
 | 9 | 78 | | | |
 | 10 | 86 | | | Feature complete target |

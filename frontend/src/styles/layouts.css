@@ -269,3 +269,33 @@
   color: var(--regalis-gold);
   line-height: 1;
 }
+
+.portal__bell {
+  position: relative;
+  display: inline-flex;
+  color: var(--text-secondary);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+}
+
+.portal__bell:hover {
+  color: var(--text-primary);
+  background: var(--neutral-100);
+}
+
+.portal__bell-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 16px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  background: var(--color-danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}

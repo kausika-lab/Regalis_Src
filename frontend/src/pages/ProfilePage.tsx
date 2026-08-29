@@ -80,7 +80,7 @@ export function ProfilePage() {
             <div style={{ textAlign: 'center' }}>
               <div style={{
                 width: 96, height: 96, borderRadius: '50%', overflow: 'hidden',
-                background: 'var(--neutral-100, #eee)', display: 'flex',
+                background: 'var(--surface-inset)', display: 'flex',
                 alignItems: 'center', justifyContent: 'center', margin: '0 auto',
               }}>
                 {photoUrl

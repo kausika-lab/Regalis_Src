@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, LogOut, MenuIcon } from 'lucide-react';
+import { AppearanceMenu } from '@/components/AppearanceMenu';
 import { resolveMenuIcon } from '@/utils/menuIcons';
 import { authApi } from '@/api/auth';
 import { notificationApi } from '@/api/finance';
@@ -90,6 +91,7 @@ export function PortalLayout({ title }: { title: string }) {
             <h1 className="portal__topbar-title">{title}</h1>
           </div>
           <div className="portal__user">
+            <AppearanceMenu />
             <Link to="/notifications" className="portal__bell" aria-label="Notifications">
               <Bell size={20} />
               {unreadCount > 0 && (

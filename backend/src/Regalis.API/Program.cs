@@ -258,6 +258,15 @@ if (app.Configuration.GetValue("Database:SeedOnStartup", false))
 }
 
 // ── Pipeline (ARCHITECTURE §3) ──────────────────────────────────────────────
+// Behind the documented reverse proxy (deploy/DEPLOYMENT.md), the original
+// client IP and scheme arrive in X-Forwarded-* — without honouring them, HTTPS
+// redirection, HSTS and the per-IP rate limiter all see the proxy instead of
+// the caller (SECURITY.md F-03).
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+                       Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+});
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();

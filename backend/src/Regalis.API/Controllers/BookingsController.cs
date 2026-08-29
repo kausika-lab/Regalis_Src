@@ -38,4 +38,44 @@ public class BookingsController(IBookingService bookingService) : ApiControllerB
     [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetById(long id, CancellationToken ct) =>
         OkEnvelope(await bookingService.GetBookingAsync(id, ct));
+
+    /// <summary>The atomic confirmation (Design Invariant 4): verified payment →
+    /// Confirmed booking + GST invoice + QR access token + notification.</summary>
+    [HttpPost("{id:long}/confirm")]
+    [HasPermission(PermissionCodes.Booking.Create)]
+    [ProducesResponseType(typeof(ApiResponse<ConfirmBookingResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> Confirm(long id, ConfirmBookingRequest request, CancellationToken ct) =>
+        OkEnvelope(await bookingService.ConfirmAsync(id, request, ct),
+            "Booking confirmed. Your QR access pass and invoice are ready.");
+
+    /// <summary>Admin books on a customer's behalf — hold + immediate settlement.</summary>
+    [HttpPost("admin")]
+    [HasPermission(PermissionCodes.Booking.Create)]
+    [ProducesResponseType(typeof(ApiResponse<ConfirmBookingResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> AdminCreate(AdminCreateBookingRequest request, CancellationToken ct) =>
+        OkEnvelope(await bookingService.AdminCreateAsync(request, ct), "Booking created and confirmed.");
+
+    /// <summary>The caller's bookings: ?tab=upcoming|completed|cancelled.</summary>
+    [HttpGet("my")]
+    [HasPermission(PermissionCodes.Booking.View)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<BookingDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMy([FromQuery] string tab, [FromQuery] PagedRequest request,
+        CancellationToken ct) =>
+        OkEnvelope(await bookingService.GetMyBookingsAsync(tab ?? MyBookingTabs.Upcoming, request, ct));
+
+    /// <summary>Admin list with the common filter set.</summary>
+    [HttpGet]
+    [HasPermission(PermissionCodes.Booking.View)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<BookingDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAll([FromQuery] BookingListRequest request, CancellationToken ct)
+    {
+        // The admin grid; customers use /bookings/my (service scoping still applies).
+        if (User.FindFirst("user_type")?.Value == "1")
+        {
+            return OkEnvelope(await bookingService.GetMyBookingsAsync(MyBookingTabs.Upcoming, request, ct));
+        }
+        return OkEnvelope(await bookingService.GetBookingsAsync(request, ct));
+    }
 }

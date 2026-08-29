@@ -121,6 +121,25 @@ public interface IBookingService
     /// documented 409 SLOT_UNAVAILABLE.</summary>
     Task<BookingDto> CreateHoldAsync(CreateBookingRequest request, CancellationToken ct = default);
 
+    /// <summary>Design Invariant 4 — one serializable transaction produces the
+    /// confirmed booking, the verified payment, the GST invoice, the access token
+    /// and the notification. All or nothing.</summary>
+    Task<ConfirmBookingResponse> ConfirmAsync(long bookingId, ConfirmBookingRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>Admin books on a customer's behalf: hold + immediate confirm
+    /// (wallet or cash) in one call. BookingSource = Admin.</summary>
+    Task<ConfirmBookingResponse> AdminCreateAsync(AdminCreateBookingRequest request,
+        CancellationToken ct = default);
+
     /// <summary>A booking scoped to the caller: customers see only their own rows.</summary>
     Task<BookingDto> GetBookingAsync(long bookingId, CancellationToken ct = default);
+
+    /// <summary>The caller's bookings by tab: upcoming | completed | cancelled.</summary>
+    Task<Shared.Api.PagedResult<BookingDto>> GetMyBookingsAsync(string tab,
+        Shared.Api.PagedRequest request, CancellationToken ct = default);
+
+    /// <summary>Admin list with the common filter set.</summary>
+    Task<Shared.Api.PagedResult<BookingDto>> GetBookingsAsync(BookingListRequest request,
+        CancellationToken ct = default);
 }

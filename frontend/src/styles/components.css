@@ -515,3 +515,143 @@
   flex-direction: column;
   gap: var(--space-4);
 }
+
+/* ── Booking wizard ─────────────────────────────────────────────────────── */
+.wizard-steps {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.wizard-step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  background: var(--neutral-100);
+}
+
+.wizard-step--active {
+  background: rgb(201 162 39 / 15%);
+  color: var(--regalis-gold-dark);
+}
+
+.wizard-step--done {
+  background: rgb(22 163 74 / 10%);
+  color: var(--color-success);
+}
+
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.choice-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  padding: var(--space-4);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.choice-card:hover:not(:disabled) {
+  border-color: var(--regalis-gold);
+  box-shadow: var(--shadow-md);
+}
+
+.choice-card--selected {
+  border-color: var(--regalis-gold);
+  box-shadow: 0 0 0 2px rgb(201 162 39 / 30%);
+}
+
+.choice-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.choice-card__title {
+  font-weight: 700;
+  font-size: var(--font-size-sm);
+}
+
+.choice-card__meta {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  margin-top: var(--space-1);
+}
+
+.choice-card__price {
+  margin-top: var(--space-2);
+  font-weight: 700;
+  color: var(--regalis-gold-dark);
+}
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--space-2);
+}
+
+.slot-chip {
+  height: 40px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.slot-chip:hover:not(:disabled) {
+  border-color: var(--regalis-gold);
+}
+
+.slot-chip--selected {
+  background: var(--regalis-gold);
+  border-color: var(--regalis-gold);
+  color: var(--text-on-gold);
+}
+
+.slot-chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.summary-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.summary-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.summary-rows .summary-total {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-2);
+  font-weight: 700;
+  font-size: var(--font-size-md);
+}
+
+.pay-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}

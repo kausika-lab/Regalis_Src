@@ -61,8 +61,12 @@ public static class DependencyInjection
         services.AddScoped<IBookingService, BookingService>();
         services.AddHostedService<BookingHoldSweeper>();
 
+        services.AddScoped<ICalendarService, CalendarService>();
+
         // Finance
         services.AddScoped<IWalletService, WalletService>();
+        services.AddScoped<IInvoiceService, InvoiceService>();
+        services.AddScoped<IPaymentService, PaymentService>();
 
         // Payment gateway — chosen by Payments:Provider (Invariant 5). Sandbox is
         // registered alongside so the demo checkout can sign in dev/test.

@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { PortalLayout } from '@/layouts/PortalLayout';
+import { AdminBookingsPage } from '@/pages/admin/AdminBookingsPage';
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
 import { LocationsPage } from '@/pages/admin/LocationsPage';
 import { MenusPage } from '@/pages/admin/MenusPage';
@@ -12,6 +13,7 @@ import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
 import { VerifyOtpPage } from '@/pages/auth/VerifyOtpPage';
+import { BookWorkspacePage } from '@/pages/customer/BookWorkspacePage';
 import { CustomerHomePage } from '@/pages/customer/CustomerHomePage';
 import { ForbiddenPage } from '@/pages/errors/ForbiddenPage';
 import { NotFoundPage } from '@/pages/errors/NotFoundPage';
@@ -34,6 +36,9 @@ export function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<PortalLayout title="Regalis WorkSpace" />}>
           <Route path="/" element={<CustomerHomePage />} />
+          <Route element={<PermissionRoute permission="BOOKING.CREATE" />}>
+            <Route path="/book" element={<BookWorkspacePage />} />
+          </Route>
         </Route>
       </Route>
 
@@ -54,6 +59,9 @@ export function AppRoutes() {
           </Route>
           <Route element={<PermissionRoute permission="LOCATION.VIEW" />}>
             <Route path="/admin/locations" element={<LocationsPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="BOOKING.VIEW" />}>
+            <Route path="/admin/bookings" element={<AdminBookingsPage />} />
           </Route>
           <Route element={<PermissionRoute permission="WORKSPACE.VIEW" />}>
             <Route path="/admin/workspaces" element={<WorkspacesPage />} />

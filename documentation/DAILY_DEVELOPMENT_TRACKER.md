@@ -193,6 +193,14 @@ remaining days are hardening (Day 11) and Release 3 / code freeze (Day 12).
 | 16-Sep | Junior 1 | — | both portals | Depth/polish pass to the client design language: ivory/parchment light theme, layered shadows + card sheen, gradient primary buttons with lift, glass topbar, sidebar accent glow, serif display headings, themed scrollbars, reduced-motion respected; dark-mode literal-color sweep | Frontend | Completed | High | 4 | 4 | 100 | — | — | Passed | Approved | |
 | 16-Sep | QA | — | — | Visual verification in headless Edge: login, admin light, appearance menu, dark, dark+sapphire, reports landing — rendered correctly, zero console errors. Full backend suite unaffected (no API change) | Manual + Visual | Completed | High | 2 | 2 | 100 | — | — | Passed | Approved | Screenshots in the session scratchpad |
 
+## Day 13 (contd.) — release-3.1 security defect fixes (freeze-compatible)
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 16-Sep | Senior | M02 | — | F-01 fixed: /auth/register duplicate path now indistinguishable from a fresh registration (nothing created, no OTP, attempt logged) — closed the last account-enumeration oracle; regression test updated to prove indistinguishability and untouched credentials | Security fix | Completed | Critical | 2 | 2 | 100 | — | — | Passed | Approved | Out-of-band owner notice queued for SMTP arrival |
+| 16-Sep | Senior | — | — | F-03 fixed: UseForwardedHeaders ahead of the pipeline so HTTPS redirect/HSTS/per-IP rate limits key on the real client behind the runbook proxy. F-02 (refresh token in localStorage) assessed: accepted with mitigations (no XSS sinks, single-use rotation, family revocation on reuse) — cookie change scheduled with the go-live same-site deployment | Security fix | Completed | High | 2 | 2 | 100 | — | — | Passed | Approved | |
+| 16-Sep | Senior | — | — | SECURITY.md added to the repo: evidence-tied OWASP Top 10 posture; the stray parallel-lineage security doc replaced (it lives in Regalis_Phase1_Secured, caveat updated to builds-clean). Scans re-run: npm audit 0, dotnet vulnerable scan clean. RegalisWorkSpace.zip regenerated source-only from the fixed snapshot | Docs/Release | Completed | High | 2 | 2 | 100 | — | — | Passed | Approved | Suite 101 green; tagged release-3.1 |
+
 ## Day 3 onward — template
 
 Copy the block below for each day. **Every row must be filled — an empty Actual Hours or

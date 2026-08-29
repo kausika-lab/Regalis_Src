@@ -124,6 +124,21 @@ Code Review Status · Remarks`
 
 **RELEASE 2 tagged — core business modules (gate M5 passed).**
 
+## Day 8 — Wednesday 9 September 2026 · Gate M6
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 09-Sep | Senior | M18 | /admin/housekeeping | Housekeeping engine: schedule create/edit writes TRN_WorkspaceBlock in the same serializable transaction (Invariant 12) with booking/block conflict guards; staff overlap check; cancel/complete releases the block; staff access token time-boxed to exactly the schedule window, revoked on cancel/reschedule; assignment notifications; HKS- numbers | Backend API | Completed | Critical | 6 | 6 | 100 | — | Calendar blocks, access tokens | Passed | Approved | QR signing deduplicated into QrPayloadSigner |
+| 09-Sep | Senior | M18 | /admin/housekeeping | Housekeeping grid + editor (staff picker, IST window, block toggle), start/complete/cancel; staff scoped server-side to own rows and given the menu | Frontend | Completed | High | 3 | 3 | 100 | — | — | Passed | Approved | |
+| 09-Sep | Junior 1 | M22 | /admin/services /services | Services & Coffee catalogue CRUD (catalogue writes = SERVICE.EDIT; SERVICE.CREATE stays reserved for customer orders) + customer browse page with category chips | Full stack | Completed | High | 4 | 4 | 100 | — | — | Passed | Approved | Ordering flow lands with the Day 10 home revamp |
+| 09-Sep | Junior 1 | M23 | /admin/banners /admin/settings /contact | Banners CRUD + windowed/portal-filtered /banners/active; Settings screen grouped with masked secrets, DataType validation and cache eviction on save; anonymous /settings/public feeding the new Contact Us page; Contact Us menu seeded | Full stack | Completed | High | 4 | 4 | 100 | — | — | Passed | Approved | |
+| 09-Sep | Junior 2 | M19 | /admin/inventory/* | Inventory item master (code frozen once ledgered), append-only In/Out/Damage/Adjustment ledger with ITX- numbers, derived stock + reorder flags (Invariant 11), negative-stock guard under a serializable transaction, CSV export; entry modal + grids | Full stack | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | CK_InvTxn_Quantity amended (migration) so a compensating Adjustment can be signed; DATABASE_DESIGN updated |
+| 09-Sep | QA | M18–M23 | — | 9 operations integration tests: block drops availability + cancel restores it, block refuses paid bookings, staff token time-boxed + revoked, stock derivation + overdraw refused + signed adjustment, catalogue visibility, banner windows, settings public/update/type-guard | Integration Test | Completed | Critical | 5 | 5 | 100 | — | — | Passed | Approved | Suite: 86 automated tests green (72 integration + 14 unit) |
+
+**Gate M6 passed — operations modules complete:** a housekeeping schedule removes the
+slot from customer availability through the one calendar path and gives the staff QR
+exactly the schedule window; the inventory ledger carries a complete audit history.
+
 ## Day 3 onward — template
 
 Copy the block below for each day. **Every row must be filled — an empty Actual Hours or
@@ -203,7 +218,7 @@ ESTIMATED COMPLETION:
 | 5 | 40 | 40 | 0 | Booking engine gate M3 passed; auth screens on the client design |
 | 6 | 50 | 50 | 0 | Money complete: refunds, recharge, passes, invoices, calendar UI |
 | 7 | 60 | 60 | 0 | Release 2 tagged: QR access, attendance, payroll export live |
-| 8 | 70 | | | |
+| 8 | 70 | 70 | 0 | Gate M6: housekeeping blocks the real calendar; inventory ledger live |
 | 9 | 78 | | | |
 | 10 | 86 | | | Feature complete target |
 | 11 | 92 | | | Hardening |

@@ -1,0 +1,88 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Regalis.Application.Abstractions;
+using Regalis.Domain.Entities.Booking;
+using Regalis.Domain.Enums;
+using Regalis.Infrastructure.Persistence;
+using Regalis.Shared.Constants;
+
+namespace Regalis.Infrastructure.BackgroundJobs;
+
+/// <summary>
+/// Sweeps Pending bookings whose payment window (Booking.PendingHoldMinutes,
+/// default 10) has lapsed to Expired, releasing the slot — the code path of
+/// usp_ExpireStaleBookingHolds (DATABASE_DESIGN §10). ChangedByUserId 0 = system.
+/// </summary>
+public class BookingHoldSweeper(IServiceScopeFactory scopeFactory, ILogger<BookingHoldSweeper> logger)
+    : BackgroundService
+{
+    private static readonly TimeSpan Interval = TimeSpan.FromSeconds(60);
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        using var timer = new PeriodicTimer(Interval);
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await SweepAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                // The sweeper must survive transient failures; the next tick retries.
+                logger.LogError(exception, "Booking hold sweep failed");
+            }
+
+            try
+            {
+                await timer.WaitForNextTickAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+    }
+
+    private async Task SweepAsync(CancellationToken ct)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<RegalisDbContext>();
+        var settings = scope.ServiceProvider.GetRequiredService<ISettingService>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var holdMinutes = await settings.GetIntAsync(AppSettingKeys.Booking.PendingHoldMinutes, 10, ct);
+        var nowUtc = clock.UtcNow;
+        var cutoffUtc = nowUtc.AddMinutes(-holdMinutes);
+
+        var staleHolds = await db.Bookings
+            .Where(b => b.Status == BookingStatus.Pending && b.CreatedDate < cutoffUtc)
+            .ToListAsync(ct);
+        if (staleHolds.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var booking in staleHolds)
+        {
+            booking.Status = BookingStatus.Expired;
+            booking.StatusHistory.Add(new BookingStatusHistory
+            {
+                BookingId = booking.BookingId,
+                FromStatus = BookingStatus.Pending,
+                ToStatus = BookingStatus.Expired,
+                ChangedByUserId = 0,
+                ChangedUtc = nowUtc,
+                Reason = $"Hold expired after {holdMinutes} minutes without payment."
+            });
+        }
+        await db.SaveChangesAsync(ct);
+        logger.LogInformation("Expired {Count} stale booking hold(s)", staleHolds.Count);
+    }
+}

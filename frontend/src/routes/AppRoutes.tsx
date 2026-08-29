@@ -2,9 +2,11 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { PortalLayout } from '@/layouts/PortalLayout';
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
+import { LocationsPage } from '@/pages/admin/LocationsPage';
 import { MenusPage } from '@/pages/admin/MenusPage';
 import { RolesPage } from '@/pages/admin/RolesPage';
 import { UsersPage } from '@/pages/admin/UsersPage';
+import { WorkspacesPage } from '@/pages/admin/WorkspacesPage';
 import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
@@ -49,6 +51,18 @@ export function AppRoutes() {
           </Route>
           <Route element={<PermissionRoute permission="MENU.VIEW" />}>
             <Route path="/admin/menus" element={<MenusPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="LOCATION.VIEW" />}>
+            <Route path="/admin/locations" element={<LocationsPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="WORKSPACE.VIEW" />}>
+            <Route path="/admin/workspaces" element={<WorkspacesPage />} />
+            <Route path="/admin/workspaces/desks" element={<WorkspacesPage typeCode="DESK" />} />
+            <Route path="/admin/workspaces/cabins" element={<WorkspacesPage typeCode="CABIN" />} />
+            <Route
+              path="/admin/workspaces/meeting-rooms"
+              element={<WorkspacesPage typeCode="MEETING_ROOM" />}
+            />
           </Route>
         </Route>
       </Route>

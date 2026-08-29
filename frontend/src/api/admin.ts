@@ -1,4 +1,4 @@
-import type { PagedResult } from '@/models/api';
+import type { PagedRequest, PagedResult } from '@/models/api';
 import type {
   AdminMenu,
   CreateUserPayload,
@@ -43,6 +43,45 @@ export const rolesApi = {
     api.put(`/roles/${id}/permissions`, { permissionIds }),
   menus: (id: number) => unwrap<RoleMenuRow[]>(api.get(`/roles/${id}/menus`)),
   updateMenus: (id: number, menuIds: number[]) => api.put(`/roles/${id}/menus`, { menuIds }),
+};
+
+export interface AuditLogRow {
+  auditLogId: number;
+  userId: number | null;
+  userName: string | null;
+  action: string;
+  moduleName: string;
+  entityName: string | null;
+  entityId: string | null;
+  oldValue: string | null;
+  newValue: string | null;
+  ipAddress: string | null;
+  correlationId: string | null;
+  timestampUtc: string;
+}
+
+export interface AuditListQuery extends PagedRequest {
+  userId?: number;
+  module?: string;
+  action?: string;
+  entityName?: string;
+  from?: string;
+  to?: string;
+}
+
+export const auditApi = {
+  list: (query: AuditListQuery = {}) =>
+    unwrap<PagedResult<AuditLogRow>>(api.get('/audit', { params: query })),
+  modules: () => unwrap<string[]>(api.get('/audit/modules')),
+  export: async (query: AuditListQuery = {}) => {
+    const response = await api.get('/audit/export', { params: query, responseType: 'blob' });
+    const url = URL.createObjectURL(response.data as Blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `audit_${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
 };
 
 export const menusApi = {

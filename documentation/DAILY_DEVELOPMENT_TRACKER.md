@@ -111,6 +111,19 @@ Code Review Status · Remarks`
 
 **Gate M4 passed** (proven Day 5 and regression-held): paid booking → id + invoice PDF + QR + notification + calendar, and the full money cycle now closes with refunds.
 
+## Day 7 — Tuesday 8 September 2026 · RELEASE 2 (Gate M5)
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 08-Sep | Senior | M16 | — | /access/validate: HMAC-first payload check, token/window/usage/booking/workspace rules, attendance gate, door via IAccessControlAdapter (Mock, A01), append-only access log for every attempt; grants bump usage + attendance + booking transitions | Backend API | Completed | Critical | 6 | 6 | 100 | — | QR tokens | Passed | Approved | Invariant 9: device offline = DeviceError, never a grant |
+| 08-Sep | Senior | M16 | — | Manual override behind distinct ACCESS.OVERRIDE: mandatory reason, exception log row + ACCESS_OVERRIDE audit entry (A10); token revoke endpoint | Backend API | Completed | Critical | 2 | 2 | 100 | — | — | Passed | Approved | |
+| 08-Sep | Junior 1 | M16 | /qr /work-status | My QR (client-rendered QR codes per active token) and My Work Status (self check-in/out with live-basis rule, history) | Frontend | Completed | Critical | 4 | 4 | 100 | — | Access APIs | Passed | Approved | qrcode npm package |
+| 08-Sep | Junior 1 | M16 | /admin/access /admin/access/logs | Scan/validate console with grant/deny panel + override dialog; access log grid with result filter and override badges | Frontend | Completed | High | 4 | 4 | 100 | — | — | Passed | Approved | OFFLINE-* device ids simulate the downed reader |
+| 08-Sep | Junior 2 | M17 | /admin/attendance /admin/attendance/payroll | Attendance grid (original times shown next to corrections), correction dialog with mandatory reason, payroll CSV export page; CsvPayrollExporter behind IPayrollExporter (A03); auto-close in the sweeper | Backend API | Completed | Critical | 6 | 6 | 100 | — | Recorder | Passed | Approved | XLSX variant joins with the reporting toolkit (Day 9) |
+| 08-Sep | QA | M16–M17 | — | 9 access/attendance integration tests + live smoke: pass PASS-000001 → gate in → offline DeviceError → gate out → attendance closed → payroll CSV | Integration Test | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | Suite: 77 automated tests green |
+
+**RELEASE 2 tagged — core business modules (gate M5 passed).**
+
 ## Day 3 onward — template
 
 Copy the block below for each day. **Every row must be filled — an empty Actual Hours or
@@ -189,7 +202,7 @@ ESTIMATED COMPLETION:
 | 4 | 30 | 30 | 0 | Booking engine live with concurrency proof (M3 evidence early) |
 | 5 | 40 | 40 | 0 | Booking engine gate M3 passed; auth screens on the client design |
 | 6 | 50 | 50 | 0 | Money complete: refunds, recharge, passes, invoices, calendar UI |
-| 7 | 60 | | | Release 2 |
+| 7 | 60 | 60 | 0 | Release 2 tagged: QR access, attendance, payroll export live |
 | 8 | 70 | | | |
 | 9 | 78 | | | |
 | 10 | 86 | | | Feature complete target |

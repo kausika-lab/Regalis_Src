@@ -1,6 +1,12 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { PortalLayout } from '@/layouts/PortalLayout';
+import {
+  AdminAccessLogsPage,
+  AdminAccessScanPage,
+  AdminAttendancePage,
+  AdminPayrollPage,
+} from '@/pages/admin/AdminAccessPages';
 import { AdminBookingsPage } from '@/pages/admin/AdminBookingsPage';
 import { AdminCalendarPage } from '@/pages/admin/AdminCalendarPage';
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
@@ -26,7 +32,9 @@ import { InvoicesPage } from '@/pages/customer/InvoicesPage';
 import { MyBookingsPage } from '@/pages/customer/MyBookingsPage';
 import { NotificationsPage } from '@/pages/customer/NotificationsPage';
 import { MyPassesPage, PassPlansPage } from '@/pages/customer/PassesPage';
+import { MyQrPage } from '@/pages/customer/MyQrPage';
 import { WalletPage } from '@/pages/customer/WalletPage';
+import { WorkStatusPage } from '@/pages/customer/WorkStatusPage';
 import { ForbiddenPage } from '@/pages/errors/ForbiddenPage';
 import { NotFoundPage } from '@/pages/errors/NotFoundPage';
 import { PermissionRoute } from './PermissionRoute';
@@ -65,6 +73,12 @@ export function AppRoutes() {
             <Route path="/day-pass" element={<PassPlansPage passType={1} />} />
             <Route path="/monthly-pass" element={<PassPlansPage passType={2} />} />
             <Route path="/passes" element={<MyPassesPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="ACCESS.VIEW" />}>
+            <Route path="/qr" element={<MyQrPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="ATTENDANCE.VIEW" />}>
+            <Route path="/work-status" element={<WorkStatusPage />} />
           </Route>
         </Route>
       </Route>
@@ -114,6 +128,18 @@ export function AppRoutes() {
           <Route element={<PermissionRoute permission="PASS.VIEW" />}>
             <Route path="/admin/passes/day" element={<AdminPassesPage passType={1} />} />
             <Route path="/admin/passes/monthly" element={<AdminPassesPage passType={2} />} />
+          </Route>
+          <Route element={<PermissionRoute permission="ACCESS.CREATE" />}>
+            <Route path="/admin/access" element={<AdminAccessScanPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="ACCESS.VIEW" />}>
+            <Route path="/admin/access/logs" element={<AdminAccessLogsPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="ATTENDANCE.VIEW" />}>
+            <Route path="/admin/attendance" element={<AdminAttendancePage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="PAYROLL.EXPORT" />}>
+            <Route path="/admin/attendance/payroll" element={<AdminPayrollPage />} />
           </Route>
         </Route>
       </Route>

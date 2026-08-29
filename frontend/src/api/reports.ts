@@ -1,6 +1,43 @@
 import type { ReportFilters, ReportInfo, ReportResult } from '@/models/reports';
 import { api, unwrap } from './client';
 
+export interface DashboardCard {
+  key: string;
+  label: string;
+  value: string;
+  hint: string | null;
+  route: string | null;
+}
+
+export interface AdminDashboard {
+  cards: DashboardCard[];
+  generatedUtc: string;
+}
+
+export interface DashboardBooking {
+  bookingId: number;
+  bookingNumber: string;
+  workspaceName: string;
+  workspaceTypeName: string;
+  startUtc: string;
+  endUtc: string;
+  status: number;
+}
+
+export interface CustomerDashboard {
+  walletBalance: number;
+  activePasses: number;
+  unreadNotifications: number;
+  openTickets: number;
+  todaysBooking: DashboardBooking | null;
+  nextBooking: DashboardBooking | null;
+}
+
+export const dashboardApi = {
+  admin: () => unwrap<AdminDashboard>(api.get('/dashboard/admin')),
+  customer: () => unwrap<CustomerDashboard>(api.get('/dashboard/customer')),
+};
+
 export const reportsApi = {
   catalogue: () => unwrap<ReportInfo[]>(api.get('/reports')),
   get: (key: string, filters: ReportFilters = {}) =>

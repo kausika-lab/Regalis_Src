@@ -149,6 +149,20 @@ exactly the schedule window; the inventory ledger carries a complete audit histo
 | 10-Sep | Junior 2 | M24 | /admin/reports /admin/reports/:key | Report engine + ReportShell: one typed tabular contract drives the grid, the ClosedXML Excel export and the QuestPDF landscape PDF for all 16 catalogued reports; reports 1–8 live (booking, revenue, customer, occupancy, desk, cabin, meeting-room, day-pass); landing grid shows the Day 10 set disabled | Full stack | Completed | Critical | 7 | 7 | 100 | — | — | Passed | Approved | ClosedXML 0.105.1 added |
 | 10-Sep | QA | all | — | End-to-end proof: register → book → wallet pay → invoice PDF → QR → gate in → gate out → attendance closed → booking + revenue reports carry the row. Plus ticket scoping/notes/attachment-sniff tests and report catalogue/export tests (5 new) | Integration Test | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | Suite: 91 automated tests green (77 integration + 14 unit) |
 
+## Day 10 — Friday 11 September 2026 · FEATURE COMPLETE
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 11-Sep | Senior | M25 | /admin/audit | Audit trail: filtered read + module list + CSV export over the append-only TRN_AuditLog; grid with action badges and change preview | Full stack | Completed | High | 3 | 3 | 100 | — | Audit interceptor | Passed | Approved | Read-only by design |
+| 11-Sep | Senior | — | /admin /(home) | Dashboard aggregates in one round trip: /dashboard/admin card row (bookings, occupancy, revenue today/month, checked-in, passes, tickets, housekeeping) and /dashboard/customer (wallet, passes, notifications, tickets, today's + next booking) | Full stack | Completed | High | 4 | 4 | 100 | — | — | Passed | Approved | EF aggregates instead of usp_GetDashboardSummary — same shape, no proc deployment |
+| 11-Sep | Senior | — | — | Code + security review of Days 8–9: two findings fixed — includeUnavailable on /services now needs SERVICE.EDIT (hidden items no longer leak to customers holding SERVICE.VIEW); the full /banners grid scopes customers to live customer-portal banners. Regression tests added for both | Security | Completed | Critical | 3 | 3 | 100 | — | — | Passed | Approved | |
+| 11-Sep | Junior 1 | M02 | / /profile /admin/profile | Customer home per UI_PLAN: banner carousel, stat chips, Today's Booking with View QR / Book Now, featured services strip. Own-record profile: GET/PUT /profile (email immutable, mobile uniqueness), content-sniffed photo ≤2 MB, change-password card | Full stack | Completed | Critical | 6 | 6 | 100 | — | Dashboard API | Passed | Approved | |
+| 11-Sep | Junior 2 | M24 | /admin/reports/* | Reports 9–16: monthly-pass, payment, invoice, wallet, coffee, ticket (first-response hours), check-in-out, qr-access — all through the shared contract and exporters; admin dashboard card row wired | Full stack | Completed | Critical | 6 | 6 | 100 | — | Report engine | Passed | Approved | All 16 verified to run by test |
+| 11-Sep | QA | all | — | Full regression pass 1: entire suite re-run (one stale Day 9 catalogue assertion updated); 5 new tests for reports 9–16, dashboards, audit, profile, security fixes | Integration Test | Completed | Critical | 5 | 5 | 100 | — | — | Passed | Approved | Suite: 96 automated tests green (82 integration + 14 unit) |
+
+**FEATURE COMPLETE on target:** every Phase-1 module has its backend and screens;
+remaining days are hardening (Day 11) and Release 3 / code freeze (Day 12).
+
 ## Day 3 onward — template
 
 Copy the block below for each day. **Every row must be filled — an empty Actual Hours or
@@ -230,7 +244,7 @@ ESTIMATED COMPLETION:
 | 7 | 60 | 60 | 0 | Release 2 tagged: QR access, attendance, payroll export live |
 | 8 | 70 | 70 | 0 | Gate M6: housekeeping blocks the real calendar; inventory ledger live |
 | 9 | 78 | 78 | 0 | Tickets + reports 1–8 live; e2e journey proven by automated test |
-| 10 | 86 | | | Feature complete target |
+| 10 | 86 | 86 | 0 | Feature complete on target; regression pass 1 green |
 | 11 | 92 | | | Hardening |
 | 12 | 100 | | | Release 3, code freeze |
 | 13 | buffer | | | Defect fixing |

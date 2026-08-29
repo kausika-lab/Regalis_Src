@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { PortalLayout } from '@/layouts/PortalLayout';
+import { ProfilePage } from '@/pages/ProfilePage';
+import { AdminAuditPage } from '@/pages/admin/AdminAuditPage';
 import {
   AdminAccessLogsPage,
   AdminAccessScanPage,
@@ -111,6 +113,7 @@ export function AppRoutes() {
             <Route path="/support/raise" element={<RaiseTicketPage />} />
           </Route>
           <Route path="/contact" element={<ContactUsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
         </Route>
       </Route>
 
@@ -196,6 +199,10 @@ export function AppRoutes() {
             <Route path="/admin/reports" element={<AdminReportsPage />} />
             <Route path="/admin/reports/:key" element={<ReportShellPage />} />
           </Route>
+          <Route element={<PermissionRoute permission="AUDIT.VIEW" />}>
+            <Route path="/admin/audit" element={<AdminAuditPage />} />
+          </Route>
+          <Route path="/admin/profile" element={<ProfilePage />} />
         </Route>
       </Route>
 

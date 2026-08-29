@@ -46,13 +46,19 @@ public class AvailabilityService(RegalisDbContext db, ISettingService settings) 
         }
 
         var occupancy = await LoadOccupancyAsync(workspaceIds, dayStartUtc, dayEndUtc, ct);
+        // Group once instead of re-scanning the whole occupancy list per slot per
+        // workspace (Day 9 performance pass: the loop was O(slots × spaces × rows)).
+        var occupancyByWorkspace = occupancy
+            .GroupBy(o => o.WorkspaceId)
+            .ToDictionary(g => g.Key, g => g.ToList());
 
         var slots = new List<SlotDto>();
         for (var slotStart = dayStartUtc; slotStart < dayEndUtc; slotStart = slotStart.AddMinutes(granularity))
         {
             var slotEnd = slotStart.AddMinutes(granularity);
-            var isAvailable = workspaceIds.Any(id => !occupancy.Any(o =>
-                o.WorkspaceId == id && o.StartUtc < slotEnd && slotStart < o.EndUtc));
+            var isAvailable = workspaceIds.Any(id =>
+                !occupancyByWorkspace.TryGetValue(id, out var spans) ||
+                !spans.Any(o => o.StartUtc < slotEnd && slotStart < o.EndUtc));
             slots.Add(new SlotDto(slotStart, slotEnd, isAvailable));
         }
         return slots;
@@ -65,6 +71,9 @@ public class AvailabilityService(RegalisDbContext db, ISettingService settings) 
         var workspaces = await BookableWorkspacesQuery(locationId, workspaceTypeId)
             .Include(w => w.WorkspaceType)
             .Include(w => w.WorkspaceAmenities).ThenInclude(wa => wa.Amenity)
+            // Two collection includes multiply rows in a single JOIN; split queries
+            // keep the payload linear (Day 9 performance pass).
+            .AsSplitQuery()
             .ToListAsync(ct);
         if (workspaces.Count == 0)
         {

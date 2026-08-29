@@ -1,12 +1,19 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { icons, type LucideIcon } from 'lucide-react';
+import { dashboardApi, type AdminDashboard } from '@/api/reports';
 import { Card, EmptyState } from '@/components/ui';
 import { useAuthStore } from '@/store/authStore';
+import { resolveMenuIcon } from '@/utils/menuIcons';
 
-/** Admin dashboard shell. Module tiles render from the dynamic menu tree. */
+/** Admin dashboard: live aggregate cards + module tiles from the menu tree. */
 export function AdminDashboardPage() {
   const { user, roles, menus } = useAuthStore();
   const tiles = menus.filter((m) => m.route && m.route !== '/admin');
+  const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
+
+  useEffect(() => {
+    dashboardApi.admin().then(setDashboard).catch(() => {});
+  }, []);
 
   return (
     <>
@@ -20,6 +27,32 @@ export function AdminDashboardPage() {
         </p>
       </Card>
 
+      {dashboard && (
+        <div className="choice-grid" style={{ marginBottom: 'var(--space-4)' }}>
+          {dashboard.cards.map((card) => {
+            const body = (
+              <>
+                <div className="choice-card__meta">{card.label}</div>
+                <div className="choice-card__title" style={{ fontSize: 'var(--font-size-xl)' }}>
+                  {card.value}
+                </div>
+                {card.hint && <div className="choice-card__meta">{card.hint}</div>}
+              </>
+            );
+            return card.route ? (
+              <Link key={card.key} to={card.route} className="choice-card"
+                style={{ textDecoration: 'none' }}>
+                {body}
+              </Link>
+            ) : (
+              <div key={card.key} className="choice-card" style={{ cursor: 'default' }}>
+                {body}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {tiles.length === 0 ? (
         <Card title="Modules">
           <EmptyState
@@ -30,7 +63,7 @@ export function AdminDashboardPage() {
       ) : (
         <div className="dash-grid">
           {tiles.map((tile) => {
-            const Icon = resolveIcon(tile.icon);
+            const Icon = resolveMenuIcon(tile.icon);
             return (
               <Link key={tile.menuId} to={tile.route!} className="dash-tile">
                 <span className="dash-tile__icon">
@@ -44,11 +77,4 @@ export function AdminDashboardPage() {
       )}
     </>
   );
-}
-
-function resolveIcon(name: string | null): LucideIcon {
-  if (name && name in icons) {
-    return icons[name as keyof typeof icons];
-  }
-  return icons.LayoutGrid;
 }

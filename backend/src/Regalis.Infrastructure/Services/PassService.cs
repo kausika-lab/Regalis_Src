@@ -319,7 +319,7 @@ public class PassService(
             var accessToken = new AccessToken
             {
                 TokenValue = tokenValue,
-                QrPayload = SignQrPayload(tokenValue),
+                QrPayload = QrPayloadSigner.Sign(tokenValue, jwtOptions.Value.SigningKey),
                 UserId = customerId,
                 CustomerPassId = pass.CustomerPassId,
                 LocationId = locationId,
@@ -476,15 +476,6 @@ public class PassService(
         var cgst = Math.Round(price * cgstPercent / 100m, 2, MidpointRounding.AwayFromZero);
         var sgst = Math.Round(price * sgstPercent / 100m, 2, MidpointRounding.AwayFromZero);
         return (cgst, sgst, price + cgst + sgst);
-    }
-
-    private string SignQrPayload(string tokenValue)
-    {
-        var signature = Convert.ToBase64String(HMACSHA256.HashData(
-                Encoding.UTF8.GetBytes(jwtOptions.Value.SigningKey),
-                Encoding.UTF8.GetBytes(tokenValue)))
-            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        return $"RGL1.{tokenValue}.{signature}";
     }
 
     private static CustomerPassDto ToDto(CustomerPass p, string customerName, string planName) => new(

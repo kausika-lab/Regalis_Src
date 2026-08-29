@@ -9,10 +9,12 @@ using Regalis.Application.Bookings;
 using Regalis.Application.Finance;
 using Regalis.Application.Masters;
 using Regalis.Application.Operations;
+using Regalis.Application.Reporting;
 using Regalis.Infrastructure.Adapters;
 using Regalis.Infrastructure.BackgroundJobs;
 using Regalis.Infrastructure.Persistence;
 using Regalis.Infrastructure.Persistence.Interceptors;
+using Regalis.Infrastructure.Reporting;
 using Regalis.Infrastructure.Persistence.Seed;
 using Regalis.Infrastructure.Security;
 using Regalis.Infrastructure.Services;
@@ -56,6 +58,9 @@ public static class DependencyInjection
         // Masters
         services.AddScoped<ILocationService, LocationService>();
         services.AddScoped<IWorkspaceService, WorkspaceService>();
+        services.AddScoped<IServiceCatalogueService, ServiceCatalogueService>();
+        services.AddScoped<IBannerService, BannerService>();
+        services.AddScoped<ISettingAdminService, SettingAdminService>();
 
         // Booking engine
         services.AddScoped<INumberSequenceService, NumberSequenceService>();
@@ -75,6 +80,16 @@ public static class DependencyInjection
 
         // Operations
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IHousekeepingService, HousekeepingService>();
+        services.AddScoped<IInventoryService, InventoryService>();
+        services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
+        services.AddScoped<ITicketService, TicketService>();
+
+        // Reporting & dashboards
+        services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IAuditService, AuditService>();
+        services.AddScoped<IProfileService, ProfileService>();
 
         // Access & attendance — the device and payroll seams are adapters
         // selected by configuration (Invariant 5, A01/A03).

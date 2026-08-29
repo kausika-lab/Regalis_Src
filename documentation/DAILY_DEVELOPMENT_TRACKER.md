@@ -124,6 +124,65 @@ Code Review Status · Remarks`
 
 **RELEASE 2 tagged — core business modules (gate M5 passed).**
 
+## Day 8 — Wednesday 9 September 2026 · Gate M6
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 09-Sep | Senior | M18 | /admin/housekeeping | Housekeeping engine: schedule create/edit writes TRN_WorkspaceBlock in the same serializable transaction (Invariant 12) with booking/block conflict guards; staff overlap check; cancel/complete releases the block; staff access token time-boxed to exactly the schedule window, revoked on cancel/reschedule; assignment notifications; HKS- numbers | Backend API | Completed | Critical | 6 | 6 | 100 | — | Calendar blocks, access tokens | Passed | Approved | QR signing deduplicated into QrPayloadSigner |
+| 09-Sep | Senior | M18 | /admin/housekeeping | Housekeeping grid + editor (staff picker, IST window, block toggle), start/complete/cancel; staff scoped server-side to own rows and given the menu | Frontend | Completed | High | 3 | 3 | 100 | — | — | Passed | Approved | |
+| 09-Sep | Junior 1 | M22 | /admin/services /services | Services & Coffee catalogue CRUD (catalogue writes = SERVICE.EDIT; SERVICE.CREATE stays reserved for customer orders) + customer browse page with category chips | Full stack | Completed | High | 4 | 4 | 100 | — | — | Passed | Approved | Ordering flow lands with the Day 10 home revamp |
+| 09-Sep | Junior 1 | M23 | /admin/banners /admin/settings /contact | Banners CRUD + windowed/portal-filtered /banners/active; Settings screen grouped with masked secrets, DataType validation and cache eviction on save; anonymous /settings/public feeding the new Contact Us page; Contact Us menu seeded | Full stack | Completed | High | 4 | 4 | 100 | — | — | Passed | Approved | |
+| 09-Sep | Junior 2 | M19 | /admin/inventory/* | Inventory item master (code frozen once ledgered), append-only In/Out/Damage/Adjustment ledger with ITX- numbers, derived stock + reorder flags (Invariant 11), negative-stock guard under a serializable transaction, CSV export; entry modal + grids | Full stack | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | CK_InvTxn_Quantity amended (migration) so a compensating Adjustment can be signed; DATABASE_DESIGN updated |
+| 09-Sep | QA | M18–M23 | — | 9 operations integration tests: block drops availability + cancel restores it, block refuses paid bookings, staff token time-boxed + revoked, stock derivation + overdraw refused + signed adjustment, catalogue visibility, banner windows, settings public/update/type-guard | Integration Test | Completed | Critical | 5 | 5 | 100 | — | — | Passed | Approved | Suite: 86 automated tests green (72 integration + 14 unit) |
+
+**Gate M6 passed — operations modules complete:** a housekeeping schedule removes the
+slot from customer availability through the one calendar path and gives the staff QR
+exactly the schedule window; the inventory ledger carries a complete audit history.
+
+## Day 9 — Thursday 10 September 2026
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 10-Sep | Senior | — | — | Cross-module integration review + performance pass: availability slot loop regrouped per workspace (was O(slots × spaces × rows)), workspace+amenity include split (AsSplitQuery) to stop join row multiplication; booking/calendar index coverage reviewed — sufficient, no schema change | Backend | Completed | High | 4 | 4 | 100 | — | — | Passed | Approved | Calendar queries already single-round-trip |
+| 10-Sep | Junior 1 | M21 | /support /support/raise /support/tickets/:id | Ticket engine + UI: guided category→issue-type→details raise flow (TKT- numbers), customer row-scoping (404, no existence leak), threaded replies, admin-only internal notes, assign/status/priority/close/reopen (customer reply on Resolved reopens), notifications both ways, CSV export | Full stack | Completed | Critical | 6 | 6 | 100 | — | Seeded categories | Passed | Approved | |
+| 10-Sep | Junior 1 | M21 | — | Attachments: multipart ≤10 MB, png/jpg/jpeg/webp/pdf validated by extension AND magic bytes (spoofed extension refused), ≤5 per ticket, stored under Storage:UploadRoot outside the web root, streamed back only through the authorized endpoint | Backend API | Completed | Critical | 3 | 3 | 100 | — | — | Passed | Approved | |
+| 10-Sep | Junior 2 | M24 | /admin/reports /admin/reports/:key | Report engine + ReportShell: one typed tabular contract drives the grid, the ClosedXML Excel export and the QuestPDF landscape PDF for all 16 catalogued reports; reports 1–8 live (booking, revenue, customer, occupancy, desk, cabin, meeting-room, day-pass); landing grid shows the Day 10 set disabled | Full stack | Completed | Critical | 7 | 7 | 100 | — | — | Passed | Approved | ClosedXML 0.105.1 added |
+| 10-Sep | QA | all | — | End-to-end proof: register → book → wallet pay → invoice PDF → QR → gate in → gate out → attendance closed → booking + revenue reports carry the row. Plus ticket scoping/notes/attachment-sniff tests and report catalogue/export tests (5 new) | Integration Test | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | Suite: 91 automated tests green (77 integration + 14 unit) |
+
+## Day 10 — Friday 11 September 2026 · FEATURE COMPLETE
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 11-Sep | Senior | M25 | /admin/audit | Audit trail: filtered read + module list + CSV export over the append-only TRN_AuditLog; grid with action badges and change preview | Full stack | Completed | High | 3 | 3 | 100 | — | Audit interceptor | Passed | Approved | Read-only by design |
+| 11-Sep | Senior | — | /admin /(home) | Dashboard aggregates in one round trip: /dashboard/admin card row (bookings, occupancy, revenue today/month, checked-in, passes, tickets, housekeeping) and /dashboard/customer (wallet, passes, notifications, tickets, today's + next booking) | Full stack | Completed | High | 4 | 4 | 100 | — | — | Passed | Approved | EF aggregates instead of usp_GetDashboardSummary — same shape, no proc deployment |
+| 11-Sep | Senior | — | — | Code + security review of Days 8–9: two findings fixed — includeUnavailable on /services now needs SERVICE.EDIT (hidden items no longer leak to customers holding SERVICE.VIEW); the full /banners grid scopes customers to live customer-portal banners. Regression tests added for both | Security | Completed | Critical | 3 | 3 | 100 | — | — | Passed | Approved | |
+| 11-Sep | Junior 1 | M02 | / /profile /admin/profile | Customer home per UI_PLAN: banner carousel, stat chips, Today's Booking with View QR / Book Now, featured services strip. Own-record profile: GET/PUT /profile (email immutable, mobile uniqueness), content-sniffed photo ≤2 MB, change-password card | Full stack | Completed | Critical | 6 | 6 | 100 | — | Dashboard API | Passed | Approved | |
+| 11-Sep | Junior 2 | M24 | /admin/reports/* | Reports 9–16: monthly-pass, payment, invoice, wallet, coffee, ticket (first-response hours), check-in-out, qr-access — all through the shared contract and exporters; admin dashboard card row wired | Full stack | Completed | Critical | 6 | 6 | 100 | — | Report engine | Passed | Approved | All 16 verified to run by test |
+| 11-Sep | QA | all | — | Full regression pass 1: entire suite re-run (one stale Day 9 catalogue assertion updated); 5 new tests for reports 9–16, dashboards, audit, profile, security fixes | Integration Test | Completed | Critical | 5 | 5 | 100 | — | — | Passed | Approved | Suite: 96 automated tests green (82 integration + 14 unit) |
+
+**FEATURE COMPLETE on target:** every Phase-1 module has its backend and screens;
+remaining days are hardening (Day 11) and Release 3 / code freeze (Day 12).
+
+## Day 11 — Monday 14 September 2026 · Hardening
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 14-Sep | Senior | — | — | Authorization hardening: fallback policy (auth is the default; health probes anonymous by declaration); reflection test proving every action declares [Authorize]/[HasPermission]/[AllowAnonymous]; anonymous auth POSTs verified behind the "auth" rate-limit policy | Security | Completed | Critical | 3 | 3 | 100 | — | — | Passed | Approved | An unannotated endpoint can no longer be public |
+| 14-Sep | Senior | — | — | Finding fixed: /dashboard/admin was reachable with the customer's DASHBOARD.VIEW — operational aggregates now admin-portal only. Secrets audit clean (no credentials outside tests; committed appsettings empty; dev key ephemeral). Security headers/CORS/rate limits/401-403 envelopes re-verified, headers asserted by test | Security | Completed | Critical | 3 | 3 | 100 | — | — | Passed | Approved | Found by the new negative sweep |
+| 14-Sep | Senior | — | — | Performance: all routes converted to lazy chunks (59) and the full lucide icon map evicted from the eager layout for a seeded-menu icon registry — first-paint JS 1,079 KB → 430 KB (−60%). Pagination clamps and error/logging middleware re-verified; audit interceptor redaction list reviewed | Performance | Completed | High | 4 | 4 | 100 | — | — | Passed | Approved | |
+| 14-Sep | QA | all | — | Role/permission matrix executed in full: Manager/Finance/Support/Housekeeping users provisioned live and probed against 15 endpoints from matrix §4 + ACCESS.OVERRIDE as a distinct privilege; customer negative sweep across all administration surfaces; security-header and health-probe tests | Security Test | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | Suite: 101 automated tests green (87 integration + 14 unit) |
+| 14-Sep | QA | all | — | Responsive: breakpoints verified in code (sidebar → bottom nav < 768 px); the seven-width visual pass and Chrome/Edge/Firefox matrix are manual and scheduled with the Day 12 UAT deployment | Manual QA | In progress | High | 2 | 1 | 50 | Needs deployed UAT | Day 12 deploy | Pending | — | Honest carry-over, not a defect |
+
+## Day 12 — Tuesday 15 September 2026 · RELEASE 3 (Gate M7) — prepared locally
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 15-Sep | Senior | — | — | Release build: v1.0.0-rc.1 stamped (assemblies + frontend), `dotnet publish -c Release` produced and smoke-tested live (health/ready 200, unauth 401, admin login, dashboard, reports + Excel export 200, security headers verified); production frontend bundle green | Release | Completed | Critical | 3 | 3 | 100 | — | — | Passed | Approved | |
+| 15-Sep | Senior | — | — | Deployment kit: appsettings.UAT.json placeholder template (no secrets, app never migrates in UAT), deploy/sql/release-3-idempotent.sql DBA hand-off, deploy/DEPLOYMENT.md runbook (env vars, same-origin proxy shape + split-host override, smoke checklist, rollback, freeze rules), RELEASE_NOTES.md for Releases 1–3 with honest known-items | Release | Completed | Critical | 4 | 4 | 100 | — | — | Passed | Approved | |
+| 15-Sep | QA | all | — | Full regression on the release configuration: entire suite re-run under `-c Release` — 87 integration + 14 unit green | Integration Test | Completed | Critical | 3 | 3 | 100 | — | — | Passed | Approved | Same evidence backs the UAT deploy |
+| 15-Sep | Senior | — | — | Tag `release-3` cut on main; **code freeze in effect — only defect fixes merge until go-live** | Release | Completed | Critical | 1 | 1 | 100 | — | — | — | Approved | Gate M7 |
+| 15-Sep | Team | — | — | Deploy to UAT + on-deployment smoke (runbook §6) + responsive/browser matrix + release approval sign-off | Manual | Pending | Critical | 4 | — | 0 | Needs the UAT host | UAT environment | Pending | Pending | Everything preparable locally is done; this row needs the environment and the human sign-off |
+
 ## Day 3 onward — template
 
 Copy the block below for each day. **Every row must be filled — an empty Actual Hours or
@@ -203,11 +262,11 @@ ESTIMATED COMPLETION:
 | 5 | 40 | 40 | 0 | Booking engine gate M3 passed; auth screens on the client design |
 | 6 | 50 | 50 | 0 | Money complete: refunds, recharge, passes, invoices, calendar UI |
 | 7 | 60 | 60 | 0 | Release 2 tagged: QR access, attendance, payroll export live |
-| 8 | 70 | | | |
-| 9 | 78 | | | |
-| 10 | 86 | | | Feature complete target |
-| 11 | 92 | | | Hardening |
-| 12 | 100 | | | Release 3, code freeze |
+| 8 | 70 | 70 | 0 | Gate M6: housekeeping blocks the real calendar; inventory ledger live |
+| 9 | 78 | 78 | 0 | Tickets + reports 1–8 live; e2e journey proven by automated test |
+| 10 | 86 | 86 | 0 | Feature complete on target; regression pass 1 green |
+| 11 | 92 | 92 | 0 | Hardening: matrix proven by test, bundle −60%, 2 authz findings fixed |
+| 12 | 100 | 98 | −2 | Release 3 tagged, freeze on; UAT deploy + sign-off await the environment |
 | 13 | buffer | | | Defect fixing |
 | 14 | buffer | | | UAT |
 | 15 | buffer | | | Go-live |

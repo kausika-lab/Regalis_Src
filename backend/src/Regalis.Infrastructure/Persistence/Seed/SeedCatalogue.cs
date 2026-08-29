@@ -119,6 +119,8 @@ internal static class SeedCatalogue
 
     private static readonly string[] AdminOnly = [RoleCodes.Admin];
     private static readonly string[] AdminManager = [RoleCodes.Admin, RoleCodes.Manager];
+    private static readonly string[] AdminManagerHousekeeping =
+        [RoleCodes.Admin, RoleCodes.Manager, RoleCodes.Housekeeping];
     private static readonly string[] AdminFinance = [RoleCodes.Admin, RoleCodes.Finance];
     private static readonly string[] AdminManagerSupport = [RoleCodes.Admin, RoleCodes.Manager, RoleCodes.Support];
     private static readonly string[] AdminManagerFinance = [RoleCodes.Admin, RoleCodes.Manager, RoleCodes.Finance];
@@ -143,6 +145,7 @@ internal static class SeedCatalogue
         new("CUST_SUPPORT", null, "Support", "/support", "LifeBuoy", "TICKET.VIEW", PortalType.Customer, CustomerOnly),
         new("CUST_SUPPORT_RAISE", "CUST_SUPPORT", "Raise Ticket", "/support/raise", "MessageSquarePlus", "TICKET.CREATE", PortalType.Customer, CustomerOnly),
         new("CUST_SUPPORT_ALL", "CUST_SUPPORT", "All Tickets", "/support/tickets", "Tickets", "TICKET.VIEW", PortalType.Customer, CustomerOnly),
+        new("CUST_CONTACT", null, "Contact Us", "/contact", "Phone", null, PortalType.Customer, CustomerOnly),
         new("CUST_PROFILE", null, "Profile", "/profile", "UserRound", null, PortalType.Customer, CustomerOnly),
 
         // Admin portal
@@ -168,7 +171,8 @@ internal static class SeedCatalogue
         new("ADM_INVENTORY", null, "Inventory", null, "Package", "INVENTORY.VIEW", PortalType.Admin, AdminManager),
         new("ADM_INVENTORY_ITEMS", "ADM_INVENTORY", "Items", "/admin/inventory/items", "Boxes", "INVENTORY.VIEW", PortalType.Admin, AdminManager),
         new("ADM_INVENTORY_TXNS", "ADM_INVENTORY", "Transactions", "/admin/inventory/transactions", "ArrowLeftRight", "INVENTORY.VIEW", PortalType.Admin, AdminManager),
-        new("ADM_HOUSEKEEPING", null, "Housekeeping", "/admin/housekeeping", "Sparkles", "HOUSEKEEPING.VIEW", PortalType.Admin, AdminManager),
+        // Housekeeping staff get this menu too — the grid scopes them to their own rows.
+        new("ADM_HOUSEKEEPING", null, "Housekeeping", "/admin/housekeeping", "Sparkles", "HOUSEKEEPING.VIEW", PortalType.Admin, AdminManagerHousekeeping),
         new("ADM_LOCATIONS", null, "Locations", "/admin/locations", "MapPin", "LOCATION.VIEW", PortalType.Admin, AdminOnly),
         new("ADM_SERVICES", null, "Services / Coffee", "/admin/services", "Coffee", "SERVICE.VIEW", PortalType.Admin, AdminManager),
         new("ADM_BANNERS", null, "Banners", "/admin/banners", "Image", "BANNER.VIEW", PortalType.Admin, AdminManager),

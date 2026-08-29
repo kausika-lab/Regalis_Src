@@ -8,7 +8,10 @@ import { useAuthStore } from '@/store/authStore';
  * repeated failure. ApiResponse.errors is surfaced to callers via ApiClientError.
  */
 export const api = axios.create({
-  baseURL: '/api',
+  // Same-origin /api is the deployed shape (reverse proxy in front of the API);
+  // VITE_API_BASE_URL overrides it for a split-host UAT. Note the service worker
+  // only caches the same-origin /api route.
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 30_000,
   headers: { 'Content-Type': 'application/json' },
 });

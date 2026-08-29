@@ -464,7 +464,7 @@ public class BookingService(
         return new AccessToken
         {
             TokenValue = tokenValue,
-            QrPayload = SignQrPayload(tokenValue),
+            QrPayload = QrPayloadSigner.Sign(tokenValue, jwtOptions.Value.SigningKey),
             UserId = booking.CustomerId,
             BookingId = booking.BookingId,
             WorkspaceId = booking.WorkspaceId,
@@ -474,17 +474,6 @@ public class BookingService(
             ValidToUtc = booking.EndUtc,
             Status = AccessTokenStatus.Active
         };
-    }
-
-    /// <summary>Compact signed QR payload: RGL1.{token}.{hmac}. The reader posts it
-    /// to /access/validate, which re-verifies the signature and the token window.</summary>
-    private string SignQrPayload(string tokenValue)
-    {
-        var signature = Convert.ToBase64String(HMACSHA256.HashData(
-                Encoding.UTF8.GetBytes(jwtOptions.Value.SigningKey),
-                Encoding.UTF8.GetBytes(tokenValue)))
-            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        return $"RGL1.{tokenValue}.{signature}";
     }
 
     private Notification BuildConfirmationNotification(Booking booking, DateTime nowUtc)

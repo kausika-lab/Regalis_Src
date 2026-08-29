@@ -1,5 +1,7 @@
 <Project>
   <PropertyGroup>
+    <!-- Release 3 (Day 12): the feature-complete build. 1.0.0 ships at go-live. -->
+    <Version>1.0.0-rc.1</Version>
     <TargetFramework>net8.0</TargetFramework>
     <LangVersion>12</LangVersion>
     <Nullable>enable</Nullable>

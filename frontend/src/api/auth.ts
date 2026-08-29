@@ -41,3 +41,41 @@ export const authApi = {
 
   myMenus: () => unwrap<MenuItem[]>(api.get('/menus/my')),
 };
+
+export interface Profile {
+  userId: number;
+  fullName: string;
+  email: string;
+  mobileNumber: string;
+  companyName: string | null;
+  address: string | null;
+  hasPhoto: boolean;
+  userType: number;
+  createdDate: string;
+}
+
+/** Own-record profile (API_PLAN §4) — no id parameter anywhere. */
+export const profileApi = {
+  get: () => unwrap<Profile>(api.get('/profile')),
+  update: (payload: {
+    fullName: string;
+    mobileNumber: string;
+    companyName?: string | null;
+    address?: string | null;
+  }) => unwrap<Profile>(api.put('/profile', payload)),
+  setPhoto: (file: File) => {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return unwrap<Profile>(api.post('/profile/photo', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }));
+  },
+  photoUrl: async (): Promise<string | null> => {
+    try {
+      const response = await api.get('/profile/photo', { responseType: 'blob' });
+      return URL.createObjectURL(response.data as Blob);
+    } catch {
+      return null;
+    }
+  },
+};

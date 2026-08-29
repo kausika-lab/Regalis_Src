@@ -3056,7 +3056,7 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     b.ToTable("TRN_InventoryTransaction", null, t =>
                         {
-                            t.HasCheckConstraint("CK_InvTxn_Quantity", "[Quantity] > 0");
+                            t.HasCheckConstraint("CK_InvTxn_Quantity", "[Quantity] > 0 OR ([TransactionType] = 5 AND [Quantity] <> 0)");
                         });
                 });
 

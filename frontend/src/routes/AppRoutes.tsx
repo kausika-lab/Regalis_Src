@@ -26,6 +26,8 @@ import {
   AdminInventoryItemsPage,
   AdminInventoryTransactionsPage,
 } from '@/pages/admin/AdminInventoryPages';
+import { AdminReportsPage, ReportShellPage } from '@/pages/admin/AdminReportsPages';
+import { AdminTicketDetailPage, AdminTicketsPage } from '@/pages/admin/AdminTicketsPage';
 import { LocationsPage } from '@/pages/admin/LocationsPage';
 import { MenusPage } from '@/pages/admin/MenusPage';
 import { RolesPage } from '@/pages/admin/RolesPage';
@@ -45,6 +47,11 @@ import { NotificationsPage } from '@/pages/customer/NotificationsPage';
 import { MyPassesPage, PassPlansPage } from '@/pages/customer/PassesPage';
 import { MyQrPage } from '@/pages/customer/MyQrPage';
 import { ServicesPage } from '@/pages/customer/ServicesPage';
+import {
+  MyTicketsPage,
+  RaiseTicketPage,
+  TicketDetailPage,
+} from '@/pages/customer/SupportPages';
 import { WalletPage } from '@/pages/customer/WalletPage';
 import { WorkStatusPage } from '@/pages/customer/WorkStatusPage';
 import { ForbiddenPage } from '@/pages/errors/ForbiddenPage';
@@ -94,6 +101,14 @@ export function AppRoutes() {
           </Route>
           <Route element={<PermissionRoute permission="SERVICE.VIEW" />}>
             <Route path="/services" element={<ServicesPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="TICKET.VIEW" />}>
+            <Route path="/support" element={<MyTicketsPage />} />
+            <Route path="/support/tickets" element={<MyTicketsPage />} />
+            <Route path="/support/tickets/:id" element={<TicketDetailPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="TICKET.CREATE" />}>
+            <Route path="/support/raise" element={<RaiseTicketPage />} />
           </Route>
           <Route path="/contact" element={<ContactUsPage />} />
         </Route>
@@ -172,6 +187,14 @@ export function AppRoutes() {
           </Route>
           <Route element={<PermissionRoute permission="SETTING.VIEW" />}>
             <Route path="/admin/settings" element={<AdminSettingsPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="TICKET.VIEW" />}>
+            <Route path="/admin/tickets" element={<AdminTicketsPage />} />
+            <Route path="/admin/tickets/:id" element={<AdminTicketDetailPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="REPORT.VIEW" />}>
+            <Route path="/admin/reports" element={<AdminReportsPage />} />
+            <Route path="/admin/reports/:key" element={<ReportShellPage />} />
           </Route>
         </Route>
       </Route>

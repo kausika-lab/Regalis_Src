@@ -139,6 +139,16 @@ Code Review Status · Remarks`
 slot from customer availability through the one calendar path and gives the staff QR
 exactly the schedule window; the inventory ledger carries a complete audit history.
 
+## Day 9 — Thursday 10 September 2026
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 10-Sep | Senior | — | — | Cross-module integration review + performance pass: availability slot loop regrouped per workspace (was O(slots × spaces × rows)), workspace+amenity include split (AsSplitQuery) to stop join row multiplication; booking/calendar index coverage reviewed — sufficient, no schema change | Backend | Completed | High | 4 | 4 | 100 | — | — | Passed | Approved | Calendar queries already single-round-trip |
+| 10-Sep | Junior 1 | M21 | /support /support/raise /support/tickets/:id | Ticket engine + UI: guided category→issue-type→details raise flow (TKT- numbers), customer row-scoping (404, no existence leak), threaded replies, admin-only internal notes, assign/status/priority/close/reopen (customer reply on Resolved reopens), notifications both ways, CSV export | Full stack | Completed | Critical | 6 | 6 | 100 | — | Seeded categories | Passed | Approved | |
+| 10-Sep | Junior 1 | M21 | — | Attachments: multipart ≤10 MB, png/jpg/jpeg/webp/pdf validated by extension AND magic bytes (spoofed extension refused), ≤5 per ticket, stored under Storage:UploadRoot outside the web root, streamed back only through the authorized endpoint | Backend API | Completed | Critical | 3 | 3 | 100 | — | — | Passed | Approved | |
+| 10-Sep | Junior 2 | M24 | /admin/reports /admin/reports/:key | Report engine + ReportShell: one typed tabular contract drives the grid, the ClosedXML Excel export and the QuestPDF landscape PDF for all 16 catalogued reports; reports 1–8 live (booking, revenue, customer, occupancy, desk, cabin, meeting-room, day-pass); landing grid shows the Day 10 set disabled | Full stack | Completed | Critical | 7 | 7 | 100 | — | — | Passed | Approved | ClosedXML 0.105.1 added |
+| 10-Sep | QA | all | — | End-to-end proof: register → book → wallet pay → invoice PDF → QR → gate in → gate out → attendance closed → booking + revenue reports carry the row. Plus ticket scoping/notes/attachment-sniff tests and report catalogue/export tests (5 new) | Integration Test | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | Suite: 91 automated tests green (77 integration + 14 unit) |
+
 ## Day 3 onward — template
 
 Copy the block below for each day. **Every row must be filled — an empty Actual Hours or
@@ -219,7 +229,7 @@ ESTIMATED COMPLETION:
 | 6 | 50 | 50 | 0 | Money complete: refunds, recharge, passes, invoices, calendar UI |
 | 7 | 60 | 60 | 0 | Release 2 tagged: QR access, attendance, payroll export live |
 | 8 | 70 | 70 | 0 | Gate M6: housekeeping blocks the real calendar; inventory ledger live |
-| 9 | 78 | | | |
+| 9 | 78 | 78 | 0 | Tickets + reports 1–8 live; e2e journey proven by automated test |
 | 10 | 86 | | | Feature complete target |
 | 11 | 92 | | | Hardening |
 | 12 | 100 | | | Release 3, code freeze |

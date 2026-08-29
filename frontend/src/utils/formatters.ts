@@ -36,15 +36,25 @@ export function formatInr(amount: number): string {
   return currency.format(amount);
 }
 
+/** API timestamps are UTC; older payloads may lack the Z suffix — never let the
+ * browser parse them as local time. */
+function toUtcDate(utc: string | Date): Date {
+  if (utc instanceof Date) {
+    return utc;
+  }
+  const needsZone = !/[zZ]|[+-]\d{2}:?\d{2}$/.test(utc);
+  return new Date(needsZone ? `${utc}Z` : utc);
+}
+
 /** Accepts an ISO UTC string from the API and renders it in IST. */
 export function formatDateTime(utc: string | Date): string {
-  return dateTime.format(typeof utc === 'string' ? new Date(utc) : utc);
+  return dateTime.format(toUtcDate(utc));
 }
 
 export function formatDate(utc: string | Date): string {
-  return dateOnly.format(typeof utc === 'string' ? new Date(utc) : utc);
+  return dateOnly.format(toUtcDate(utc));
 }
 
 export function formatTime(utc: string | Date): string {
-  return timeOnly.format(typeof utc === 'string' ? new Date(utc) : utc);
+  return timeOnly.format(toUtcDate(utc));
 }

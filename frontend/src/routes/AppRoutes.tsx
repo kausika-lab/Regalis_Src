@@ -2,7 +2,14 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { PortalLayout } from '@/layouts/PortalLayout';
 import { AdminBookingsPage } from '@/pages/admin/AdminBookingsPage';
+import { AdminCalendarPage } from '@/pages/admin/AdminCalendarPage';
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
+import {
+  AdminInvoicesPage,
+  AdminPassesPage,
+  AdminPaymentsPage,
+  AdminWalletPage,
+} from '@/pages/admin/AdminFinancePages';
 import { LocationsPage } from '@/pages/admin/LocationsPage';
 import { MenusPage } from '@/pages/admin/MenusPage';
 import { RolesPage } from '@/pages/admin/RolesPage';
@@ -15,6 +22,11 @@ import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
 import { VerifyOtpPage } from '@/pages/auth/VerifyOtpPage';
 import { BookWorkspacePage } from '@/pages/customer/BookWorkspacePage';
 import { CustomerHomePage } from '@/pages/customer/CustomerHomePage';
+import { InvoicesPage } from '@/pages/customer/InvoicesPage';
+import { MyBookingsPage } from '@/pages/customer/MyBookingsPage';
+import { NotificationsPage } from '@/pages/customer/NotificationsPage';
+import { MyPassesPage, PassPlansPage } from '@/pages/customer/PassesPage';
+import { WalletPage } from '@/pages/customer/WalletPage';
 import { ForbiddenPage } from '@/pages/errors/ForbiddenPage';
 import { NotFoundPage } from '@/pages/errors/NotFoundPage';
 import { PermissionRoute } from './PermissionRoute';
@@ -36,8 +48,23 @@ export function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<PortalLayout title="Regalis WorkSpace" />}>
           <Route path="/" element={<CustomerHomePage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route element={<PermissionRoute permission="BOOKING.CREATE" />}>
             <Route path="/book" element={<BookWorkspacePage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="BOOKING.VIEW" />}>
+            <Route path="/bookings" element={<MyBookingsPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="WALLET.VIEW" />}>
+            <Route path="/wallet" element={<WalletPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="INVOICE.VIEW" />}>
+            <Route path="/invoices" element={<InvoicesPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="PASS.VIEW" />}>
+            <Route path="/day-pass" element={<PassPlansPage passType={1} />} />
+            <Route path="/monthly-pass" element={<PassPlansPage passType={2} />} />
+            <Route path="/passes" element={<MyPassesPage />} />
           </Route>
         </Route>
       </Route>
@@ -60,9 +87,6 @@ export function AppRoutes() {
           <Route element={<PermissionRoute permission="LOCATION.VIEW" />}>
             <Route path="/admin/locations" element={<LocationsPage />} />
           </Route>
-          <Route element={<PermissionRoute permission="BOOKING.VIEW" />}>
-            <Route path="/admin/bookings" element={<AdminBookingsPage />} />
-          </Route>
           <Route element={<PermissionRoute permission="WORKSPACE.VIEW" />}>
             <Route path="/admin/workspaces" element={<WorkspacesPage />} />
             <Route path="/admin/workspaces/desks" element={<WorkspacesPage typeCode="DESK" />} />
@@ -71,6 +95,25 @@ export function AppRoutes() {
               path="/admin/workspaces/meeting-rooms"
               element={<WorkspacesPage typeCode="MEETING_ROOM" />}
             />
+          </Route>
+          <Route element={<PermissionRoute permission="CALENDAR.VIEW" />}>
+            <Route path="/admin/calendar" element={<AdminCalendarPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="BOOKING.VIEW" />}>
+            <Route path="/admin/bookings" element={<AdminBookingsPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="INVOICE.VIEW" />}>
+            <Route path="/admin/invoices" element={<AdminInvoicesPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="PAYMENT.VIEW" />}>
+            <Route path="/admin/payments" element={<AdminPaymentsPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="WALLET.VIEW" />}>
+            <Route path="/admin/wallet" element={<AdminWalletPage />} />
+          </Route>
+          <Route element={<PermissionRoute permission="PASS.VIEW" />}>
+            <Route path="/admin/passes/day" element={<AdminPassesPage passType={1} />} />
+            <Route path="/admin/passes/monthly" element={<AdminPassesPage passType={2} />} />
           </Route>
         </Route>
       </Route>

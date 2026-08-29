@@ -96,6 +96,21 @@ Code Review Status · Remarks`
 
 **Gate M3 passed:** booking engine demo end-to-end, one calendar serving both portals, overlap prevention proven (Day 4 concurrency test).
 
+## Day 6 — Monday 7 September 2026 · Gate M4
+
+| Date | Dev | Module | Screen | Task | Type | Status | Pri | Est | Act | % | Blocker | Dependency | QA | Review | Remarks |
+|------|-----|--------|--------|------|------|--------|-----|-----|-----|---|---------|-----------|----|--------|---------|
+| 07-Sep | Senior | M09 | /admin/calendar | Calendar day-timeline UI (workspaces × IST hours), booking/block popups, block dialog with confirmed-booking guard, unblock | Frontend | Completed | Critical | 5 | 5 | 100 | — | Calendar API | Passed | Approved | Week/month API live; grid views iterate with the design reskin |
+| 07-Sep | Senior | M08 | — | Cancel/reschedule/extend engine: policy refunds to wallet, locked availability re-check, QR window follows, supplementary GST invoice for extensions; shared BookingEngineLocks | Backend API | Completed | Critical | 5 | 5 | 100 | — | Engine | Passed | Approved | UTC JSON converter fixed browser-local date parsing |
+| 07-Sep | Junior 1 | M10/M11 | /bookings | My Bookings tabs + cancel (policy messaging) / reschedule / extend dialogs | Frontend | Completed | Critical | 4 | 4 | 100 | — | Mutation APIs | Passed | Approved | |
+| 07-Sep | Junior 1 | M20 | /notifications | Notification centre (read/read-all/delete, action links) + topbar bell with unread badge; broadcast API | Frontend | Completed | High | 3 | 3 | 100 | — | — | Passed | Approved | |
+| 07-Sep | Junior 2 | M13 | /wallet /admin/wallet | Wallet screens: balance tiles, sandbox recharge (limits enforced), running-balance ledger; admin wallet search + audited adjust | Frontend | Completed | Critical | 5 | 5 | 100 | — | Recharge API | Passed | Approved | |
+| 07-Sep | Junior 2 | M14 | /invoices /admin/invoices /admin/payments | Invoice tabs + PDF download, admin invoice grid with GST columns, payments grid | Frontend | Completed | High | 4 | 4 | 100 | — | — | Passed | Approved | |
+| 07-Sep | Junior 2 | M15 | /day-pass /monthly-pass /passes /admin/passes/* | Pass plans browse + wallet/gateway purchase, my passes, admin plan editor + purchases with cancel/refund | Frontend | Completed | Critical | 5 | 5 | 100 | — | Pass APIs | Passed | Approved | Pass expiry in the background sweeper |
+| 07-Sep | QA | M08–M15 | — | 11 new integration tests + dev smoke (recharge WTX-000001, 100% refund ₹708, notifications) | Integration Test | Completed | Critical | 6 | 6 | 100 | — | — | Passed | Approved | Suite: 68 automated tests green |
+
+**Gate M4 passed** (proven Day 5 and regression-held): paid booking → id + invoice PDF + QR + notification + calendar, and the full money cycle now closes with refunds.
+
 ## Day 3 onward — template
 
 Copy the block below for each day. **Every row must be filled — an empty Actual Hours or
@@ -173,7 +188,7 @@ ESTIMATED COMPLETION:
 | 3 | 22 | 22 | 0 | Release 1 tagged; auth + RBAC live with automated test proof |
 | 4 | 30 | 30 | 0 | Booking engine live with concurrency proof (M3 evidence early) |
 | 5 | 40 | 40 | 0 | Booking engine gate M3 passed; auth screens on the client design |
-| 6 | 50 | | | |
+| 6 | 50 | 50 | 0 | Money complete: refunds, recharge, passes, invoices, calendar UI |
 | 7 | 60 | | | Release 2 |
 | 8 | 70 | | | |
 | 9 | 78 | | | |

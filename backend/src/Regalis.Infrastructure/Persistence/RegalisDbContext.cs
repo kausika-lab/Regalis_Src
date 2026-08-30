@@ -96,6 +96,44 @@ public class RegalisDbContext(DbContextOptions<RegalisDbContext> options) : DbCo
                 .HasQueryFilter(Expression.Lambda(body, parameter));
         }
 
+        // Matching filters for the required children of soft-deletable principals
+        // (UserRole, InvoiceLine, RefreshToken, ...): rows whose parent is deleted
+        // disappear with it. Without these, EF warns that filtering the principal
+        // out of a required relationship can produce unexpected results.
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if (entityType.IsOwned() || typeof(ISoftDeletableEntity).IsAssignableFrom(entityType.ClrType))
+            {
+                continue;
+            }
+
+            var parameter = Expression.Parameter(entityType.ClrType, "e");
+            Expression? body = null;
+            foreach (var foreignKey in entityType.GetForeignKeys())
+            {
+                var navigation = foreignKey.DependentToPrincipal;
+                if (!foreignKey.IsRequired
+                    || navigation is null
+                    || !typeof(ISoftDeletableEntity).IsAssignableFrom(foreignKey.PrincipalEntityType.ClrType))
+                {
+                    continue;
+                }
+
+                var parentNotDeleted = Expression.Equal(
+                    Expression.Property(
+                        Expression.Property(parameter, navigation.Name),
+                        nameof(ISoftDeletableEntity.IsDeleted)),
+                    Expression.Constant(false));
+                body = body is null ? parentNotDeleted : Expression.AndAlso(body, parentNotDeleted);
+            }
+
+            if (body is not null)
+            {
+                modelBuilder.Entity(entityType.ClrType)
+                    .HasQueryFilter(Expression.Lambda(body, parameter));
+            }
+        }
+
         base.OnModelCreating(modelBuilder);
     }
 }

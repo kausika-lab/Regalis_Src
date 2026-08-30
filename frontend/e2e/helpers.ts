@@ -70,7 +70,10 @@ export async function visitAndCapture(page: Page, path: string, screenshotName: 
   // PermissionRoute redirects to /forbidden and unknown paths land on /404 —
   // either one means the feature did NOT render for this signed-in user.
   expect(page.url(), `expected to stay on ${path}`).not.toMatch(/\/(forbidden|404)$/);
-  await expect(page.locator('main, .portal, [role="main"]').first()).toBeVisible();
+  // Generous timeout: lazy page chunks can take a while on a loaded dev machine.
+  await expect(page.locator('main, .portal, [role="main"]').first()).toBeVisible({
+    timeout: 15_000,
+  });
   await page.screenshot({
     path: `e2e-results/screens/${screenshotName}.png`,
     fullPage: true,

@@ -1,0 +1,53 @@
+HOW TO RUN THE PLAYWRIGHT END-TO-END WALKTHROUGH
+================================================
+
+What it does
+------------
+Drives a real Chromium browser through the whole product:
+  - Admin portal : signs in and opens all 30 admin feature pages + one report
+  - Customer     : registers a new account, verifies it with the real OTP
+                   (read from the dev API log), signs in, opens all 16 pages
+Screenshots of every feature: frontend\e2e-results\screens
+HTML report                 : frontend\e2e-report\index.html
+
+Option 1 - one command (recommended)
+------------------------------------
+Open PowerShell in D:\Projects\Regalis and run:
+
+    .\scripts\run-e2e.ps1
+
+  - Starts the API (5200/7200) and UI (5173) only if not already running
+    (a Visual Studio F5 session is detected and reused).
+  - Reads the admin password from user-secrets automatically.
+  - Browser is VISIBLE so you can watch. Variations:
+
+    .\scripts\run-e2e.ps1 -Headless       (invisible, faster)
+    .\scripts\run-e2e.ps1 -KeepRunning    (leave API+UI up afterwards)
+
+Option 2 - run Playwright directly
+----------------------------------
+Use when API + UI are already running. In PowerShell:
+
+    cd D:\Projects\Regalis\frontend
+    $env:E2E_ADMIN_PASSWORD = "<Seed:AdminPassword from user-secrets>"
+    npm run e2e:headed        (watch in browser)
+    npm run e2e               (headless)
+
+  To find the password:
+    dotnet user-secrets list --project D:\Projects\Regalis\backend\src\Regalis.API
+
+  Useful variations:
+    npx playwright test e2e/customer-journey.spec.ts    (one spec only)
+    npx playwright test --debug                         (step-by-step inspector)
+    npx playwright test --ui                            (interactive UI mode)
+
+View the last report
+--------------------
+    cd D:\Projects\Regalis\frontend
+    npx playwright show-report e2e-report
+
+Notes
+-----
+- Each run registers a throwaway customer (e2e.<timestamp>@example.com)
+  in the dev database on NANDHA\MSSQLSERVER02. Harmless; visible in Users.
+- The unit/integration test runner is separate: .\scripts\run-tests.ps1

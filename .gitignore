@@ -25,6 +25,10 @@ coverage/
 *.local
 .vite/
 
+# ── Playwright E2E artifacts ──
+e2e-results/
+e2e-report/
+
 # ── Environment / secrets ──
 .env
 .env.*

@@ -18,5 +18,10 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
     viewport: { width: 1440, height: 900 },
+    // E2E_SLOWMO=<ms> pauses between every browser action so the headed
+    // walkthrough is watchable (e.g. 500). Unset = full speed.
+    launchOptions: process.env.E2E_SLOWMO
+      ? { slowMo: Number(process.env.E2E_SLOWMO) }
+      : {},
   },
 });

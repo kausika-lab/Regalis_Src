@@ -51,9 +51,16 @@ public static class DependencyInjection
         services.AddScoped<IMenuAdminService, MenuAdminService>();
         services.AddScoped<DatabaseSeeder>();
 
-        // Adapter selection by configuration (Invariant 5): only the console
-        // channel exists until SMTP credentials arrive (execution-plan risk #3).
-        services.AddScoped<IOtpSender, ConsoleOtpSender>();
+        // Adapter selection by configuration (Invariant 5): Otp:Channel = "Smtp"
+        // sends real mail; anything else stays on the console sender so a fresh
+        // clone runs without SMTP credentials (execution-plan risk #3).
+        services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.SectionName));
+        services.AddScoped<ConsoleOtpSender>();
+        services.AddScoped<SmtpOtpSender>();
+        services.AddScoped<IOtpSender>(provider =>
+            string.Equals(configuration["Otp:Channel"], "Smtp", StringComparison.OrdinalIgnoreCase)
+                ? provider.GetRequiredService<SmtpOtpSender>()
+                : provider.GetRequiredService<ConsoleOtpSender>());
 
         // Masters
         services.AddScoped<ILocationService, LocationService>();

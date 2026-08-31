@@ -30,15 +30,15 @@
 
 ```
 RegalisWorkSpace/
+├── Regalis.sln                      # single solution: backend + tests + frontend (esproj)
 ├── backend/
-│   ├── Regalis.sln
-│   ├── src/
-│   │   ├── Regalis.Domain/          # entities, enums, domain rules. No dependencies.
-│   │   ├── Regalis.Shared/          # ApiResponse, PagedResult, constants, permission codes
-│   │   ├── Regalis.Application/     # DTOs, validators, service interfaces + implementations
-│   │   ├── Regalis.Infrastructure/  # EF Core, repositories, adapters, JWT, hashing, PDF/Excel
-│   │   └── Regalis.API/             # controllers, middleware, DI composition root
-├── frontend/                        # React + TS + Vite PWA
+│   └── src/
+│       ├── Regalis.Domain/          # entities, enums, domain rules. No dependencies.
+│       ├── Regalis.Shared/          # ApiResponse, PagedResult, constants, permission codes
+│       ├── Regalis.Application/     # DTOs, validators, service interfaces + implementations
+│       ├── Regalis.Infrastructure/  # EF Core, repositories, adapters, JWT, hashing, PDF/Excel
+│       └── Regalis.API/             # controllers, middleware, DI composition root
+├── frontend/                        # React + TS + Vite PWA (Regalis.Frontend.esproj in VS)
 ├── database/
 │   ├── scripts/                     # Database_Create.sql, Indexes.sql, Database_Migration.sql
 │   ├── seed-data/                   # Database_Seed.sql

@@ -242,6 +242,14 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
+// ── Dev convenience: F5 on Regalis.API also brings up the Vite dev server.
+//    Gated on AUTOSTART_FRONTEND, set only in launchSettings.json profiles. ───
+if (app.Environment.IsDevelopment()
+    && string.Equals(app.Configuration["AUTOSTART_FRONTEND"], "true", StringComparison.OrdinalIgnoreCase))
+{
+    Regalis.API.Services.FrontendDevLauncher.EnsureRunning(app.Environment.ContentRootPath, app.Logger);
+}
+
 // ── Migrate + seed (Development convenience; UAT/Production run the DBA
 //    scripts or a controlled `dotnet ef database update`) ────────────────────
 if (app.Configuration.GetValue("Database:MigrateOnStartup", false))

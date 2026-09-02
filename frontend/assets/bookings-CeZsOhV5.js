@@ -1,0 +1,1 @@
+const e={1:"Pending payment",2:"Confirmed",3:"Checked in",4:"Completed",5:"Cancelled",6:"Expired",7:"No show"},n={1:"warning",2:"success",3:"info",4:"neutral",5:"danger",6:"neutral",7:"danger"},a=[30,60,90,120,180,240,300,360,420,480];export{e as B,a as D,n as a};

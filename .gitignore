@@ -1,0 +1,15 @@
+# ---- Secrets -------------------------------------------------------------
+# Real values live in environment variables / the host secret store.
+# appsettings.json and appsettings.UAT.json are committed as templates
+# (empty placeholders only); Production carries live values, so it stays out.
+api/appsettings.Production.json
+
+# ---- Runtime output ------------------------------------------------------
+api/logs/
+*.log
+
+# ---- Debug symbols -------------------------------------------------------
+*.pdb
+
+# ---- Runtime data --------------------------------------------------------
+api/App_Data/uploads/

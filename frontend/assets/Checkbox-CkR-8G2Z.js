@@ -1,0 +1,1 @@
+import{r as n,j as s}from"./index-BMy7STEc.js";function a({label:e,id:o,...c}){const r=n.useId(),t=o??r;return s.jsxs("label",{className:"checkbox",htmlFor:t,children:[s.jsx("input",{type:"checkbox",id:t,...c}),s.jsx("span",{children:e})]})}export{a as C};

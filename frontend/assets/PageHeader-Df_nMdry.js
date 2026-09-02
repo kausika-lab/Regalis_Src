@@ -1,0 +1,1 @@
+import{j as e}from"./index-BMy7STEc.js";function h({title:r,description:a,actions:s}){return e.jsxs("header",{className:"page-header",children:[e.jsxs("div",{children:[e.jsx("h2",{className:"page-header__title",children:r}),a&&e.jsx("p",{className:"page-header__description",children:a})]}),s&&e.jsx("div",{className:"page-header__actions",children:s})]})}export{h as P};

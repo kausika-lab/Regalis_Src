@@ -1,0 +1,508 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Regalis.Application</name>
+    </assembly>
+    <members>
+        <member name="T:Regalis.Application.Abstractions.DeviceCommandResult">
+            <summary>What the physical device reported when asked to open.</summary>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.DeviceCommandResult.#ctor(System.Boolean,System.String)">
+            <summary>What the physical device reported when asked to open.</summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.IAccessControlAdapter">
+            <summary>
+            The access-control hardware seam (A01, Invariant 5). The vendor API is not yet
+            known, so ALL access rules are evaluated by our own AccessService against the
+            database — the adapter only carries the door command and reports device health.
+            Swapping in the real vendor is an adapter implementation, nothing more.
+            </summary>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.IAccessControlAdapter.RequestDoorOpenAsync(System.String,System.Int32,System.Threading.CancellationToken)">
+            <summary>Asks the device to release the door. A failure here never becomes a
+            silent grant (Invariant 9): the caller logs DeviceError and denies.</summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.ICurrentUser">
+            <summary>
+            The identity of the caller, resolved from the JWT by the API layer.
+            Row-level scoping in services goes through this — never through a
+            client-supplied customer id (ROLE_PERMISSION_MATRIX §6).
+            </summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.IDateTimeProvider">
+            <summary>Clock abstraction so services are testable. All timestamps are stored UTC
+            and rendered in IST by the frontend (A13).</summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.SequenceKeys">
+            <summary>Well-known sequence keys seeded in MST_NumberSequence.</summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.INumberSequenceService">
+            <summary>
+            Atomic, gap-free customer-visible numbers (REG-000123, REG/INV/2026-27/00042)
+            via `UPDATE … SET CurrentValue += 1 OUTPUT`. Call inside the business
+            transaction so the number commits or rolls back with the record.
+            IDENTITY is not used for these — it leaks volume and skips on rollback.
+            </summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.IOtpSender">
+            <summary>Delivery channel for one-time codes, behind an adapter so the SMTP/SMS
+            vendor never blocks the build (Invariant 5). Dev uses the console sender.</summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.IPasswordHasher">
+            <summary>PBKDF2-HMAC-SHA256 password hashing behind an interface (ARCHITECTURE §4).</summary>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.IPasswordHasher.Hash(System.String)">
+            <summary>Returns a single versioned string: version.iterations.salt.subkey.</summary>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.IPasswordHasher.Verify(System.String,System.String)">
+            <summary>Constant-time verification.</summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.GatewayOrder">
+            <summary>An order created at the gateway; KeyId is the public key the client
+            checkout needs (Razorpay) — never the secret.</summary>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.GatewayOrder.#ctor(System.String,System.String,System.Decimal,System.String)">
+            <summary>An order created at the gateway; KeyId is the public key the client
+            checkout needs (Razorpay) — never the secret.</summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.IPaymentGateway">
+            <summary>
+            Payment gateway seam (Design Invariant 5). Razorpay in production, Sandbox for
+            demo/dev — selected by Payments:Provider. Signatures are verified server-side
+            by recomputing HMAC-SHA256(orderId|paymentId, secret); a client-reported
+            "payment succeeded" is never trusted (ARCHITECTURE §8).
+            </summary>
+        </member>
+        <member name="P:Regalis.Application.Abstractions.IPaymentGateway.ProviderName">
+            <summary>"Razorpay" or "Sandbox" — stamped into TRN_Payment.Gateway.</summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.IPayrollExporter">
+            <summary>
+            The payroll hand-off seam (A03): the payroll product is unknown, so attendance
+            leaves the system as an export file — CSV in Phase 1, XLSX joins with the
+            reporting toolkit. No direct integration.
+            </summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.ISettingService">
+            <summary>
+            Typed access to MST_AppSetting — the "no hard-coding" table (Invariant 6).
+            Values are cached briefly; an admin edit takes effect within the cache window.
+            </summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.AccessTokenResult">
+            <summary>Result of creating an access token.</summary>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.AccessTokenResult.#ctor(System.String,System.DateTime)">
+            <summary>Result of creating an access token.</summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.RefreshTokenResult">
+            <summary>Result of creating a refresh token: the raw value goes to the client once;
+            only the SHA-256 hash is persisted.</summary>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.RefreshTokenResult.#ctor(System.String,System.String,System.DateTime)">
+            <summary>Result of creating a refresh token: the raw value goes to the client once;
+            only the SHA-256 hash is persisted.</summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.ITokenService">
+            <summary>Issues JWT access tokens and opaque refresh tokens (ARCHITECTURE §4).</summary>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.ITokenService.CreateAccessToken(Regalis.Domain.Entities.Identity.User,System.Collections.Generic.IReadOnlyCollection{System.String},System.Collections.Generic.IReadOnlyCollection{System.String})">
+            <summary>15-minute JWT with sub, email, user_type, name, role (multi),
+            perm (multi), loc and jti claims.</summary>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.ITokenService.CreateRefreshToken">
+            <summary>7-day, 256-bit random refresh token. Raw value returned once, hash stored.</summary>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.ITokenService.HashRefreshToken(System.String)">
+            <summary>SHA-256 hex hash used to look a presented refresh token up.</summary>
+        </member>
+        <member name="T:Regalis.Application.Access.DenyReasons">
+            <summary>The documented deny reasons (DATABASE_DESIGN §7).</summary>
+        </member>
+        <member name="M:Regalis.Application.Access.IAccessService.ValidateAsync(Regalis.Application.Access.ValidateAccessRequest,System.Threading.CancellationToken)">
+            <summary>The device/reader endpoint: evaluates OUR rules, commands the door
+            through the adapter, and ALWAYS writes a TRN_AccessLog row. A device failure
+            is DeviceError, never a grant (Invariant 9).</summary>
+        </member>
+        <member name="M:Regalis.Application.Access.IAccessService.ManualOverrideAsync(Regalis.Application.Access.ManualOverrideRequest,System.Threading.CancellationToken)">
+            <summary>The device-down fallback (ACCESS.OVERRIDE): grants by explicit human
+            decision, writes an exception log row + ACCESS_OVERRIDE audit entry.</summary>
+        </member>
+        <member name="M:Regalis.Application.Access.IAttendanceService.SelfCheckInAsync(Regalis.Application.Access.SelfCheckRequest,System.Threading.CancellationToken)">
+            <summary>Self check-in from My Work Status (AccessMethod App). Requires a
+            live basis: a booking occupying now or a pass valid today.</summary>
+        </member>
+        <member name="M:Regalis.Application.Access.IAttendanceService.GetMyOpenAsync(System.Threading.CancellationToken)">
+            <summary>The caller's open attendance row today, if any.</summary>
+        </member>
+        <member name="M:Regalis.Application.Access.IAttendanceService.CorrectAsync(System.Int64,Regalis.Application.Access.CorrectAttendanceRequest,System.Threading.CancellationToken)">
+            <summary>Correction keeps the original values (payroll stays auditable).</summary>
+        </member>
+        <member name="M:Regalis.Application.Access.IAttendanceService.ExportPayrollAsync(System.DateOnly,System.DateOnly,System.Nullable{System.Int32},System.Threading.CancellationToken)">
+            <summary>The payroll hand-off file (A03) via IPayrollExporter.</summary>
+        </member>
+        <member name="T:Regalis.Application.Administration.IAuditService">
+            <summary>The audit trail screen (API_PLAN §13). TRN_AuditLog is append-only —
+            this service only ever reads it.</summary>
+        </member>
+        <member name="T:Regalis.Application.Administration.RolePermissionRowDto">
+            <summary>One row of the permission-matrix editor: a permission with its grant flag.</summary>
+        </member>
+        <member name="M:Regalis.Application.Administration.RolePermissionRowDto.#ctor(System.Int32,System.String,System.String,System.String,System.Boolean)">
+            <summary>One row of the permission-matrix editor: a permission with its grant flag.</summary>
+        </member>
+        <member name="P:Regalis.Application.Administration.UserListRequest.UserType">
+            <summary>1 Customer, 2 Admin, 3 Staff.</summary>
+        </member>
+        <member name="P:Regalis.Application.Administration.UserListRequest.Status">
+            <summary>1 Active, 2 Inactive, 3 Locked, 4 PendingVerification.</summary>
+        </member>
+        <member name="T:Regalis.Application.Auth.LoginPortal">
+            <summary>Which portal the client is signing in to. The portal constrains the
+            user type: customer → Customer, admin → Admin/Staff.</summary>
+        </member>
+        <member name="T:Regalis.Application.Auth.VerifyOtpResponse">
+            <summary>ResetToken is set only for the ForgotPassword purpose.</summary>
+        </member>
+        <member name="M:Regalis.Application.Auth.VerifyOtpResponse.#ctor(System.Boolean,System.String)">
+            <summary>ResetToken is set only for the ForgotPassword purpose.</summary>
+        </member>
+        <member name="T:Regalis.Application.Auth.MenuNodeDto">
+            <summary>One node of the caller's dynamic sidebar (GET /menus/my).</summary>
+        </member>
+        <member name="M:Regalis.Application.Auth.MenuNodeDto.#ctor(System.Int32,System.Nullable{System.Int32},System.String,System.String,System.String,System.String,System.Int32,System.Byte,System.Collections.Generic.List{Regalis.Application.Auth.MenuNodeDto})">
+            <summary>One node of the caller's dynamic sidebar (GET /menus/my).</summary>
+        </member>
+        <member name="T:Regalis.Application.Auth.PasswordRules">
+            <summary>Shared password-policy rule (ARCHITECTURE §4): minimum length is enforced
+            dynamically against Security.PasswordMinLength in the service; the composition
+            rule (upper + lower + digit + symbol) is validated here.</summary>
+        </member>
+        <member name="M:Regalis.Application.Auth.IAuthService.ForgotPasswordAsync(Regalis.Application.Auth.ForgotPasswordRequest,System.Threading.CancellationToken)">
+            <summary>Always succeeds from the caller's perspective — no account enumeration.</summary>
+        </member>
+        <member name="M:Regalis.Application.Auth.IMenuQueryService.GetMyMenusAsync(System.Threading.CancellationToken)">
+            <summary>The caller's sidebar tree: menus mapped to any of their roles,
+            visible, ordered by DisplayOrder, nested Module → Menu → Sub-menu → Screen.</summary>
+        </member>
+        <member name="T:Regalis.Application.Auth.UpdateProfileRequest">
+            <summary>Email is the login and is never edited here; a change of email is an
+            admin action with re-verification (out of Phase 1 scope).</summary>
+        </member>
+        <member name="M:Regalis.Application.Auth.UpdateProfileRequest.#ctor(System.String,System.String,System.String,System.String)">
+            <summary>Email is the login and is never edited here; a change of email is an
+            admin action with re-verification (out of Phase 1 scope).</summary>
+        </member>
+        <member name="T:Regalis.Application.Auth.IProfileService">
+            <summary>Own-record profile (API_PLAN §4): GET/PUT /profile + photo.</summary>
+        </member>
+        <member name="M:Regalis.Application.Auth.IProfileService.SetPhotoAsync(Regalis.Application.Operations.AttachmentUpload,System.Threading.CancellationToken)">
+            <summary>.png .jpg .jpeg .webp, ≤2 MB, content-sniffed like ticket attachments.</summary>
+        </member>
+        <member name="T:Regalis.Application.Bookings.PaymentMethods">
+            <summary>How the booking is paid at confirmation time.</summary>
+        </member>
+        <member name="F:Regalis.Application.Bookings.PaymentMethods.Cash">
+            <summary>Admin bookings only — cash collected at the desk.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IAvailabilityService.GetSlotsAsync(System.Int32,System.Int32,System.DateOnly,System.Threading.CancellationToken)">
+            <summary>Day-grid slots for a location + type: available when at least one
+            bookable workspace of that type is free for the slot.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IAvailabilityService.GetAvailableWorkspacesAsync(System.Int32,System.Int32,System.DateTime,System.Int32,System.Threading.CancellationToken)">
+            <summary>Free workspaces for a window, with price — the customer picks one.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IAvailabilityService.CheckAsync(Regalis.Application.Bookings.AvailabilityCheckRequest,System.Threading.CancellationToken)">
+            <summary>Advisory check (no locks) — frontend convenience only. The engine
+            re-verifies under range locks inside the booking transaction.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IBookingService.QuoteAsync(Regalis.Application.Bookings.QuoteRequest,System.Threading.CancellationToken)">
+            <summary>Price + GST breakdown before payment. No write.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IBookingService.CreateHoldAsync(Regalis.Application.Bookings.CreateBookingRequest,System.Threading.CancellationToken)">
+            <summary>Creates a Pending hold under a serializable transaction with
+            UPDLOCK/HOLDLOCK range locks (Design Invariant 2). Losing the race is a
+            documented 409 SLOT_UNAVAILABLE.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IBookingService.ConfirmAsync(System.Int64,Regalis.Application.Bookings.ConfirmBookingRequest,System.Threading.CancellationToken)">
+            <summary>Design Invariant 4 — one serializable transaction produces the
+            confirmed booking, the verified payment, the GST invoice, the access token
+            and the notification. All or nothing.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IBookingService.AdminCreateAsync(Regalis.Application.Bookings.AdminCreateBookingRequest,System.Threading.CancellationToken)">
+            <summary>Admin books on a customer's behalf: hold + immediate confirm
+            (wallet or cash) in one call. BookingSource = Admin.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IBookingService.GetBookingAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>A booking scoped to the caller: customers see only their own rows.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IBookingService.GetMyBookingsAsync(System.String,Regalis.Shared.Api.PagedRequest,System.Threading.CancellationToken)">
+            <summary>The caller's bookings by tab: upcoming | completed | cancelled.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IBookingService.GetBookingsAsync(Regalis.Application.Bookings.BookingListRequest,System.Threading.CancellationToken)">
+            <summary>Admin list with the common filter set.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IBookingMutationService.CancelAsync(System.Int64,Regalis.Application.Bookings.CancelBookingRequest,System.Threading.CancellationToken)">
+            <summary>Cancellation is a status change plus history, never a delete
+            (Invariant 3). The refund percent comes from the cancellation policy
+            settings and credits the personal wallet.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IBookingMutationService.RescheduleAsync(System.Int64,Regalis.Application.Bookings.RescheduleBookingRequest,System.Threading.CancellationToken)">
+            <summary>Moves a confirmed booking to a new start (same duration, same price)
+            after re-running the locked availability check.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IBookingMutationService.ExtendAsync(System.Int64,Regalis.Application.Bookings.ExtendBookingRequest,System.Threading.CancellationToken)">
+            <summary>Adds minutes to the end of a confirmed/checked-in booking:
+            availability-checked, paid, and invoiced as a supplementary invoice.</summary>
+        </member>
+        <member name="T:Regalis.Application.Bookings.CalendarItemDto">
+            <summary>One occupancy entry on the calendar. Customers receive anonymized
+            titles ("Reserved") for other customers' bookings; admins see numbers + names.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.CalendarItemDto.#ctor(System.String,System.Int64,System.DateTime,System.DateTime,System.String,System.Nullable{System.Byte},System.Nullable{System.Byte},System.Boolean)">
+            <summary>One occupancy entry on the calendar. Customers receive anonymized
+            titles ("Reserved") for other customers' bookings; admins see numbers + names.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.ICalendarService.GetCalendarAsync(System.String,System.DateOnly,System.Nullable{System.Int32},System.Nullable{System.Int32},System.Nullable{System.Int32},System.Threading.CancellationToken)">
+            <summary>The single calendar grid used by both portals (Design Invariant 1).
+            view = day | week | month; date anchors the range (IST).</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.ICalendarService.BlockAsync(Regalis.Application.Bookings.CreateBlockRequest,System.Threading.CancellationToken)">
+            <summary>Creates a block — refused when a confirmed booking overlaps.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.ICalendarService.UnblockAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Releases a block, keeping the row (never deleted).</summary>
+        </member>
+        <member name="T:Regalis.Application.Common.Exceptions.AppException">
+            <summary>Base for exceptions the middleware maps to a specific HTTP status
+            and error code (ARCHITECTURE §9). Stack traces reach the log, never the client.</summary>
+        </member>
+        <member name="M:Regalis.Application.Common.Exceptions.AppException.#ctor(System.String,System.String)">
+            <summary>Base for exceptions the middleware maps to a specific HTTP status
+            and error code (ARCHITECTURE §9). Stack traces reach the log, never the client.</summary>
+        </member>
+        <member name="T:Regalis.Application.Common.Exceptions.AppValidationException">
+            <summary>→ 400 with field-level errors.</summary>
+        </member>
+        <member name="M:Regalis.Application.Common.Exceptions.AppValidationException.#ctor(System.Collections.Generic.IReadOnlyList{Regalis.Shared.Api.ApiError})">
+            <summary>→ 400 with field-level errors.</summary>
+        </member>
+        <member name="T:Regalis.Application.Common.Exceptions.UnauthorizedException">
+            <summary>→ 401.</summary>
+        </member>
+        <member name="M:Regalis.Application.Common.Exceptions.UnauthorizedException.#ctor(System.String,System.String)">
+            <summary>→ 401.</summary>
+        </member>
+        <member name="T:Regalis.Application.Common.Exceptions.ForbiddenException">
+            <summary>→ 403.</summary>
+        </member>
+        <member name="M:Regalis.Application.Common.Exceptions.ForbiddenException.#ctor(System.String)">
+            <summary>→ 403.</summary>
+        </member>
+        <member name="T:Regalis.Application.Common.Exceptions.NotFoundException">
+            <summary>→ 404.</summary>
+        </member>
+        <member name="M:Regalis.Application.Common.Exceptions.NotFoundException.#ctor(System.String,System.Object)">
+            <summary>→ 404.</summary>
+        </member>
+        <member name="T:Regalis.Application.Common.Exceptions.ConflictException">
+            <summary>→ 409 — used by the booking engine when a slot is lost in a race.</summary>
+        </member>
+        <member name="M:Regalis.Application.Common.Exceptions.ConflictException.#ctor(System.String,System.String)">
+            <summary>→ 409 — used by the booking engine when a slot is lost in a race.</summary>
+        </member>
+        <member name="T:Regalis.Application.Common.Exceptions.BusinessRuleException">
+            <summary>→ 422.</summary>
+        </member>
+        <member name="M:Regalis.Application.Common.Exceptions.BusinessRuleException.#ctor(System.String,System.String)">
+            <summary>→ 422.</summary>
+        </member>
+        <member name="M:Regalis.Application.DependencyInjection.AddApplication(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
+            <summary>Registers application services and every FluentValidation validator
+            in this assembly. Module services register here as they are built.</summary>
+        </member>
+        <member name="P:Regalis.Application.Finance.InvoiceListRequest.Status">
+            <summary>pending | paid — the customer's tab filter.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IInvoiceService.GetInvoicesAsync(Regalis.Application.Finance.AdminInvoiceListRequest,System.Threading.CancellationToken)">
+            <summary>Admin list with the common filter set.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IInvoiceService.GetInvoicePdfAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>The GST invoice as a PDF, generated on demand (QuestPDF).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPassService.CreatePurchaseOrderAsync(Regalis.Application.Finance.PassOrderRequest,System.Threading.CancellationToken)">
+            <summary>Gateway order for a pass purchase (wallet purchases skip this).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPassService.PurchaseAsync(Regalis.Application.Finance.PurchasePassRequest,System.Threading.CancellationToken)">
+            <summary>The atomic purchase: verified payment, TRN_CustomerPass, GST invoice,
+            access token valid for the whole pass window, notification.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPassService.CancelAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Cancel before the pass starts: full refund to the wallet; once
+            started it can only be cancelled without a refund.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.SandboxCompleteRequest">
+            <summary>Sandbox checkout simulation: exchanges an order for the payment id +
+            signature the real gateway would return. Only answers while
+            Payments:Provider = Sandbox — 422 otherwise.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.SandboxCompleteRequest.#ctor(System.String)">
+            <summary>Sandbox checkout simulation: exchanges an order for the payment id +
+            signature the real gateway would return. Only answers while
+            Payments:Provider = Sandbox — 422 otherwise.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPaymentService.CreateOrderAsync(Regalis.Application.Finance.CreatePaymentOrderRequest,System.Threading.CancellationToken)">
+            <summary>Creates the gateway order for a Pending booking and a Pending
+            TRN_Payment row carrying the order id.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPaymentService.HandleWebhookAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>Gateway webhook: signature-verified, idempotent on GatewayPaymentId.
+            A safety net behind the inline confirm verification.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IWalletAdminService.CreateRechargeOrderAsync(Regalis.Application.Finance.RechargeOrderRequest,System.Threading.CancellationToken)">
+            <summary>Creates the gateway order for a wallet top-up (limits from settings).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IWalletAdminService.VerifyRechargeAsync(Regalis.Application.Finance.RechargeVerifyRequest,System.Threading.CancellationToken)">
+            <summary>Verifies the gateway signature and credits the wallet atomically.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IWalletAdminService.GetWalletAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Admin view of any customer's wallet.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IWalletAdminService.AdjustAsync(System.Int64,Regalis.Application.Finance.WalletAdjustRequest,System.Threading.CancellationToken)">
+            <summary>Manual credit/debit with a mandatory reason (WALLET.EDIT, audited).</summary>
+        </member>
+        <member name="P:Regalis.Application.Finance.WalletTransactionListRequest.Month">
+            <summary>Filter to a calendar month, e.g. "2026-09".</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IWalletService.CreditAsync(System.Int64,System.Decimal,Regalis.Domain.Enums.WalletCategory,System.String,System.String,System.Nullable{System.Int64},System.Nullable{System.Int64},System.Threading.CancellationToken)">
+            <summary>Credits inside the ambient transaction, writing the self-checking
+            ledger row (BalanceAfter). Caller owns SaveChanges/commit.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IWalletService.DebitAsync(System.Int64,System.Decimal,Regalis.Domain.Enums.WalletCategory,System.String,System.String,System.Nullable{System.Int64},System.Nullable{System.Int64},System.Threading.CancellationToken)">
+            <summary>Debits inside the ambient transaction. Throws
+            INSUFFICIENT_WALLET_BALANCE when the balance cannot cover the amount —
+            and the database CHECK constraint refuses an overdraft regardless.</summary>
+        </member>
+        <member name="P:Regalis.Application.Masters.ServiceItemListRequest.IncludeUnavailable">
+            <summary>Admin grids pass true; the customer catalogue sees available only.</summary>
+        </member>
+        <member name="M:Regalis.Application.Masters.IBannerService.GetActiveBannersAsync(System.Nullable{System.Int32},System.Threading.CancellationToken)">
+            <summary>Banners inside their validity window for the caller's portal —
+            the home-screen carousel source.</summary>
+        </member>
+        <member name="T:Regalis.Application.Masters.PublicSettingsDto">
+            <summary>The anonymous Contact Us payload — support and company basics only,
+            nothing operational (API_PLAN: GET /settings/public).</summary>
+        </member>
+        <member name="M:Regalis.Application.Masters.PublicSettingsDto.#ctor(System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.String)">
+            <summary>The anonymous Contact Us payload — support and company basics only,
+            nothing operational (API_PLAN: GET /settings/public).</summary>
+        </member>
+        <member name="M:Regalis.Application.Masters.ISettingAdminService.UpdateSettingsAsync(Regalis.Application.Masters.UpdateAppSettingsRequest,System.Threading.CancellationToken)">
+            <summary>Updates editable, non-secret settings and evicts the read cache so
+            the new values apply immediately.</summary>
+        </member>
+        <member name="P:Regalis.Application.Masters.WorkspaceListRequest.Status">
+            <summary>1 Available, 2 Occupied, 3 Maintenance, 4 Disabled.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IHousekeepingService.GetMySchedulesAsync(Regalis.Shared.Api.PagedRequest,System.Threading.CancellationToken)">
+            <summary>Own rows for the signed-in staff member (matrix: Housekeeping
+            "sees only their own schedule").</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IHousekeepingService.CreateAsync(Regalis.Application.Operations.SaveHousekeepingScheduleRequest,System.Threading.CancellationToken)">
+            <summary>Creates the schedule and, when BlocksWorkspace, the TRN_WorkspaceBlock
+            in the same transaction (Invariant 12) plus a staff access token time-boxed to
+            the schedule window.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IHousekeepingService.UpdateAsync(System.Int64,Regalis.Application.Operations.SaveHousekeepingScheduleRequest,System.Threading.CancellationToken)">
+            <summary>Edits a Scheduled row; the calendar block and the staff token follow
+            the new window atomically.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IHousekeepingService.CancelAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Cancels the schedule, releases the calendar block and revokes the
+            staff token.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IHousekeepingService.CheckOutAsync(System.Int64,Regalis.Application.Operations.CompleteHousekeepingRequest,System.Threading.CancellationToken)">
+            <summary>Completes the task; an early finish releases the calendar block so the
+            slot returns to customers immediately.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.InventoryStockDto">
+            <summary>Derived stock (Invariant 11): opening + in + adjustments − out − damage.
+            Never a stored mutable column.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.InventoryStockDto.#ctor(System.Int32,System.String,System.String,System.String,System.String,System.Decimal,System.Decimal,System.Decimal,System.Decimal,System.Decimal,System.Decimal,System.Decimal,System.Boolean)">
+            <summary>Derived stock (Invariant 11): opening + in + adjustments − out − damage.
+            Never a stored mutable column.</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.InventoryItemListRequest.BelowReorder">
+            <summary>true = only items at or under their reorder level.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.IInventoryService">
+            <summary>The inventory module (M19). The ledger is append-only: there is no update
+            or delete endpoint; a mistake is corrected with a compensating Adjustment row.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IInventoryService.ExportAsync(Regalis.Application.Operations.InventoryTransactionListRequest,System.Threading.CancellationToken)">
+            <summary>CSV of the transaction ledger for the filter window.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.INotificationService.BroadcastAsync(Regalis.Application.Operations.BroadcastNotificationRequest,System.Threading.CancellationToken)">
+            <summary>Fans a broadcast out to one row per recipient so read-state stays personal.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.AttachmentUpload">
+            <summary>An uploaded file handed from the controller to the service — the
+            application layer never sees IFormFile.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AttachmentUpload.#ctor(System.String,System.String,System.Int64,System.IO.Stream)">
+            <summary>An uploaded file handed from the controller to the service — the
+            application layer never sees IFormFile.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.ITicketService">
+            <summary>Support tickets (M21). Customers are scoped to their own tickets and
+            never see internal notes; every attachment is validated by extension, size AND
+            magic bytes before it is stored outside the web root.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.ITicketService.GetTicketsAsync(Regalis.Application.Operations.TicketListRequest,System.Threading.CancellationToken)">
+            <summary>The admin triage grid; customer callers fall back to own rows.</summary>
+        </member>
+        <member name="T:Regalis.Application.Reporting.DashboardCard">
+            <summary>One admin dashboard card. Generic on purpose: the card row grows
+            without a contract change.</summary>
+        </member>
+        <member name="M:Regalis.Application.Reporting.DashboardCard.#ctor(System.String,System.String,System.String,System.String,System.String)">
+            <summary>One admin dashboard card. Generic on purpose: the card row grows
+            without a contract change.</summary>
+        </member>
+        <member name="T:Regalis.Application.Reporting.CustomerDashboardDto">
+            <summary>The customer home in one round trip (API_PLAN §12).</summary>
+        </member>
+        <member name="M:Regalis.Application.Reporting.CustomerDashboardDto.#ctor(System.Decimal,System.Int32,System.Int32,System.Int32,Regalis.Application.Reporting.DashboardBookingDto,Regalis.Application.Reporting.DashboardBookingDto)">
+            <summary>The customer home in one round trip (API_PLAN §12).</summary>
+        </member>
+        <member name="T:Regalis.Application.Reporting.ReportFilterRequest">
+            <summary>The common filter set every report accepts (API_PLAN §12). A report
+            simply ignores filters that do not apply to it.</summary>
+        </member>
+        <member name="T:Regalis.Application.Reporting.ReportColumn">
+            <summary>Column type drives frontend rendering and export formatting:
+            string | number | money | percent | date | datetime.</summary>
+        </member>
+        <member name="M:Regalis.Application.Reporting.ReportColumn.#ctor(System.String,System.String,System.String)">
+            <summary>Column type drives frontend rendering and export formatting:
+            string | number | money | percent | date | datetime.</summary>
+        </member>
+        <member name="T:Regalis.Application.Reporting.ReportResult">
+            <summary>One tabular payload drives the grid, the Excel export and the PDF
+            export — a report is defined once, rendered three ways.</summary>
+        </member>
+        <member name="M:Regalis.Application.Reporting.ReportResult.#ctor(System.String,System.String,System.String,System.DateOnly,System.DateOnly,System.Collections.Generic.List{Regalis.Application.Reporting.ReportColumn},System.Collections.Generic.List{System.Collections.Generic.Dictionary{System.String,System.Object}},System.Collections.Generic.List{Regalis.Application.Reporting.ReportSummaryItem},System.Int32,System.Boolean)">
+            <summary>One tabular payload drives the grid, the Excel export and the PDF
+            export — a report is defined once, rendered three ways.</summary>
+        </member>
+        <member name="M:Regalis.Application.Reporting.IReportService.GetCatalogue">
+            <summary>The 16-report catalogue for the landing grid; not-yet-built reports
+            are listed but flagged unavailable.</summary>
+        </member>
+        <member name="M:Regalis.Application.Reporting.IReportService.ExportAsync(System.String,System.String,Regalis.Application.Reporting.ReportFilterRequest,System.Threading.CancellationToken)">
+            <summary>format: xlsx | pdf.</summary>
+        </member>
+    </members>
+</doc>

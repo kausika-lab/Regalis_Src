@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Regalis.Shared</name>
+    </assembly>
+    <members>
+        <member name="T:Regalis.Shared.Api.ApiResponse">
+            <summary>
+            The standard response envelope returned by every endpoint.
+            Produced by <c>ApiControllerBase</c>, the validation filter and the exception
+            middleware — never hand-rolled inside a controller.
+            </summary>
+        </member>
+        <member name="T:Regalis.Shared.Api.ApiResponse`1">
+            <summary>The standard response envelope carrying a payload.</summary>
+        </member>
+        <member name="T:Regalis.Shared.Api.ApiError">
+            <summary>A single machine-readable error inside the envelope.</summary>
+        </member>
+        <member name="M:Regalis.Shared.Api.ApiError.#ctor(System.String,System.String,System.String)">
+            <summary>A single machine-readable error inside the envelope.</summary>
+        </member>
+        <member name="T:Regalis.Shared.Api.PagedRequest">
+            <summary>
+            The common query contract for every list endpoint:
+            <c>?page=1&amp;pageSize=20&amp;sortBy=createdDate&amp;sortDir=desc&amp;search=…</c>.
+            <see cref="P:Regalis.Shared.Api.PagedRequest.PageSize"/> is capped at <see cref="F:Regalis.Shared.Api.PagedRequest.MaxPageSize"/>.
+            </summary>
+        </member>
+        <member name="T:Regalis.Shared.Api.PagedResult`1">
+            <summary>Server-side paged list result. Every list endpoint returns this shape.</summary>
+        </member>
+        <member name="T:Regalis.Shared.Constants.AppSettingKeys">
+            <summary>
+            Keys of the seeded <c>MST_AppSetting</c> rows — the "no hard-coding" table
+            (Design Invariant 6). Values are configured by the admin, never compiled in.
+            </summary>
+        </member>
+        <member name="T:Regalis.Shared.Constants.AuditActions">
+            <summary>Values written to <c>TRN_AuditLog.Action</c>.</summary>
+        </member>
+        <member name="T:Regalis.Shared.Constants.ErrorCodes">
+            <summary>Machine-readable error codes carried in <c>ApiError.Code</c> (API_PLAN §1).</summary>
+        </member>
+        <member name="T:Regalis.Shared.Constants.PermissionCodes">
+            <summary>
+            The seeded permission catalogue (ROLE_PERMISSION_MATRIX §2). Format: <c>MODULE.ACTION</c>.
+            These constants exist so controllers reference a compile-checked name; the catalogue
+            itself lives in <c>MST_Permission</c> and is resolved dynamically at login.
+            </summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.PermissionCodes.Access.Override">
+            <summary>The device-down manual fallback — a distinct, separately grantable,
+            separately audited privilege (Design Invariant 9).</summary>
+        </member>
+        <member name="T:Regalis.Shared.Constants.RoleCodes">
+            <summary>Codes of the seeded <c>MST_Role</c> rows (ROLE_PERMISSION_MATRIX §3).
+            Roles are data — these constants exist only for seeding and tests.</summary>
+        </member>
+        <member name="T:Regalis.Shared.IstClock">
+            <summary>India Standard Time conversions (A13): storage is always UTC, business
+            rules (working hours, booking dates) evaluate in IST. IST has no DST — a fixed
+            +05:30 offset is correct and avoids timezone-database drift across servers.</summary>
+        </member>
+        <member name="M:Regalis.Shared.IstClock.IstDateOf(System.DateTime)">
+            <summary>The IST calendar date of a UTC instant — TRN_Booking.BookingDate.</summary>
+        </member>
+    </members>
+</doc>

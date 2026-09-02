@@ -1,0 +1,614 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Regalis.Infrastructure</name>
+    </assembly>
+    <members>
+        <member name="T:Regalis.Infrastructure.Adapters.ConsoleOtpSender">
+            <summary>
+            Development OTP channel (Otp:Channel = "Console"): writes the code to the log
+            instead of sending mail/SMS, so the full registration and reset flows are
+            exercisable before SMTP credentials exist (A12-style adapter, Invariant 5).
+            Never selected in Production configuration.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Adapters.ConsoleOtpSender.#ctor(Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Adapters.ConsoleOtpSender})">
+            <summary>
+            Development OTP channel (Otp:Channel = "Console"): writes the code to the log
+            instead of sending mail/SMS, so the full registration and reset flows are
+            exercisable before SMTP credentials exist (A12-style adapter, Invariant 5).
+            Never selected in Production configuration.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Adapters.CsvPayrollExporter">
+            <summary>CSV payroll hand-off (Payroll:Format = "Csv", A03). Times are exported
+            in IST because the payroll team works in local time; the UTC source stays in
+            TRN_Attendance untouched.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Adapters.MockAccessControlAdapter">
+            <summary>
+            Phase-1 device adapter (AccessControl:Provider = "Mock", A01): the vendor API is
+            not supplied yet, so this logs the door command and reports the device online.
+            Simulation contract for QA: any deviceId starting with "OFFLINE" reports the
+            device down, exercising the DeviceError path end to end.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Adapters.MockAccessControlAdapter.#ctor(Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Adapters.MockAccessControlAdapter})">
+            <summary>
+            Phase-1 device adapter (AccessControl:Provider = "Mock", A01): the vendor API is
+            not supplied yet, so this logs the door command and reports the device online.
+            Simulation contract for QA: any deviceId starting with "OFFLINE" reports the
+            device down, exercising the DeviceError path end to end.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Adapters.RazorpayPaymentGateway">
+            <summary>
+            Razorpay adapter (Payments:Provider = "Razorpay"). Orders via the REST API with
+            basic auth; signature verification recomputes HMAC-SHA256(orderId|paymentId,
+            key_secret) server-side — a client-reported "payment succeeded" is never trusted
+            (ARCHITECTURE §8). Keys come from configuration/user-secrets only.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Adapters.RazorpayPaymentGateway.#ctor(System.Net.Http.HttpClient,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Razorpay adapter (Payments:Provider = "Razorpay"). Orders via the REST API with
+            basic auth; signature verification recomputes HMAC-SHA256(orderId|paymentId,
+            key_secret) server-side — a client-reported "payment succeeded" is never trusted
+            (ARCHITECTURE §8). Keys come from configuration/user-secrets only.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Adapters.SandboxPaymentGateway">
+            <summary>
+            Sandbox gateway (Payments:Provider = "Sandbox"): lets the entire payment flow be
+            exercised before Razorpay keys arrive (A12). Orders are local; signatures are the
+            same HMAC-SHA256(orderId|paymentId) scheme Razorpay uses, keyed with a local
+            secret, so the verification path under test is identical to production.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Adapters.SandboxPaymentGateway.#ctor(Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Sandbox gateway (Payments:Provider = "Sandbox"): lets the entire payment flow be
+            exercised before Razorpay keys arrive (A12). Orders are local; signatures are the
+            same HMAC-SHA256(orderId|paymentId) scheme Razorpay uses, keyed with a local
+            secret, so the verification path under test is identical to production.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Adapters.SandboxPaymentGateway.Sign(System.String,System.String)">
+            <summary>Used by the sandbox checkout simulation to produce a valid signature —
+            exposed on the adapter, never over an API in production configuration.</summary>
+        </member>
+        <member name="P:Regalis.Infrastructure.Adapters.SmtpOptions.FromAddress">
+            <summary>Defaults to Username when empty (Gmail rewrites the From header anyway).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Adapters.SmtpOtpSender">
+            <summary>
+            Real mail OTP channel (Otp:Channel = "Smtp"), selected by configuration like the
+            other vendor seams (Invariant 5). Credentials live in user-secrets/environment,
+            never in appsettings. SMS destinations still fall back to the log — no SMS
+            vendor exists yet.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Adapters.SmtpOtpSender.#ctor(Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Adapters.SmtpOptions},Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Adapters.SmtpOtpSender})">
+            <summary>
+            Real mail OTP channel (Otp:Channel = "Smtp"), selected by configuration like the
+            other vendor seams (Invariant 5). Credentials live in user-secrets/environment,
+            never in appsettings. SMS destinations still fall back to the log — no SMS
+            vendor exists yet.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.BackgroundJobs.BookingHoldSweeper">
+            <summary>
+            Sweeps Pending bookings whose payment window (Booking.PendingHoldMinutes,
+            default 10) has lapsed to Expired, releasing the slot — the code path of
+            usp_ExpireStaleBookingHolds (DATABASE_DESIGN §10). ChangedByUserId 0 = system.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.BackgroundJobs.BookingHoldSweeper.#ctor(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory,Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.BackgroundJobs.BookingHoldSweeper})">
+            <summary>
+            Sweeps Pending bookings whose payment window (Booking.PendingHoldMinutes,
+            default 10) has lapsed to Expired, releasing the slot — the code path of
+            usp_ExpireStaleBookingHolds (DATABASE_DESIGN §10). ChangedByUserId 0 = system.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Interceptors.AuditSaveChangesInterceptor">
+            <summary>
+            Sets the audit columns on every insert/update, converts hard deletes of
+            soft-deletable entities into soft deletes, and writes a TRN_AuditLog row for every
+            change to an auditable entity (ARCHITECTURE §9). Sensitive fields are redacted
+            before serialisation.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Interceptors.AuditSaveChangesInterceptor.#ctor(Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+            <summary>
+            Sets the audit columns on every insert/update, converts hard deletes of
+            soft-deletable entities into soft deletes, and writes a TRN_AuditLog row for every
+            change to an auditable entity (ARCHITECTURE §9). Sensitive fields are redacted
+            before serialisation.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.InitialCreate">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.InitialCreate.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.InitialCreate.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.InitialCreate.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.AddPasswordHistory">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddPasswordHistory.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddPasswordHistory.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddPasswordHistory.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.SignedAdjustmentQuantity">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.SignedAdjustmentQuantity.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.SignedAdjustmentQuantity.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.SignedAdjustmentQuantity.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Seed.DatabaseSeeder">
+            <summary>
+            Idempotent seeding of the state defined by ROLE_PERMISSION_MATRIX.md and
+            DATABASE_DESIGN.md: safe to run on every startup — existing rows are never
+            overwritten, only missing rows are inserted. The DBA route produces the same
+            state via Database_Seed.sql.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Seed.DatabaseSeeder.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.IPasswordHasher,Microsoft.Extensions.Configuration.IConfiguration,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Persistence.Seed.DatabaseSeeder})">
+            <summary>
+            Idempotent seeding of the state defined by ROLE_PERMISSION_MATRIX.md and
+            DATABASE_DESIGN.md: safe to run on every startup — existing rows are never
+            overwritten, only missing rows are inserted. The DBA route produces the same
+            state via Database_Seed.sql.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Seed.SeedCatalogue">
+            <summary>
+            The seeded state from ROLE_PERMISSION_MATRIX.md and DATABASE_DESIGN.md,
+            expressed as data. Nothing here is consulted at request time — the engine
+            reads only the database.
+            </summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Persistence.Seed.SeedCatalogue.TicketCategories">
+            <summary>Ticket categories per DATABASE_DESIGN. Doc-1 lists concrete issue
+            types only for "Booking Related"; other categories get a General type so the
+            raise-ticket flow works — Regalis Ops can refine them (they are data).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.QueryableExtensions">
+            <summary>EF Core 8 has no ToHashSetAsync (it arrives in EF 9); this fills the gap
+            for the seeders and admin services. In scope everywhere under Regalis.Infrastructure.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.InvoicePdfGenerator">
+            <summary>The GST tax invoice as a PDF (QuestPDF, community license), generated on
+            demand from the snapshotted invoice — later profile or settings edits never
+            change what a customer already received.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.ReportCellFormatter">
+            <summary>Shared cell rendering so the grid, the Excel file and the PDF all show
+            the same value for the same cell (UTC → IST at the edge, A13).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.ReportExcelExporter">
+            <summary>One Excel exporter for all sixteen reports (ClosedXML).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.ReportPdfGenerator">
+            <summary>One PDF exporter for all sixteen reports (QuestPDF, community license —
+            same house style as the invoice).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.ReportService">
+            <summary>
+            The report engine (M24). Every report produces the same tabular shape, so one
+            grid (ReportShell), one Excel exporter and one PDF exporter serve all sixteen.
+            Day 9 ships reports 1–8; the remaining keys are catalogued but flagged
+            unavailable until Day 10.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.ReportService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.IDateTimeProvider)">
+            <summary>
+            The report engine (M24). Every report produces the same tabular shape, so one
+            grid (ReportShell), one Excel exporter and one PDF exporter serve all sixteen.
+            Day 9 ships reports 1–8; the remaining keys are catalogued but flagged
+            unavailable until Day 10.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Security.JwtOptions">
+            <summary>Bound from the "Jwt" configuration section. The signing key comes from
+            environment variables / user-secrets — never from a committed file.</summary>
+        </member>
+        <member name="P:Regalis.Infrastructure.Security.JwtOptions.SigningKey">
+            <summary>Minimum 32 bytes. Empty in committed appsettings.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Security.JwtTokenService">
+            <summary>Issues 15-minute JWT access tokens and 256-bit opaque refresh tokens.
+            Refresh tokens are stored hashed (SHA-256) — the raw value is returned exactly once.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Security.JwtTokenService.#ctor(Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Security.JwtOptions},Regalis.Application.Abstractions.IDateTimeProvider)">
+            <summary>Issues 15-minute JWT access tokens and 256-bit opaque refresh tokens.
+            Refresh tokens are stored hashed (SHA-256) — the raw value is returned exactly once.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Security.PasswordHasher">
+            <summary>
+            PBKDF2-HMAC-SHA256, 210 000 iterations, 128-bit salt, 256-bit subkey, stored as a
+            single versioned string "v1.{iterations}.{salt}.{subkey}" so parameters can be
+            raised later without invalidating existing hashes (ARCHITECTURE §4).
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Security.QrPayloadSigner">
+            <summary>Compact signed QR payload: RGL1.{token}.{hmac}. The reader posts it to
+            /access/validate, which re-verifies the signature and the token window. One
+            implementation — booking, pass and housekeeping tokens all sign here.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.AccessService">
+            <summary>
+            The access engine (M16). All rules are evaluated HERE against the database —
+            the device adapter only opens doors. Every attempt, granted or denied, writes a
+            TRN_AccessLog row. A device failure is DeviceError, never a grant; the only path
+            to a grant while hardware is down is the ACCESS.OVERRIDE manual fallback, which
+            writes an exception log row and an audit entry (Invariant 9, A10).
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AccessService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.IAccessControlAdapter,Regalis.Infrastructure.Services.AttendanceRecorder,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Security.JwtOptions},Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Services.AccessService})">
+            <summary>
+            The access engine (M16). All rules are evaluated HERE against the database —
+            the device adapter only opens doors. Every attempt, granted or denied, writes a
+            TRN_AccessLog row. A device failure is DeviceError, never a grant; the only path
+            to a grant while hardware is down is the ACCESS.OVERRIDE manual fallback, which
+            writes an exception log row and an audit entry (Invariant 9, A10).
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AccessService.ApplyGrantSideEffectsAsync(Regalis.Domain.Entities.Access.AccessToken,Regalis.Domain.Entities.Identity.User,Regalis.Domain.Enums.AccessDirection,Regalis.Domain.Enums.AccessMethod,Regalis.Domain.Entities.Access.AccessLog,System.DateTime,System.Threading.CancellationToken)">
+            <summary>Token usage, attendance row and booking transition after a grant.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AccessService.ParsePayload(System.String)">
+            <summary>Accepts the raw token value or the signed RGL1 payload; a payload
+            with a bad HMAC never reaches the database lookup.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.AttendanceRecorder">
+            <summary>
+            Shared attendance mutations — the gate (AccessService) and the app
+            (My Work Status) write attendance through the same code path.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AttendanceRecorder.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Abstractions.IDateTimeProvider)">
+            <summary>
+            Shared attendance mutations — the gate (AccessService) and the app
+            (My Work Status) write attendance through the same code path.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AttendanceRecorder.CheckEntryEligibilityAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Null when entry is allowed; otherwise the documented deny reason.
+            An open row means re-entry — allowed, no duplicate row.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AttendanceRecorder.RecordEntryAsync(System.Int64,Regalis.Domain.Enums.UserType,System.Int32,System.Nullable{System.Int32},System.Nullable{System.Int64},Regalis.Domain.Enums.AccessMethod,System.Nullable{System.Int64},System.Threading.CancellationToken)">
+            <summary>Creates (or reuses) today's attendance row. Caller saves.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AttendanceRecorder.RecordExitAsync(System.Int64,Regalis.Domain.Enums.AccessMethod,System.Nullable{System.Int64},System.Threading.CancellationToken)">
+            <summary>Closes the open row; null when there is nothing to close. Caller saves.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.AuditService">
+            <summary>The audit trail screen (M25 slice). TRN_AuditLog is append-only and
+            written by the save-changes interceptor and the explicit exception paths —
+            this service only ever reads it.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AuditService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.IDateTimeProvider)">
+            <summary>The audit trail screen (M25 slice). TRN_AuditLog is append-only and
+            written by the save-changes interceptor and the explicit exception paths —
+            this service only ever reads it.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.AuthService">
+            <summary>
+            Authentication per ARCHITECTURE §4: PBKDF2 passwords, 15-minute JWTs, rotating
+            single-use refresh tokens with family revocation on reuse, lockout, hashed OTPs,
+            password history, and audit/login-history rows for every attempt.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AuthService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.IPasswordHasher,Regalis.Application.Abstractions.ITokenService,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Abstractions.IOtpSender,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Security.JwtOptions},Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Services.AuthService})">
+            <summary>
+            Authentication per ARCHITECTURE §4: PBKDF2 passwords, 15-minute JWTs, rotating
+            single-use refresh tokens with family revocation on reuse, lockout, hashed OTPs,
+            password history, and audit/login-history rows for every attempt.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AuthService.SetPasswordAsync(Regalis.Domain.Entities.Identity.User,System.String,System.DateTime,System.Threading.CancellationToken)">
+            <summary>Policy + history check, hash, history row, revoke every refresh
+            token, audit PASSWORD_CHANGE. Caller saves.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AuthService.ResolveAccess(Regalis.Domain.Entities.Identity.User)">
+            <summary>Effective roles + permission codes, resolved from the database
+            (never hard-coded) and stamped into the JWT.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AuthService.CreateResetToken(System.Int64,System.DateTime)">
+            <summary>Short-lived, stateless reset token. Replay is blocked by comparing
+            the issue time against LastPasswordChangeUtc.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.AvailabilityService">
+            <summary>
+            The single availability source (Design Invariant 1): both portals read the same
+            bookings + blocks with the same half-open overlap predicate
+            s1 &lt; e2 AND s2 &lt; e1. These reads are advisory — the booking engine
+            re-verifies under range locks inside its transaction.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AvailabilityService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService)">
+            <summary>
+            The single availability source (Design Invariant 1): both portals read the same
+            bookings + blocks with the same half-open overlap predicate
+            s1 &lt; e2 AND s2 &lt; e1. These reads are advisory — the booking engine
+            re-verifies under range locks inside its transaction.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AvailabilityService.LoadOccupancyAsync(System.Collections.Generic.List{System.Int32},System.DateTime,System.DateTime,System.Threading.CancellationToken)">
+            <summary>Bookings (Pending/Confirmed/CheckedIn) + active blocks overlapping
+            the window — the two documented occupancy sources, nothing else.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.BannerService">
+            <summary>Home-screen promotional banners (M23).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.BannerService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+            <summary>Home-screen promotional banners (M23).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.BookingEngineLocks">
+            <summary>The one locking conflict check (DATABASE_DESIGN §5), shared by every
+            code path that writes occupancy: holds, confirmations, reschedules, extensions.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.BookingEngineLocks.CountConflictsAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,System.Int32,System.DateTime,System.DateTime,System.Nullable{System.Int64},System.Threading.CancellationToken)">
+            <summary>Runs the documented availability predicate under UPDLOCK/HOLDLOCK
+            inside the caller's serializable transaction; the key-range locks block a
+            concurrent insert of a conflicting row until the transaction ends.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.BookingMutationService">
+            <summary>
+            Post-confirmation booking changes. Cancellation never deletes (Invariant 3):
+            it is a status change + history + policy refund to the wallet. Reschedule and
+            extend re-run the locked availability check like any other occupancy write.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.BookingMutationService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Finance.IWalletService,Regalis.Application.Bookings.IBookingService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Services.BookingMutationService})">
+            <summary>
+            Post-confirmation booking changes. Cancellation never deletes (Invariant 3):
+            it is a status change + history + policy refund to the wallet. Reschedule and
+            extend re-run the locked availability check like any other occupancy write.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.BookingMutationService.ValidateWindowAsync(System.Int32,System.DateTime,System.Int32,System.Threading.CancellationToken)">
+            <summary>Reschedule window rules: future start, aligned, inside working hours.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.BookingService">
+            <summary>
+            The central booking engine (ARCHITECTURE §6–§7). Holds and confirmations run
+            serializable transactions whose conflict query takes UPDLOCK/HOLDLOCK key-range
+            locks; the filtered unique index UX_Booking_Workspace_Start is the second line of
+            defence; the retrying execution strategy replays deadlock victims (1205).
+            Design Invariant 4: a paid booking produces booking + payment + invoice + QR
+            token + notification atomically — steps succeed or fail together.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.BookingService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Finance.IWalletService,Regalis.Application.Abstractions.IPaymentGateway,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Security.JwtOptions},Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Services.BookingService})">
+            <summary>
+            The central booking engine (ARCHITECTURE §6–§7). Holds and confirmations run
+            serializable transactions whose conflict query takes UPDLOCK/HOLDLOCK key-range
+            locks; the filtered unique index UX_Booking_Workspace_Start is the second line of
+            defence; the retrying execution strategy replays deadlock victims (1205).
+            Design Invariant 4: a paid booking produces booking + payment + invoice + QR
+            token + notification atomically — steps succeed or fail together.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.BookingService.SettleAndFinalizeAsync(Regalis.Domain.Entities.Booking.Booking,Regalis.Application.Bookings.ConfirmBookingRequest,System.Threading.CancellationToken)">
+            <summary>Steps 2–7 of the confirmed-booking transaction: settle the payment,
+            write the invoice, the access token, the notification and the history row.
+            Runs inside the caller's serializable transaction.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.BookingService.CountConflictsWithRangeLocksAsync(System.Int32,System.DateTime,System.DateTime,System.Nullable{System.Int64},System.Threading.CancellationToken)">
+            <summary>Runs the documented availability predicate under UPDLOCK/HOLDLOCK
+            inside the caller's serializable transaction — the range lock blocks a
+            concurrent insert of a conflicting row until we commit. On confirmation the
+            booking's own Pending row is excluded.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.CalendarService">
+            <summary>
+            The single calendar (Design Invariant 1): one data source — bookings + blocks —
+            rendered for both portals. Customers get anonymized titles for other customers'
+            bookings; admin-portal users see numbers and names.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.CalendarService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+            <summary>
+            The single calendar (Design Invariant 1): one data source — bookings + blocks —
+            rendered for both portals. Customers get anonymized titles for other customers'
+            bookings; admin-portal users see numbers and names.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.DashboardService">
+            <summary>
+            The dashboard aggregates (API_PLAN §12) — each portal's summary in one round
+            trip. Counts are computed with EF aggregate queries rather than the planned
+            usp_GetDashboardSummary; same shape, no stored-proc deployment step.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.DashboardService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+            <summary>
+            The dashboard aggregates (API_PLAN §12) — each portal's summary in one round
+            trip. Counts are computed with EF aggregate queries rather than the planned
+            usp_GetDashboardSummary; same shape, no stored-proc deployment step.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.FileTypeSniffer">
+            <summary>Leading-magic-byte checks for user uploads — a renamed executable never
+            gets stored, whatever its extension claims (used by tickets and profile photos).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.HousekeepingService">
+            <summary>
+            Housekeeping / maintenance scheduling (M18). A schedule that blocks a workspace
+            writes the TRN_WorkspaceBlock in the same transaction (Invariant 12) — customer
+            availability drops the slot through the one existing calendar path, and the staff
+            access token is time-boxed to exactly the schedule window.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.HousekeepingService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Security.JwtOptions})">
+            <summary>
+            Housekeeping / maintenance scheduling (M18). A schedule that blocks a workspace
+            writes the TRN_WorkspaceBlock in the same transaction (Invariant 12) — customer
+            availability drops the slot through the one existing calendar path, and the staff
+            access token is time-boxed to exactly the schedule window.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.HousekeepingService.EnsureWorkspaceIsFreeAsync(Regalis.Application.Operations.SaveHousekeepingScheduleRequest,System.Nullable{System.Int64},System.Threading.CancellationToken)">
+            <summary>A block must not swallow paid bookings (same rule as the manual
+            calendar block) — they are cancelled or rescheduled first, by a human.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.HousekeepingService.BuildStaffToken(Regalis.Domain.Entities.Operations.HousekeepingSchedule)">
+            <summary>The staff token opens the door only inside the schedule window —
+            time-boxed access, never a standing pass (Day 8 senior scope).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.InventoryService">
+            <summary>
+            Inventory (M19). Current stock is never a stored column — it is derived from the
+            append-only transaction ledger (Invariant 11). There is no update or delete on a
+            transaction; a mistake is corrected with a compensating Adjustment row.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.InventoryService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+            <summary>
+            Inventory (M19). Current stock is never a stored column — it is derived from the
+            append-only transaction ledger (Invariant 11). There is no update or delete on a
+            transaction; a mistake is corrected with a compensating Adjustment row.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.InvoiceService.LoadScopedAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Customers read their own invoices only, whatever id they pass.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.MenuQueryService">
+            <summary>Builds the caller's sidebar from MST_Menu + MAP_RoleMenu. Adding a screen
+            is a data insert — no redeploy (ARCHITECTURE §5).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.MenuQueryService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser)">
+            <summary>Builds the caller's sidebar from MST_Menu + MAP_RoleMenu. Adding a screen
+            is a data insert — no redeploy (ARCHITECTURE §5).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.NumberSequenceService">
+            <summary>
+            Gap-free numbers from MST_NumberSequence via a single atomic
+            `UPDATE … SET CurrentValue += 1 OUTPUT` — the row lock serializes concurrent
+            callers, and running inside the caller's transaction means the number commits
+            or rolls back with the business record (DATABASE_DESIGN §10).
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.NumberSequenceService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext)">
+            <summary>
+            Gap-free numbers from MST_NumberSequence via a single atomic
+            `UPDATE … SET CurrentValue += 1 OUTPUT` — the row lock serializes concurrent
+            callers, and running inside the caller's transaction means the number commits
+            or rolls back with the business record (DATABASE_DESIGN §10).
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.PassService">
+            <summary>
+            Day / Monthly passes (M15). A purchase follows the same atomic pattern as a
+            booking confirmation: verified payment, TRN_CustomerPass, GST invoice with
+            snapshots, an access token valid for the whole pass window, a notification.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PassService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Finance.IWalletService,Regalis.Application.Abstractions.IPaymentGateway,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Security.JwtOptions},Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Services.PassService})">
+            <summary>
+            Day / Monthly passes (M15). A purchase follows the same atomic pattern as a
+            booking confirmation: verified payment, TRN_CustomerPass, GST invoice with
+            snapshots, an access token valid for the whole pass window, a notification.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.ProfileService">
+            <summary>Own-record profile (matrix §6: always scoped to the caller, never an id
+            from the client). Email is the login and is not edited here. Invoices are
+            unaffected by profile edits — they snapshot at issue time.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.ProfileService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Services.StorageOptions})">
+            <summary>Own-record profile (matrix §6: always scoped to the caller, never an id
+            from the client). Email is the login and is not edited here. Invoices are
+            unaffected by profile edits — they snapshot at issue time.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.ServiceCatalogueService">
+            <summary>Services &amp; Coffee catalogue (M22). Customers browse available items;
+            the admin grid manages the full list.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.ServiceCatalogueService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser)">
+            <summary>Services &amp; Coffee catalogue (M22). Customers browse available items;
+            the admin grid manages the full list.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.SettingAdminService">
+            <summary>
+            The Settings screen behind MST_AppSetting (M23, Design Invariant 6). Secret values
+            are masked on read and locked on write; every accepted change is validated against
+            the row's declared DataType before it is stored, and the read cache is evicted so
+            the engine sees the new value immediately.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.SettingAdminService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Microsoft.Extensions.Caching.Memory.IMemoryCache,Regalis.Application.Abstractions.ISettingService)">
+            <summary>
+            The Settings screen behind MST_AppSetting (M23, Design Invariant 6). Secret values
+            are masked on read and locked on write; every accepted change is validated against
+            the row's declared DataType before it is stored, and the read cache is evicted so
+            the engine sees the new value immediately.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.SettingService">
+            <summary>Reads MST_AppSetting with a short memory cache so hot paths (booking
+            rules, security policy) don't hit the database on every request.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.SettingService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Microsoft.Extensions.Caching.Memory.IMemoryCache)">
+            <summary>Reads MST_AppSetting with a short memory cache so hot paths (booking
+            rules, security policy) don't hit the database on every request.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.StorageOptions">
+            <summary>Attachment storage location — outside the web root, streamed back only
+            through the authorized download endpoint.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.TicketService">
+            <summary>
+            Support tickets (M21). Row scoping: customers see only their own tickets and
+            never internal notes. Attachments are checked by extension, size AND leading
+            magic bytes — a renamed executable does not get stored.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.TicketService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Services.StorageOptions})">
+            <summary>
+            Support tickets (M21). Row scoping: customers see only their own tickets and
+            never internal notes. Attachments are checked by extension, size AND leading
+            magic bytes — a renamed executable does not get stored.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.UserAdminService.ValidateRoleAssignmentAsync(System.Int32[],Regalis.Domain.Enums.UserType,System.Threading.CancellationToken)">
+            <summary>Roles must exist and match the user's portal type: a Customer user
+            cannot receive an admin-portal role and vice versa.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.WalletService">
+            <summary>
+            The wallet ledger is append-only and self-checking: BalanceAfter is written in
+            the same transaction that moves MST_Wallet.Balance, so SUM(credits) − SUM(debits)
+            always equals Balance. The CHECK constraint refuses an overdraft at the database
+            level, and RowVersion catches concurrent movements.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.WalletService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+            <summary>
+            The wallet ledger is append-only and self-checking: BalanceAfter is written in
+            the same transaction that moves MST_Wallet.Balance, so SUM(credits) − SUM(debits)
+            always equals Balance. The CHECK constraint refuses an overdraft at the database
+            level, and RowVersion catches concurrent movements.
+            </summary>
+        </member>
+    </members>
+</doc>

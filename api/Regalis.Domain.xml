@@ -1,0 +1,321 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Regalis.Domain</name>
+    </assembly>
+    <members>
+        <member name="T:Regalis.Domain.Common.IAuditableEntity">
+            <summary>Marker for entities carrying the standard audit columns,
+            set by the EF Core save-changes interceptor — never by hand.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Common.ISoftDeletableEntity">
+            <summary>Marker for soft-deletable entities. A global query filter hides
+            deleted rows; nothing in Phase 1 issues a hard DELETE against a business table.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Common.AuditableEntity">
+            <summary>The audit columns present on every business table (DATABASE_DESIGN §1).</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Access.AccessLog">
+            <summary>TRN_AccessLog — append-only; records every attempt, granted or denied.
+            Invariant 9: a DeviceError result never implies a grant. Only an explicit override
+            with ACCESS.OVERRIDE produces Granted + IsManualOverride.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Access.AccessLog.ScannedTokenValue">
+            <summary>What was actually presented, even if invalid.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Access.AccessLog.DenyReason">
+            <summary>TokenNotFound, TokenRevoked, OutsideValidWindow, BookingCancelled,
+            WrongWorkspace, AlreadyCheckedOut, DeviceOffline.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Access.AccessToken">
+            <summary>TRN_AccessToken. TokenValue is cryptographically random and opaque —
+            never a guessable booking id.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Access.AccessToken.QrPayload">
+            <summary>Signed compact payload rendered as the QR.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Access.AccessToken.MaxUsageCount">
+            <summary>Null = unlimited within the validity window.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Access.Attendance">
+            <summary>TRN_Attendance — for customers and staff both (A04). Corrections keep the
+            original values so the payroll hand-off is auditable.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Booking.Booking">
+            <summary>TRN_Booking — the core occupancy record. Intervals are half-open
+            [StartUtc, EndUtc): a booking ending at 12:00 and one starting at 12:00 do not conflict.
+            Bookings are never deleted (Invariant 3) — cancellation is a status change plus history.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Booking.Booking.BookingNumber">
+            <summary>REG-000123 — gap-free, from MST_NumberSequence.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Booking.Booking.WorkspaceTypeId">
+            <summary>Denormalised for reporting/filtering.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Booking.Booking.BookingDate">
+            <summary>Local booking date, for grouping.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Booking.Booking.StartUtc">
+            <summary>Inclusive.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Booking.Booking.EndUtc">
+            <summary>Exclusive.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Booking.Booking.CustomerPassId">
+            <summary>Set when a Day/Monthly pass covers the booking.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Booking.Booking.CreatedByUserId">
+            <summary>Who actually created it (differs from CustomerId for admin bookings).</summary>
+        </member>
+        <member name="F:Regalis.Domain.Entities.Booking.Booking.OccupancyStatuses">
+            <summary>Statuses that occupy the slot: Pending (held), Confirmed, CheckedIn.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Booking.BookingStatusHistory">
+            <summary>TRN_BookingStatusHistory — append-only. This is why bookings never need deleting.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Booking.WorkspaceBlock">
+            <summary>TRN_WorkspaceBlock — everything that occupies a workspace but is not a
+            customer booking. Housekeeping schedules write these rows so customer availability
+            drops automatically (Invariant 12) — there is no second code path.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Booking.WorkspaceBlock.StartUtc">
+            <summary>Inclusive.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Booking.WorkspaceBlock.EndUtc">
+            <summary>Exclusive.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Booking.WorkspaceBlock.HousekeepingScheduleId">
+            <summary>Set when the block came from a housekeeping schedule.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Booking.WorkspaceBlock.ReleasedUtc">
+            <summary>Unblock = set this + IsActive false; the row is kept.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.CustomerPass">
+            <summary>TRN_CustomerPass — a purchased Day/Monthly pass.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.Invoice">
+            <summary>TRN_Invoice. Customer and company details are snapshotted at issue time
+            so a later profile edit never rewrites history.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Invoice.InvoiceNumber">
+            <summary>REG/INV/{FY}/{00001} — gap-free, from MST_NumberSequence.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Invoice.OutstandingAmount">
+            <summary>Computed persisted column: TotalAmount − PaidAmount.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.InvoiceLine">
+            <summary>TRN_InvoiceLine.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.Payment">
+            <summary>TRN_Payment. Gateway payments are verified server-side by recomputing the
+            HMAC signature — a client-reported "payment succeeded" is never trusted.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Payment.Gateway">
+            <summary>"Razorpay" / "Sandbox".</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Payment.GatewayPaymentId">
+            <summary>Filtered unique index makes gateway webhooks idempotent.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.ServiceOrder">
+            <summary>TRN_ServiceOrder — coffee / featured-service purchases.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.ServiceOrderLine">
+            <summary>TRN_ServiceOrderLine. ItemName is snapshotted at order time.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.Wallet">
+            <summary>MST_Wallet — one row per customer. A CHECK constraint refuses an overdraft
+            at the database level; the wallet is non-withdrawable (Doc-1 §22).</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.WalletTransaction">
+            <summary>TRN_WalletTransaction — append-only ledger. BalanceAfter is written inside
+            the same transaction that updates MST_Wallet.Balance, so the ledger is self-checking:
+            SUM(credits) − SUM(debits) = Balance.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Identity.AuditLog">
+            <summary>TRN_AuditLog — append-only; no update or delete path exists.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.AuditLog.Action">
+            <summary>One of <c>Regalis.Shared.Constants.AuditActions</c>.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Identity.LoginHistory">
+            <summary>TRN_LoginHistory — every attempt, successful or not.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Identity.Menu">
+            <summary>MST_Menu — dynamic navigation, four levels via self-reference:
+            Module → Menu → Sub-menu → Screen. Adding a screen is a data insert, not a redeploy.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.Menu.Route">
+            <summary>Null for a pure grouping node.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.Menu.Icon">
+            <summary>lucide-react icon name, resolved by the frontend.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.Menu.PermissionId">
+            <summary>The permission that reveals this menu.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Identity.Otp">
+            <summary>TRN_Otp — 6 digits, hashed at rest, 10-minute TTL, max 5 verification attempts.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.Otp.Destination">
+            <summary>Email address or mobile number the code was sent to.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Identity.PasswordHistory">
+            <summary>TRN_PasswordHistory — the dedicated table backing the "not equal to the
+            last 3 hashes" password rule (ARCHITECTURE §4). Append-only.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Identity.Permission">
+            <summary>MST_Permission — code format MODULE.ACTION.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Identity.RefreshToken">
+            <summary>TRN_RefreshToken — stored hashed, single-use, rotated on every refresh.
+            Reuse of a consumed token revokes the whole family (token-theft detection).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.RefreshToken.TokenHash">
+            <summary>SHA-256 of the raw token; the raw value is never stored.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Identity.Role">
+            <summary>MST_Role.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.Role.IsSystemRole">
+            <summary>System roles cannot be deleted.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Identity.RoleMenu">
+            <summary>MAP_RoleMenu.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Identity.RolePermission">
+            <summary>MAP_RolePermission.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Identity.User">
+            <summary>MST_User — single user table for every principal; UserType separates the portals.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.User.PasswordHash">
+            <summary>PBKDF2, versioned string. Never returned by any API.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Identity.UserRole">
+            <summary>MAP_UserRole.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Masters.Amenity">
+            <summary>MST_Amenity.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Masters.AppSetting">
+            <summary>MST_AppSetting — the "no hard-coding" table (Design Invariant 6).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Masters.AppSetting.DataType">
+            <summary>string | int | decimal | bool | json | time.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Masters.AppSetting.IsSecret">
+            <summary>Secret values are never returned by the API.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Masters.Banner">
+            <summary>MST_Banner — home-screen promotional banners.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Masters.Location">
+            <summary>MST_Location. Invariant 7: every bookable/schedulable table carries LocationId.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Masters.Location.WorkingDays">
+            <summary>Comma list, e.g. "MON,TUE,WED,THU,FRI".</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Masters.NumberSequence">
+            <summary>MST_NumberSequence — atomic, gap-free counters for customer-visible
+            numbers (REG-000123, REG/INV/2026-27/00042). IDENTITY is not used for these
+            because it leaks volume and skips on rollback.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Masters.NumberSequence.FinancialYear">
+            <summary>e.g. "2026-27" for invoice numbering; null for year-less sequences.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Masters.PassPlan">
+            <summary>MST_PassPlan — a purchasable Day/Monthly pass definition.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Masters.PassPlan.LocationId">
+            <summary>Null = valid at all locations.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Masters.ServiceItem">
+            <summary>MST_ServiceItem — coffee and featured services catalogue.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Masters.ServiceItem.Category">
+            <summary>Coffee, Tea, Snacks, Printing, Scanning, Locker.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Masters.TicketCategory">
+            <summary>MST_TicketCategory.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Masters.TicketIssueType">
+            <summary>MST_TicketIssueType.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Masters.Workspace">
+            <summary>MST_Workspace — a bookable desk, cabin or meeting room.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Masters.Workspace.WorkspaceCode">
+            <summary>D-001, C-001, MR-001 — unique per location.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Masters.Workspace.Equipment">
+            <summary>Comma list, e.g. "Projector,Whiteboard,VC".</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Masters.Workspace.IsBookable">
+            <summary>False ⇒ excluded from customer availability.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Masters.WorkspaceAmenity">
+            <summary>MAP_WorkspaceAmenity.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Masters.WorkspaceType">
+            <summary>MST_WorkspaceType — DESK, CABIN, MEETING_ROOM.
+            Extensible: adding CONFERENCE_ROOM or EVENT_SPACE is a data insert.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.HousekeepingSchedule">
+            <summary>TRN_HousekeepingSchedule. When BlocksWorkspace is true, creating the schedule
+            writes a TRN_WorkspaceBlock in the same transaction (Invariant 12), so the customer
+            calendar drops the slot automatically.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.HousekeepingSchedule.StaffUserId">
+            <summary>FK → MST_User where UserType = Staff.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.InventoryItem">
+            <summary>MST_InventoryItem. Current stock is never stored as a mutable column
+            (Invariant 11) — it is derived from the transaction ledger.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryItem.Unit">
+            <summary>Nos, Kg, Ltr, Box.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.InventoryTransaction">
+            <summary>TRN_InventoryTransaction — append-only. There is no update or delete
+            endpoint; a mistake is corrected with a compensating Adjustment row.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryTransaction.SourceOrDestination">
+            <summary>Supplier for In, department/use for Out (A08 — no supplier master in Phase 1).</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.Notification">
+            <summary>TRN_Notification — the in-app notification centre.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.Notification.UserId">
+            <summary>Null ⇒ broadcast.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.Ticket">
+            <summary>TRN_Ticket — support tickets.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.TicketAttachment">
+            <summary>TRN_TicketAttachment. Allowed: .png .jpg .jpeg .webp .pdf — validated
+            server-side by extension and content sniffing. Max 10 MB per file, 5 per ticket.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.TicketMessage">
+            <summary>TRN_TicketMessage.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.TicketMessage.IsInternalNote">
+            <summary>Never returned to the customer.</summary>
+        </member>
+        <member name="F:Regalis.Domain.Enums.AccessResult.DeviceError">
+            <summary>Invariant 9: a DeviceError result never implies a grant.</summary>
+        </member>
+        <member name="F:Regalis.Domain.Enums.BookingStatus.Pending">
+            <summary>Holds the slot for Booking.PendingHoldMinutes while payment completes.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.PortalType">
+            <summary>Which portal a role or menu belongs to.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.MenuLevel">
+            <summary>MST_Menu.MenuLevel — Module → Menu → Sub-menu → Screen.</summary>
+        </member>
+        <member name="F:Regalis.Domain.Enums.InventoryTransactionType.Adjustment">
+            <summary>A mistake is corrected with a compensating Adjustment row —
+            there is no update or delete path (Invariant 11).</summary>
+        </member>
+    </members>
+</doc>

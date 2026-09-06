@@ -53,6 +53,12 @@
             <summary>The device-down manual fallback — a distinct, separately grantable,
             separately audited privilege (Design Invariant 9).</summary>
         </member>
+        <member name="F:Regalis.Shared.Constants.PermissionCodes.Quotation.Approve">
+            <summary>Held by the customer: this is the accept/reject decision.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.PermissionCodes.Bank.Reconcile">
+            <summary>Confirming a match -- the reconciliation sign-off.</summary>
+        </member>
         <member name="T:Regalis.Shared.Constants.RoleCodes">
             <summary>Codes of the seeded <c>MST_Role</c> rows (ROLE_PERMISSION_MATRIX §3).
             Roles are data — these constants exist only for seeding and tests.</summary>

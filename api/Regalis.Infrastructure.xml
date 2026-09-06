@@ -162,6 +162,36 @@
         <member name="M:Regalis.Infrastructure.Persistence.Migrations.SignedAdjustmentQuantity.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.BillingAndFinance">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.BillingAndFinance.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.BillingAndFinance.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.BillingAndFinance.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.RemoveDeadNumberPrefixSettings">
+            <summary>
+            Data-only. Invoice.NumberPrefix and Booking.NumberPrefix were seeded into
+            MST_AppSetting but nothing ever read them — the prefix a number actually uses
+            comes from MST_NumberSequence.Prefix. A setting an administrator can edit that
+            silently changes nothing is worse than no setting at all, so the rows go and
+            number prefixes live in exactly one place.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.RemoveDeadNumberPrefixSettings.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.RemoveDeadNumberPrefixSettings.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.RemoveDeadNumberPrefixSettings.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="T:Regalis.Infrastructure.Persistence.Seed.DatabaseSeeder">
             <summary>
             Idempotent seeding of the state defined by ROLE_PERMISSION_MATRIX.md and
@@ -198,6 +228,20 @@
             <summary>The GST tax invoice as a PDF (QuestPDF, community license), generated on
             demand from the snapshotted invoice — later profile or settings edits never
             change what a customer already received.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.QuotationPdfGenerator">
+            <summary>The customer-facing quotation as a PDF (QuestPDF, community license),
+            generated on demand from the snapshot taken when the quotation was sent — the copy
+            the customer downloads today is the one they were quoted, whatever the settings or
+            their profile say now. Deliberately mirrors InvoicePdfGenerator so the quotation and
+            the invoice it becomes look like the same document.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.ReceiptPdfGenerator">
+            <summary>
+            The payment receipt (document §11, §12). Deliberately not a new numbered document:
+            TRN_Payment.PaymentNumber already is the receipt reference, so a receipt is a
+            rendering of a payment rather than a second record that could disagree with it.
+            </summary>
         </member>
         <member name="T:Regalis.Infrastructure.Reporting.ReportCellFormatter">
             <summary>Shared cell rendering so the grid, the Excel file and the PDF all show
@@ -356,6 +400,46 @@
             <summary>Bookings (Pending/Confirmed/CheckedIn) + active blocks overlapping
             the window — the two documented occupancy sources, nothing else.</summary>
         </member>
+        <member name="T:Regalis.Infrastructure.Services.BankService">
+             <summary>
+             The bank book (document §13–§14).
+            
+             Reconciliation state lives on TRN_BankTransaction and nowhere else. Matching a bank
+             line to a payment or an expense writes only to the bank row — TRN_Payment,
+             TRN_Invoice and TRN_Expense are never touched — so cash received keeps exactly one
+             owner and a reconciliation can be undone without disturbing the books.
+            
+             Matching also only ever points at a record that already exists. Nothing here creates
+             a payment or an expense, which is what stops a statement import from duplicating
+             what the system already knows.
+            
+             An account's balance is derived from its ledger (opening + credits − debits), the
+             same way inventory stock is derived, so there is no stored balance to drift.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.BankService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+             <summary>
+             The bank book (document §13–§14).
+            
+             Reconciliation state lives on TRN_BankTransaction and nowhere else. Matching a bank
+             line to a payment or an expense writes only to the bank row — TRN_Payment,
+             TRN_Invoice and TRN_Expense are never touched — so cash received keeps exactly one
+             owner and a reconciliation can be undone without disturbing the books.
+            
+             Matching also only ever points at a record that already exists. Nothing here creates
+             a payment or an expense, which is what stops a statement import from duplicating
+             what the system already knows.
+            
+             An account's balance is derived from its ledger (opening + credits − debits), the
+             same way inventory stock is derived, so there is no stored balance to drift.
+             </summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Services.BankService.CandidateWindowDays">
+            <summary>How far either side of the bank date to look for a candidate.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.BankService.Csv(System.String)">
+            <summary>Quote a CSV field so a comma in a narration cannot shift columns.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Services.BannerService">
             <summary>Home-screen promotional banners (M23).</summary>
         </member>
@@ -447,6 +531,33 @@
             usp_GetDashboardSummary; same shape, no stored-proc deployment step.
             </summary>
         </member>
+        <member name="M:Regalis.Infrastructure.Services.DashboardService.GetFinanceAsync(System.Threading.CancellationToken)">
+            <summary>
+            The Billing &amp; Finance dashboard (document §16). Kept separate from the
+            operational dashboard so the two do not compete for space, and gated on
+            PAYMENT.VIEW rather than DASHBOARD.VIEW — customers hold the latter for their
+            own home screen and must never see company money.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.ExpenseService">
+            <summary>
+            Daily company expenses (document §5). Description and Remarks are required — the
+            document calls that out explicitly. An expense that a bank statement line has
+            already been matched to is frozen: editing its amount afterwards would silently
+            invalidate the reconciliation without touching the bank row that points at it.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.ExpenseService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+            <summary>
+            Daily company expenses (document §5). Description and Remarks are required — the
+            document calls that out explicitly. An expense that a bank statement line has
+            already been matched to is frozen: editing its amount afterwards would silently
+            invalidate the reconciliation without touching the bank row that points at it.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.ExpenseService.Csv(System.String)">
+            <summary>Quote a CSV field so a comma or quote in free text cannot shift columns.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Services.FileTypeSniffer">
             <summary>Leading-magic-byte checks for user uploads — a renamed executable never
             gets stored, whatever its extension claims (used by tickets and profile photos).</summary>
@@ -487,6 +598,22 @@
             Inventory (M19). Current stock is never a stored column — it is derived from the
             append-only transaction ledger (Invariant 11). There is no update or delete on a
             transaction; a mistake is corrected with a compensating Adjustment row.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.InvoiceService">
+            <summary>
+            Invoices. Reads are row-scoped; writes are deliberately narrow. There is no
+            free-form create and no edit: an issued invoice is a snapshot, so the only ways to
+            change one are to cancel it or to let a payment move its status. The one creation
+            path is an approved quotation, whose figures are carried across verbatim.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.InvoiceService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+            <summary>
+            Invoices. Reads are row-scoped; writes are deliberately narrow. There is no
+            free-form create and no edit: an issued invoice is a snapshot, so the only ways to
+            change one are to cancel it or to let a payment move its status. The one creation
+            path is an approved quotation, whose figures are carried across verbatim.
             </summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.InvoiceService.LoadScopedAsync(System.Int64,System.Threading.CancellationToken)">
@@ -540,6 +667,83 @@
             from the client). Email is the login and is not edited here. Invoices are
             unaffected by profile edits — they snapshot at issue time.</summary>
         </member>
+        <member name="T:Regalis.Infrastructure.Services.PurchaseOrderService">
+            <summary>
+            Purchase orders (document §4). Two rules carry the weight here. Totals are always
+            recomputed from quantity, rate, discount and the supplier's tax percent, so a
+            client-sent total is never trusted. And receiving goods writes the incoming
+            TRN_InventoryTransaction rows, the line receipts and the header status inside one
+            serializable transaction — stock and the order can never disagree, and there is no
+            second "incoming goods" table to fall out of step with the ledger (Invariant 11).
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PurchaseOrderService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+            <summary>
+            Purchase orders (document §4). Two rules carry the weight here. Totals are always
+            recomputed from quantity, rate, discount and the supplier's tax percent, so a
+            client-sent total is never trusted. And receiving goods writes the incoming
+            TRN_InventoryTransaction rows, the line receipts and the header status inside one
+            serializable transaction — stock and the order can never disagree, and there is no
+            second "incoming goods" table to fall out of step with the ledger (Invariant 11).
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PurchaseOrderService.ReplaceLines(Regalis.Domain.Entities.Finance.PurchaseOrder,Regalis.Application.Finance.SavePurchaseOrderRequest)">
+            <summary>Server-side money. Line value is quantity × rate − discount; tax is the
+            supplier's percent on that; the header is the sum of its lines.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.QuotationService">
+             <summary>
+             Quotations (document §6–§8). Three rules shape this service.
+            
+             A quotation is freely editable while Draft and frozen once sent: the customer,
+             company, place-of-supply and tax rates are snapshotted at that moment, so a later
+             settings change or profile edit never rewrites what the customer was quoted — the
+             same rule TRN_Invoice already lives by.
+            
+             Money is computed here, never accepted from the client. Tax comes from Tax.* in
+             MST_AppSetting (Invariant 6) and is rounded away from zero, matching the booking
+             and pass engines, so the invoice generated from an approved quotation agrees to
+             the paisa.
+            
+             Approval and rejection are the customer's own act. Each writes an append-only
+             TRN_QuotationStatusHistory row carrying who decided, when, and any reason —
+             the quotation's own row is never rewritten to record history.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+             <summary>
+             Quotations (document §6–§8). Three rules shape this service.
+            
+             A quotation is freely editable while Draft and frozen once sent: the customer,
+             company, place-of-supply and tax rates are snapshotted at that moment, so a later
+             settings change or profile edit never rewrites what the customer was quoted — the
+             same rule TRN_Invoice already lives by.
+            
+             Money is computed here, never accepted from the client. Tax comes from Tax.* in
+             MST_AppSetting (Invariant 6) and is rounded away from zero, matching the booking
+             and pass engines, so the invoice generated from an approved quotation agrees to
+             the paisa.
+            
+             Approval and rejection are the customer's own act. Each writes an append-only
+             TRN_QuotationStatusHistory row carrying who decided, when, and any reason —
+             the quotation's own row is never rewritten to record history.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.LoadScopedAsync(System.Int64,System.Threading.CancellationToken,System.Boolean)">
+            <summary>Customers read their own quotations only, whatever id they pass.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.ApplyLinesAndTotalsAsync(Regalis.Domain.Entities.Finance.Quotation,Regalis.Application.Finance.SaveQuotationRequest,System.Threading.CancellationToken)">
+            <summary>
+            Server-side money. Line value is quantity × duration × unit price − discount; GST
+            comes from Tax.* and is split CGST/SGST, matching the booking and pass engines.
+            Inter-state IGST is not applied anywhere in the system yet, so it stays zero here
+            too rather than this module inventing a second tax rule.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.Notify(Regalis.Domain.Entities.Finance.Quotation,System.Nullable{System.Int64},Regalis.Domain.Enums.NotificationAudience,System.String,System.String,System.String,System.String)">
+            <summary>Notifications are written as rows, the same way the booking and pass
+            engines do it — the broadcast service only serves the admin announcement screen.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Services.ServiceCatalogueService">
             <summary>Services &amp; Coffee catalogue (M22). Customers browse available items;
             the admin grid manages the full list.</summary>
@@ -571,6 +775,20 @@
         <member name="M:Regalis.Infrastructure.Services.SettingService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Microsoft.Extensions.Caching.Memory.IMemoryCache)">
             <summary>Reads MST_AppSetting with a short memory cache so hot paths (booking
             rules, security policy) don't hit the database on every request.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.SupplierService">
+            <summary>
+            Supplier master (document §21). A supplier is never hard-deleted once it has
+            purchase orders — the interceptor turns a delete into a soft delete, and an
+            in-use supplier is refused outright so historical POs keep naming a real vendor.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.SupplierService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext)">
+            <summary>
+            Supplier master (document §21). A supplier is never hard-deleted once it has
+            purchase orders — the interceptor turns a delete into a soft delete, and an
+            in-use supplier is refused outright so historical POs keep naming a real vendor.
+            </summary>
         </member>
         <member name="T:Regalis.Infrastructure.Services.StorageOptions">
             <summary>Attachment storage location — outside the web root, streamed back only

@@ -321,14 +321,94 @@
             <summary>Registers application services and every FluentValidation validator
             in this assembly. Module services register here as they are built.</summary>
         </member>
+        <member name="T:Regalis.Application.Finance.MatchBankTransactionRequest">
+            <summary>
+            Links a bank line to a record that already exists. Exactly one of the two ids is
+            given: a credit matches a customer payment, a debit matches a company expense.
+            Matching never creates either — that is the document's no-duplicates rule (§14).
+            </summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.MatchBankTransactionRequest.#ctor(System.Nullable{System.Int64},System.Nullable{System.Int64})">
+            <summary>
+            Links a bank line to a record that already exists. Exactly one of the two ids is
+            given: a credit matches a customer payment, a debit matches a company expense.
+            Matching never creates either — that is the document's no-duplicates rule (§14).
+            </summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.MatchCandidateDto">
+            <summary>A candidate the admin can match a bank line to, with why it was suggested.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.MatchCandidateDto.#ctor(System.String,System.Int64,System.String,System.String,System.Decimal,System.DateOnly,System.Boolean,System.Boolean)">
+            <summary>A candidate the admin can match a bank line to, with why it was suggested.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.IBankService">
+            <summary>
+            The bank book (document §13–§14). Two rules define it. Reconciliation state lives
+            only here: matching a bank line never writes to TRN_Payment, TRN_Invoice or
+            TRN_Expense, so cash received keeps exactly one owner. And matching only ever
+            points at a record that already exists — it never creates a payment or an expense,
+            which is what stops a statement import from duplicating the books.
+            </summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IBankService.UpdateTransactionAsync(System.Int64,Regalis.Application.Finance.SaveBankTransactionRequest,System.Threading.CancellationToken)">
+            <summary>Editable only while the line is still unreconciled.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IBankService.GetMatchCandidatesAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Payments and expenses that plausibly correspond to this bank line —
+            same direction, near the same date, ranked by an exact amount match.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IBankService.UnmatchAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Breaks a match. The payment or expense is untouched, because the match
+            never wrote to it in the first place.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IBankService.ReconcileAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Matched to Reconciled: a human confirming the match is correct.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.ExpenseSummaryDto">
+            <summary>Totals for the expense list header and the finance dashboard card.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.ExpenseSummaryDto.#ctor(System.Decimal,System.Int32,System.Collections.Generic.List{Regalis.Application.Finance.ExpenseCategoryTotalDto})">
+            <summary>Totals for the expense list header and the finance dashboard card.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.IExpenseService">
+            <summary>Daily company expenses (document §5). An expense is never hard-deleted;
+            the interceptor turns a delete into a soft delete so the expense report and any
+            bank reconciliation that referenced it stay explicable.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IExpenseService.GetCategoriesAsync(System.Threading.CancellationToken)">
+            <summary>Distinct categories already in use, for the entry screen's combo.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IExpenseService.UpdateAsync(System.Int64,Regalis.Application.Finance.SaveExpenseRequest,System.Threading.CancellationToken)">
+            <summary>Refused once a bank transaction has been matched to the expense —
+            editing the amount then would silently break the reconciliation.</summary>
+        </member>
         <member name="P:Regalis.Application.Finance.InvoiceListRequest.Status">
             <summary>pending | paid — the customer's tab filter.</summary>
+        </member>
+        <member name="P:Regalis.Application.Finance.AdminInvoiceListRequest.Overdue">
+            <summary>true = due date passed with an outstanding balance.</summary>
         </member>
         <member name="M:Regalis.Application.Finance.IInvoiceService.GetInvoicesAsync(Regalis.Application.Finance.AdminInvoiceListRequest,System.Threading.CancellationToken)">
             <summary>Admin list with the common filter set.</summary>
         </member>
         <member name="M:Regalis.Application.Finance.IInvoiceService.GetInvoicePdfAsync(System.Int64,System.Threading.CancellationToken)">
             <summary>The GST invoice as a PDF, generated on demand (QuestPDF).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IInvoiceService.CreateFromQuotationAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>
+            Raises the invoice for an approved quotation (document §9, rules 4 and 5).
+            The quotation is the only source: its figures, its customer and company snapshot
+            and its tax rates are carried across verbatim rather than recomputed, so the
+            invoice always matches what the customer approved. A quotation can be invoiced
+            once — the database enforces that as well through UX_Invoice_Quotation.
+            </summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IInvoiceService.SendAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Marks a pending invoice as delivered to the customer.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IInvoiceService.CancelAsync(System.Int64,System.String,System.Threading.CancellationToken)">
+            <summary>Cancels an unpaid invoice with a reason. An issued invoice is never
+            edited or deleted; this is the correction path.</summary>
         </member>
         <member name="M:Regalis.Application.Finance.IPassService.CreatePurchaseOrderAsync(Regalis.Application.Finance.PassOrderRequest,System.Threading.CancellationToken)">
             <summary>Gateway order for a pass purchase (wallet purchases skip this).</summary>
@@ -340,6 +420,30 @@
         <member name="M:Regalis.Application.Finance.IPassService.CancelAsync(System.Int64,System.Threading.CancellationToken)">
             <summary>Cancel before the pass starts: full refund to the wallet; once
             started it can only be cancelled without a refund.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.CreateInvoicePaymentOrderRequest">
+            <summary>
+            Pay Now against an invoice (document §11). Amount is optional: omitted means the
+            full outstanding balance, which is the ordinary case. A smaller amount is accepted
+            and leaves the invoice PartiallyPaid — the stored model already supports that, so
+            refusing it here would be the engine lying about what it can represent.
+            </summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.CreateInvoicePaymentOrderRequest.#ctor(System.Int64,System.Nullable{System.Decimal})">
+            <summary>
+            Pay Now against an invoice (document §11). Amount is optional: omitted means the
+            full outstanding balance, which is the ordinary case. A smaller amount is accepted
+            and leaves the invoice PartiallyPaid — the stored model already supports that, so
+            refusing it here would be the engine lying about what it can represent.
+            </summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.VerifyInvoicePaymentRequest">
+            <summary>Settles an invoice payment order after the gateway returns. The signature
+            is recomputed server-side; a client-reported success is never trusted.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.VerifyInvoicePaymentRequest.#ctor(System.String,System.String,System.String)">
+            <summary>Settles an invoice payment order after the gateway returns. The signature
+            is recomputed server-side; a client-reported success is never trusted.</summary>
         </member>
         <member name="T:Regalis.Application.Finance.SandboxCompleteRequest">
             <summary>Sandbox checkout simulation: exchanges an order for the payment id +
@@ -358,6 +462,86 @@
         <member name="M:Regalis.Application.Finance.IPaymentService.HandleWebhookAsync(System.String,System.String,System.Threading.CancellationToken)">
             <summary>Gateway webhook: signature-verified, idempotent on GatewayPaymentId.
             A safety net behind the inline confirm verification.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPaymentService.CreateInvoiceOrderAsync(Regalis.Application.Finance.CreateInvoicePaymentOrderRequest,System.Threading.CancellationToken)">
+            <summary>Opens a gateway order against an invoice for the amount owed.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPaymentService.VerifyInvoicePaymentAsync(Regalis.Application.Finance.VerifyInvoicePaymentRequest,System.Threading.CancellationToken)">
+            <summary>Verifies the gateway signature and applies the money to the invoice in
+            one transaction: payment, invoice balance and invoice status move together.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPaymentService.GetReceiptPdfAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>The payment receipt as a PDF. The payment number is the receipt
+            reference -- there is no second numbered document.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.ReceiveGoodsRequest">
+            <summary>Goods received against a purchase order. Each line writes one incoming
+            TRN_InventoryTransaction, and the PO status follows from the received totals —
+            there is no separate "IncomingGoods" table, because stock is derived from the one
+            append-only ledger (Invariant 11).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.ReceiveGoodsRequest.#ctor(System.Nullable{System.DateOnly},System.String,System.String,System.String,System.Collections.Generic.List{Regalis.Application.Finance.ReceiveGoodsLineRequest})">
+            <summary>Goods received against a purchase order. Each line writes one incoming
+            TRN_InventoryTransaction, and the PO status follows from the received totals —
+            there is no separate "IncomingGoods" table, because stock is derived from the one
+            append-only ledger (Invariant 11).</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.IPurchaseOrderService">
+            <summary>Purchase orders (document §4). Totals are always recomputed server-side
+            from quantity, rate, discount and the supplier's tax percent — a client-sent total
+            is never trusted. A PO is editable only while Draft.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPurchaseOrderService.UpdateAsync(System.Int64,Regalis.Application.Finance.SavePurchaseOrderRequest,System.Threading.CancellationToken)">
+            <summary>Draft only — a PO that has been sent to a supplier is frozen.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPurchaseOrderService.SendAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Draft to Sent. Recorded with a timestamp so the supplier copy is dated.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPurchaseOrderService.ReceiveAsync(System.Int64,Regalis.Application.Finance.ReceiveGoodsRequest,System.Threading.CancellationToken)">
+            <summary>Receipt writes the incoming inventory rows and the PO status in one
+            transaction — stock and the order never disagree.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.QuotationDecisionRequest">
+            <summary>The customer's decision. A reason is optional on approval and on
+            rejection alike — the document only asks that it be captured when given.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.QuotationDecisionRequest.#ctor(System.String)">
+            <summary>The customer's decision. A reason is optional on approval and on
+            rejection alike — the document only asks that it be captured when given.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.IQuotationService">
+            <summary>
+            Quotations (document §6–§8). A quotation is freely editable while Draft; sending it
+            snapshots the customer, company and tax details, and from that point the figures the
+            customer saw are the figures that stand. Approval and rejection are the customer's
+            own act, recorded with their identity and the moment they made it.
+            </summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.GetQuotationAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Admin read. Customers must use <see cref="M:Regalis.Application.Finance.IQuotationService.GetMyQuotationAsync(System.Int64,System.Threading.CancellationToken)"/>.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.GetMyQuotationsAsync(Regalis.Application.Finance.QuotationListRequest,System.Threading.CancellationToken)">
+            <summary>The caller's own quotations, whatever id is supplied.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.GetMyQuotationAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Reading a sent quotation as the customer moves it to Viewed.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.UpdateAsync(System.Int64,Regalis.Application.Finance.SaveQuotationRequest,System.Threading.CancellationToken)">
+            <summary>Draft only — a quotation the customer has seen is frozen.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.SendAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Draft to Sent: snapshots customer, company, place of supply and the
+            tax rates, and makes the quotation visible in the customer portal.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.GetQuotationPdfAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>The quotation as a PDF, generated from the snapshot.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.ISupplierService">
+            <summary>Supplier master (document §21, internal finance chain). LocationId is
+            optional: a supplier with no location serves every location.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.ISupplierService.DeleteAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>Soft delete, refused while the supplier has purchase orders.</summary>
         </member>
         <member name="M:Regalis.Application.Finance.IWalletAdminService.CreateRechargeOrderAsync(Regalis.Application.Finance.RechargeOrderRequest,System.Threading.CancellationToken)">
             <summary>Creates the gateway order for a wallet top-up (limits from settings).</summary>
@@ -477,9 +661,18 @@
         <member name="M:Regalis.Application.Reporting.CustomerDashboardDto.#ctor(System.Decimal,System.Int32,System.Int32,System.Int32,Regalis.Application.Reporting.DashboardBookingDto,Regalis.Application.Reporting.DashboardBookingDto)">
             <summary>The customer home in one round trip (API_PLAN §12).</summary>
         </member>
+        <member name="M:Regalis.Application.Reporting.IDashboardService.GetFinanceAsync(System.Threading.CancellationToken)">
+            <summary>The Billing &amp; Finance summary (document §16).</summary>
+        </member>
         <member name="T:Regalis.Application.Reporting.ReportFilterRequest">
             <summary>The common filter set every report accepts (API_PLAN §12). A report
             simply ignores filters that do not apply to it.</summary>
+        </member>
+        <member name="P:Regalis.Application.Reporting.ReportFilterRequest.Category">
+            <summary>Expense, inventory or bank-line category (document §15).</summary>
+        </member>
+        <member name="P:Regalis.Application.Reporting.ReportFilterRequest.PaymentMethod">
+            <summary>1 Wallet, 2 UPI, 3 Credit card, 4 Debit card, 5 Net banking, 6 Cash, 7 Other.</summary>
         </member>
         <member name="T:Regalis.Application.Reporting.ReportColumn">
             <summary>Column type drives frontend rendering and export formatting:

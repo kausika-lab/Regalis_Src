@@ -1,0 +1,1 @@
+const e={1:"Draft",2:"Sent",3:"Partially received",4:"Received",5:"Cancelled"},a={1:"neutral",2:"gold",3:"gold",4:"success",5:"danger"},t={1:"Wallet",2:"UPI",3:"Credit card",4:"Debit card",5:"Net banking",6:"Cash",7:"Other"};export{e as P,a,t as b};

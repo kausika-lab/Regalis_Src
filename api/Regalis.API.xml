@@ -150,6 +150,27 @@
         <member name="M:Regalis.API.Controllers.AvailabilityController.Check(Regalis.Application.Bookings.AvailabilityCheckRequest,System.Threading.CancellationToken)">
             <summary>Advisory single-workspace check.</summary>
         </member>
+        <member name="T:Regalis.API.Controllers.BankController">
+            <summary>
+            The bank book (document §13–§14). Admin-only throughout: no customer role holds
+            BANK.*, so the customer portal cannot reach any of these routes. Matching points at
+            an existing payment or expense and never creates one.
+            </summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.BankController.#ctor(Regalis.Application.Finance.IBankService)">
+            <summary>
+            The bank book (document §13–§14). Admin-only throughout: no customer role holds
+            BANK.*, so the customer portal cannot reach any of these routes. Matching points at
+            an existing payment or expense and never creates one.
+            </summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.BankController.GetCandidates(System.Int64,System.Threading.CancellationToken)">
+            <summary>Payments or expenses that plausibly correspond to this line.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.BankController.Match(System.Int64,Regalis.Application.Finance.MatchBankTransactionRequest,System.Threading.CancellationToken)">
+            <summary>Links the line to an existing payment or expense. Nothing is created,
+            and neither the payment nor the expense is written to.</summary>
+        </member>
         <member name="T:Regalis.API.Controllers.BannersController">
             <summary>Promotional banners (API_PLAN §5, M23). The active list is open to any
             signed-in user — it feeds the home-screen carousel.</summary>
@@ -238,6 +259,24 @@
         <member name="M:Regalis.API.Controllers.DashboardController.GetCustomer(System.Threading.CancellationToken)">
             <summary>Own-record aggregates — safe for any signed-in user.</summary>
         </member>
+        <member name="M:Regalis.API.Controllers.DashboardController.GetFinance(System.Threading.CancellationToken)">
+            <summary>The Billing &amp; Finance summary. Gated on PAYMENT.VIEW, not
+            DASHBOARD.VIEW -- customers hold that for their own home screen.</summary>
+        </member>
+        <member name="T:Regalis.API.Controllers.ExpensesController">
+            <summary>Daily company expenses (document §5). Admin-only throughout: no customer
+            role holds EXPENSE.*, so the customer portal cannot reach any of these routes.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.ExpensesController.#ctor(Regalis.Application.Finance.IExpenseService)">
+            <summary>Daily company expenses (document §5). Admin-only throughout: no customer
+            role holds EXPENSE.*, so the customer portal cannot reach any of these routes.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.ExpensesController.GetSummary(Regalis.Application.Finance.ExpenseListRequest,System.Threading.CancellationToken)">
+            <summary>Totals for the list header and the finance dashboard card.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.ExpensesController.GetCategories(System.Threading.CancellationToken)">
+            <summary>Categories already in use, for the entry screen's combo.</summary>
+        </member>
         <member name="T:Regalis.API.Controllers.HousekeepingController">
             <summary>Housekeeping / maintenance scheduling (API_PLAN §10, M18). Creating a
             blocking schedule writes the calendar block in the same transaction, so customer
@@ -291,6 +330,24 @@
         </member>
         <member name="M:Regalis.API.Controllers.InvoicesController.GetPdf(System.Int64,System.Threading.CancellationToken)">
             <summary>The GST invoice PDF, generated on demand from the snapshot.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.InvoicesController.CreateFromQuotation(System.Int64,System.Threading.CancellationToken)">
+            <summary>Raises the invoice for an approved quotation (document §9, rules 4
+            and 5). The quotation is the only source; a second attempt is refused both here
+            and by the unique index behind it.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.InvoicesController.Send(System.Int64,System.Threading.CancellationToken)">
+            <summary>Marks a pending invoice as delivered to the customer.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.InvoicesController.Cancel(System.Int64,Regalis.API.Controllers.CancelInvoiceRequest,System.Threading.CancellationToken)">
+            <summary>An issued invoice is never edited or deleted — this is the
+            correction path, and it is refused once any payment exists.</summary>
+        </member>
+        <member name="T:Regalis.API.Controllers.CancelInvoiceRequest">
+            <summary>Body for the cancel route — a reason is mandatory.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.CancelInvoiceRequest.#ctor(System.String)">
+            <summary>Body for the cancel route — a reason is mandatory.</summary>
         </member>
         <member name="T:Regalis.API.Controllers.LocationsController">
             <summary>Locations (API_PLAN §5). Reads are open to any authenticated user —
@@ -346,10 +403,10 @@
             <summary>Cancel — full wallet refund before the pass starts, none after.</summary>
         </member>
         <member name="T:Regalis.API.Controllers.PaymentsController">
-            <summary>Payment orders + gateway webhook (API_PLAN §7).</summary>
+            <summary>Payment orders + gateway webhook (API_PLAN Â§7).</summary>
         </member>
         <member name="M:Regalis.API.Controllers.PaymentsController.#ctor(Regalis.Application.Finance.IPaymentService)">
-            <summary>Payment orders + gateway webhook (API_PLAN §7).</summary>
+            <summary>Payment orders + gateway webhook (API_PLAN Â§7).</summary>
         </member>
         <member name="M:Regalis.API.Controllers.PaymentsController.GetAll(Regalis.Application.Finance.PaymentListRequest,System.Threading.CancellationToken)">
             <summary>Payments grid (admin/finance).</summary>
@@ -359,10 +416,22 @@
             runs checkout and confirms the booking with the returned credentials.</summary>
         </member>
         <member name="M:Regalis.API.Controllers.PaymentsController.SandboxComplete(Regalis.Application.Finance.SandboxCompleteRequest,System.Threading.CancellationToken)">
-            <summary>Simulates the gateway checkout — Sandbox provider only.</summary>
+            <summary>Simulates the gateway checkout â€” Sandbox provider only.</summary>
         </member>
         <member name="M:Regalis.API.Controllers.PaymentsController.Webhook(System.Threading.CancellationToken)">
             <summary>Gateway webhook: anonymous, signature-verified, idempotent.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.PaymentsController.CreateInvoiceOrder(Regalis.Application.Finance.CreateInvoicePaymentOrderRequest,System.Threading.CancellationToken)">
+            <summary>Pay Now against an invoice (document §11). Omit the amount to pay the
+            full outstanding balance.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.PaymentsController.VerifyInvoicePayment(Regalis.Application.Finance.VerifyInvoicePaymentRequest,System.Threading.CancellationToken)">
+            <summary>Settles the invoice order once the gateway returns. The signature is
+            recomputed here; a failure leaves the invoice unpaid and retryable.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.PaymentsController.GetReceipt(System.Int64,System.Threading.CancellationToken)">
+            <summary>The receipt for a successful payment. Scoped: a customer gets only
+            their own.</summary>
         </member>
         <member name="T:Regalis.API.Controllers.ProfileController">
             <summary>Own-record profile (API_PLAN §4). Always the caller's row — there is no
@@ -371,6 +440,67 @@
         <member name="M:Regalis.API.Controllers.ProfileController.#ctor(Regalis.Application.Auth.IProfileService)">
             <summary>Own-record profile (API_PLAN §4). Always the caller's row — there is no
             id parameter to tamper with.</summary>
+        </member>
+        <member name="T:Regalis.API.Controllers.PurchaseOrdersController">
+            <summary>Purchase orders (document §4). A PO is editable only while Draft, and
+            receiving goods against it writes the incoming inventory rows in the same
+            transaction — there is no separate goods-received endpoint that could drift.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.PurchaseOrdersController.#ctor(Regalis.Application.Finance.IPurchaseOrderService)">
+            <summary>Purchase orders (document §4). A PO is editable only while Draft, and
+            receiving goods against it writes the incoming inventory rows in the same
+            transaction — there is no separate goods-received endpoint that could drift.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.PurchaseOrdersController.Send(System.Int64,System.Threading.CancellationToken)">
+            <summary>Draft to Sent — the point after which the PO is frozen.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.PurchaseOrdersController.Receive(System.Int64,Regalis.Application.Finance.ReceiveGoodsRequest,System.Threading.CancellationToken)">
+            <summary>Goods received: writes the incoming TRN_InventoryTransaction rows, the
+            line receipts and the header status atomically.</summary>
+        </member>
+        <member name="T:Regalis.API.Controllers.CancelPurchaseOrderRequest">
+            <summary>Body for the cancel route — a reason is mandatory, as with a booking.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.CancelPurchaseOrderRequest.#ctor(System.String)">
+            <summary>Body for the cancel route — a reason is mandatory, as with a booking.</summary>
+        </member>
+        <member name="T:Regalis.API.Controllers.QuotationsController">
+            <summary>
+            Quotations (document §6–§8). Both portals are served here: the admin routes manage
+            the quotation, the "my" routes are the customer's own view and their approve/reject
+            decision. Customer routes are scoped by ICurrentUser inside the service, so the id
+            in the URL can never reach another customer's quotation.
+            </summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.#ctor(Regalis.Application.Finance.IQuotationService)">
+            <summary>
+            Quotations (document §6–§8). Both portals are served here: the admin routes manage
+            the quotation, the "my" routes are the customer's own view and their approve/reject
+            decision. Customer routes are scoped by ICurrentUser inside the service, so the id
+            in the URL can never reach another customer's quotation.
+            </summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.GetMy(Regalis.Application.Finance.QuotationListRequest,System.Threading.CancellationToken)">
+            <summary>The caller's own quotations. Drafts are never included.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.GetMyById(System.Int64,System.Threading.CancellationToken)">
+            <summary>Opening a sent quotation marks it Viewed.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.Update(System.Int64,Regalis.Application.Finance.SaveQuotationRequest,System.Threading.CancellationToken)">
+            <summary>Draft only — a quotation the customer has seen is frozen.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.Send(System.Int64,System.Threading.CancellationToken)">
+            <summary>Snapshots the customer, company and tax details, then makes the
+            quotation visible in the customer portal.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.GetPdf(System.Int64,System.Threading.CancellationToken)">
+            <summary>Scoped inside the service: a customer can only print their own.</summary>
+        </member>
+        <member name="T:Regalis.API.Controllers.CancelQuotationRequest">
+            <summary>Body for the cancel route — a reason is mandatory, as on a purchase order.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.CancelQuotationRequest.#ctor(System.String)">
+            <summary>Body for the cancel route — a reason is mandatory, as on a purchase order.</summary>
         </member>
         <member name="T:Regalis.API.Controllers.ReportsController">
             <summary>Reports &amp; Analysis (API_PLAN §12, M24). One tabular contract drives
@@ -423,6 +553,12 @@
         </member>
         <member name="M:Regalis.API.Controllers.SettingsController.GetPublic(System.Threading.CancellationToken)">
             <summary>Anonymous — support number, hours and company name only (Contact Us).</summary>
+        </member>
+        <member name="T:Regalis.API.Controllers.SuppliersController">
+            <summary>Supplier master for the internal finance chain (document §21).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.SuppliersController.#ctor(Regalis.Application.Finance.ISupplierService)">
+            <summary>Supplier master for the internal finance chain (document §21).</summary>
         </member>
         <member name="T:Regalis.API.Controllers.TicketCategoriesController">
             <summary>Ticket masters (API_PLAN §5): categories with their issue types, for the

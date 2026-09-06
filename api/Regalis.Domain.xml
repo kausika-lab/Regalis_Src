@@ -90,8 +90,64 @@
         <member name="P:Regalis.Domain.Entities.Booking.WorkspaceBlock.ReleasedUtc">
             <summary>Unblock = set this + IsActive false; the row is kept.</summary>
         </member>
+        <member name="T:Regalis.Domain.Entities.Finance.BankAccount">
+            <summary>MST_BankAccount (document §13). Deliberately stores only the opening
+            balance: the current balance is derived from the transaction ledger the same way
+            inventory stock is derived (Invariant 11), so there is never a second source of
+            truth for how much money the account holds.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.BankAccount.AccountNumberMasked">
+            <summary>Stored masked (last four kept) — the full number is never needed to
+            reconcile and is a needless liability at rest.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.BankAccount.LocationId">
+            <summary>Null means the account is company-wide, as with MST_PassPlan.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.BankTransaction">
+            <summary>TRN_BankTransaction (document §13–§14). Reconciliation state lives HERE
+            and nowhere else: matching a bank row to a payment or an expense never writes back
+            to TRN_Payment, TRN_Invoice or TRN_Expense, so cash-received keeps exactly one
+            owner. Matching also never creates a payment or expense row — it only points at an
+            existing one, which is the document's explicit no-duplicates rule.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.BankTransaction.ReferenceNumber">
+            <summary>Cheque number, UTR, NEFT reference — whatever the statement shows.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.BankTransaction.BankReferenceId">
+            <summary>The bank's own transaction id, when the statement carries one.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.BankTransaction.ImportBatchId">
+            <summary>Set when the row arrived through a statement import rather than
+            manual entry; lets a bad import be identified and reversed as a batch.</summary>
+        </member>
         <member name="T:Regalis.Domain.Entities.Finance.CustomerPass">
             <summary>TRN_CustomerPass — a purchased Day/Monthly pass.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.Expense">
+            <summary>TRN_Expense — a daily company expense (document §5). Description and
+            Remarks are both required: the document calls this out explicitly as a user
+            request, so it is enforced in the configuration and the validator, not just the UI.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Expense.ExpenseNumber">
+            <summary>REG/EXP/{FY}/{00001} — gap-free, from MST_NumberSequence.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Expense.Category">
+            <summary>Free text today, matching InventoryItem.Category. A master table is
+            an open question (A10) — moving to one later is an additive change.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Expense.PaymentMethod">
+            <summary>Reuses the existing PaymentMethod enum rather than inventing a
+            parallel "payment mode" list.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Expense.AttachmentPath">
+            <summary>Scanned bill, if any.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Expense.EnteredByUserId">
+            <summary>"Created By" from the document — captured explicitly as well as in
+            the audit columns, because it is shown on the expense list.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Expense.SupplierId">
+            <summary>Optional provenance when the expense settles a purchase.</summary>
         </member>
         <member name="T:Regalis.Domain.Entities.Finance.Invoice">
             <summary>TRN_Invoice. Customer and company details are snapshotted at issue time
@@ -100,8 +156,16 @@
         <member name="P:Regalis.Domain.Entities.Finance.Invoice.InvoiceNumber">
             <summary>REG/INV/{FY}/{00001} — gap-free, from MST_NumberSequence.</summary>
         </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Invoice.QuotationId">
+            <summary>Set when this invoice was generated from an approved quotation
+            (document §9, rule 5). Null for booking, pass and service-order invoices.</summary>
+        </member>
         <member name="P:Regalis.Domain.Entities.Finance.Invoice.OutstandingAmount">
             <summary>Computed persisted column: TotalAmount − PaidAmount.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Invoice.TermsAndConditions">
+            <summary>Snapshotted from the quotation at issue time, like every other
+            customer-facing field on this row.</summary>
         </member>
         <member name="T:Regalis.Domain.Entities.Finance.InvoiceLine">
             <summary>TRN_InvoiceLine.</summary>
@@ -116,11 +180,70 @@
         <member name="P:Regalis.Domain.Entities.Finance.Payment.GatewayPaymentId">
             <summary>Filtered unique index makes gateway webhooks idempotent.</summary>
         </member>
+        <member name="T:Regalis.Domain.Entities.Finance.PurchaseOrder">
+            <summary>TRN_PurchaseOrder — anything the company buys (document §4).
+            Tax here is the supplier's GST as printed on their quote, entered by the buyer;
+            it is NOT sourced from Tax.* in MST_AppSetting, which models our OUTPUT GST.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.PoNumber">
+            <summary>REG/PO/{FY}/{00001} — gap-free, from MST_NumberSequence.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.AttachmentPath">
+            <summary>Supporting document (quote, approval mail) — one path, like TicketAttachment.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.PurchaseOrderLine">
+            <summary>TRN_PurchaseOrderLine. ReceivedQuantity is what drives the header's
+            PartiallyReceived / Received status; it only ever moves forward, incremented by
+            the goods-received entry that writes the incoming TRN_InventoryTransaction.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrderLine.InventoryItemId">
+            <summary>Optional link to the stock master; a PO may buy something not stocked.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.Quotation">
+            <summary>TRN_Quotation — the priced offer that precedes an invoice (document §6).
+            This is where "Draft" lives: a quotation is freely editable while Draft, and the
+            invoice it becomes is immutable from the moment it is issued. Customer, company and
+            tax details are snapshotted when the quotation is sent, so the customer's copy and
+            the resulting invoice agree even if settings or the profile change afterwards.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.QuotationNumber">
+            <summary>REG/QTN/{FY}/{00001} — gap-free, from MST_NumberSequence.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.ValidUntil">
+            <summary>Validity date from the document; the expiry sweeper reads this.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.InvoiceId">
+            <summary>Set when the approved quotation is converted; a quotation yields at
+            most one invoice today (see the open question on recurring billing).</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.QuotationLine">
+            <summary>TRN_QuotationLine. The document's "Service Type" is modelled as a
+            nullable FK to the existing MST_WorkspaceType (DESK / CABIN / MEETING_ROOM) rather
+            than a new enum, with MST_ServiceItem covering "other workspace services if
+            required later" (§6). Quantity and Duration are separate, as the document lists
+            them: 5 desks for 3 months is Quantity 5, Duration 3 Months.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.DurationUnit">
+            <summary>Hour / Day / Month — free text so a new unit needs no migration.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.QuotationStatusHistory">
+            <summary>TRN_QuotationStatusHistory — append-only, mirroring
+            TRN_BookingStatusHistory. This is what makes a quotation's approval, rejection or
+            expiry auditable without ever editing the quotation's own row.</summary>
+        </member>
         <member name="T:Regalis.Domain.Entities.Finance.ServiceOrder">
             <summary>TRN_ServiceOrder — coffee / featured-service purchases.</summary>
         </member>
         <member name="T:Regalis.Domain.Entities.Finance.ServiceOrderLine">
             <summary>TRN_ServiceOrderLine. ItemName is snapshotted at order time.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.Supplier">
+            <summary>MST_Supplier — the vendor a purchase order is raised against
+            (document §21). LocationId is nullable: null means the supplier serves every
+            location, matching the MST_PassPlan precedent.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Supplier.PaymentTerms">
+            <summary>Free text, e.g. "Net 30" — not interpreted by the engine.</summary>
         </member>
         <member name="T:Regalis.Domain.Entities.Finance.Wallet">
             <summary>MST_Wallet — one row per customer. A CHECK constraint refuses an overdraft
@@ -282,6 +405,19 @@
         <member name="P:Regalis.Domain.Entities.Operations.InventoryTransaction.SourceOrDestination">
             <summary>Supplier for In, department/use for Out (A08 — no supplier master in Phase 1).</summary>
         </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryTransaction.SupplierId">
+            <summary>Supplier master for an In row, superseding the free-text
+            SourceOrDestination the original A08 note anticipated.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryTransaction.PurchaseOrderId">
+            <summary>The purchase order these goods were received against.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryTransaction.PurchaseInvoiceNumber">
+            <summary>The supplier's own invoice number for this delivery.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryTransaction.AttachmentPath">
+            <summary>Delivery note or bill scan. PhotoPath stays damage-specific.</summary>
+        </member>
         <member name="T:Regalis.Domain.Entities.Operations.Notification">
             <summary>TRN_Notification — the in-app notification centre.</summary>
         </member>
@@ -306,6 +442,26 @@
         </member>
         <member name="F:Regalis.Domain.Enums.BookingStatus.Pending">
             <summary>Holds the slot for Booking.PendingHoldMinutes while payment completes.</summary>
+        </member>
+        <member name="F:Regalis.Domain.Enums.InvoiceStatus.Sent">
+            <summary>Issued and delivered to the customer, nothing paid yet. Appended
+            rather than inserted so existing tinyint values keep their meaning.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.QuotationStatus">
+            <summary>The quotation lifecycle from document §6/§20. Draft lives here, not on
+            the invoice: an invoice exists only once issued, and is immutable from that moment.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.PurchaseOrderStatus">
+            <summary>Purchase order lifecycle from document §4/§20. PartiallyReceived and
+            Received are derived from the lines' ReceivedQuantity, never set by hand.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.BankTransactionDirection">
+            <summary>Direction of a bank statement line. Separate from WalletDirection —
+            that one describes the customer's wallet, this one the company's bank account.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.ReconciliationStatus">
+            <summary>Reconciliation lifecycle from document §14. Matched means a candidate
+            system record is linked; Reconciled means a human confirmed it.</summary>
         </member>
         <member name="T:Regalis.Domain.Enums.PortalType">
             <summary>Which portal a role or menu belongs to.</summary>

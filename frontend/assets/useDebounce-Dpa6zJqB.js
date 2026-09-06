@@ -1,1 +1,0 @@
-import{r as o}from"./index-BMy7STEc.js";function s(e,t){const[n,r]=o.useState(e);return o.useEffect(()=>{const u=window.setTimeout(()=>r(e),t);return()=>window.clearTimeout(u)},[e,t]),n}export{s as u};

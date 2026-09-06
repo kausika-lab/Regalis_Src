@@ -9,6 +9,7 @@ import { ADMIN_EMAIL, adminPassword, login, visitAndCapture } from './helpers';
 const ADMIN_PAGES: Array<[path: string, name: string]> = [
   ['/admin', 'admin-dashboard'],
   ['/admin/users', 'admin-users'],
+  ['/admin/customers', 'admin-customers'],
   ['/admin/roles', 'admin-roles'],
   ['/admin/menus', 'admin-menus'],
   ['/admin/locations', 'admin-locations'],
@@ -33,6 +34,7 @@ const ADMIN_PAGES: Array<[path: string, name: string]> = [
   ['/admin/services', 'admin-services'],
   ['/admin/banners', 'admin-banners'],
   ['/admin/settings', 'admin-settings'],
+  ['/admin/notifications', 'admin-notifications'],
   ['/admin/tickets', 'admin-tickets'],
   ['/admin/reports', 'admin-reports'],
   ['/admin/audit', 'admin-audit'],

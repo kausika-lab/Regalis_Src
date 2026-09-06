@@ -26,13 +26,17 @@ public static class AppSettingKeys
 
     public static class Invoice
     {
-        public const string NumberPrefix = "Invoice.NumberPrefix";
         public const string DueDays = "Invoice.DueDays";
+    }
+
+    public static class Quotation
+    {
+        public const string ValidityDays = "Quotation.ValidityDays";
+        public const string TermsAndConditions = "Quotation.TermsAndConditions";
     }
 
     public static class Booking
     {
-        public const string NumberPrefix = "Booking.NumberPrefix";
         public const string SlotGranularityMinutes = "Booking.SlotGranularityMinutes";
         public const string MinMinutes = "Booking.MinMinutes";
         public const string MaxMinutes = "Booking.MaxMinutes";

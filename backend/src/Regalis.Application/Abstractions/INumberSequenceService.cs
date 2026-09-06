@@ -12,6 +12,9 @@ public static class SequenceKeys
     public const string Ticket = "Ticket";
     public const string HousekeepingSchedule = "HousekeepingSchedule";
     public const string InventoryTransaction = "InventoryTransaction";
+    public const string PurchaseOrder = "PurchaseOrder";
+    public const string Expense = "Expense";
+    public const string Quotation = "Quotation";
 }
 
 /// <summary>

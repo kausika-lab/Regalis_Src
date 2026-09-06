@@ -587,6 +587,225 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.BankAccount", b =>
+                {
+                    b.Property<int>("BankAccountId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BankAccountId"));
+
+                    b.Property<string>("AccountCode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("AccountName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("AccountNumberMasked")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("AccountType")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Branch")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Ifsc")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("ModifiedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("OpeningBalance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateOnly?>("OpeningBalanceAsOn")
+                        .HasColumnType("date");
+
+                    b.HasKey("BankAccountId");
+
+                    b.HasIndex("AccountCode")
+                        .IsUnique()
+                        .HasDatabaseName("UX_BankAccount_Code");
+
+                    b.HasIndex("LocationId");
+
+                    b.ToTable("MST_BankAccount", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.BankTransaction", b =>
+                {
+                    b.Property<long>("BankTransactionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("BankTransactionId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("BankAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BankReferenceId")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<byte>("Direction")
+                        .HasColumnType("tinyint");
+
+                    b.Property<long>("EnteredByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ImportBatchId")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("MatchedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("MatchedExpenseId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("MatchedPaymentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("MatchedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long?>("ModifiedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Narration")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long?>("ReconciledByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ReconciledUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<byte>("ReconciliationStatus")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("ReferenceNumber")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateOnly>("TransactionDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("BankTransactionId");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("MatchedExpenseId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_BankTxn_MatchedExpense")
+                        .HasFilter("[MatchedExpenseId] IS NOT NULL");
+
+                    b.HasIndex("MatchedPaymentId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_BankTxn_MatchedPayment")
+                        .HasFilter("[MatchedPaymentId] IS NOT NULL");
+
+                    b.HasIndex("BankAccountId", "BankReferenceId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_BankTxn_Account_BankReference")
+                        .HasFilter("[BankReferenceId] IS NOT NULL");
+
+                    b.HasIndex("BankAccountId", "TransactionDate")
+                        .HasDatabaseName("IX_BankTxn_Account_Date");
+
+                    b.HasIndex("ReconciliationStatus", "TransactionDate")
+                        .HasDatabaseName("IX_BankTxn_Reconciliation_Date");
+
+                    b.ToTable("TRN_BankTransaction", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_BankTxn_Amount", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_BankTxn_SingleMatch", "[MatchedPaymentId] IS NULL OR [MatchedExpenseId] IS NULL");
+                        });
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.CustomerPass", b =>
                 {
                     b.Property<long>("CustomerPassId")
@@ -687,6 +906,106 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_CustomerPass_ValidTo_Status");
 
                     b.ToTable("TRN_CustomerPass", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.Expense", b =>
+                {
+                    b.Property<long>("ExpenseId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("ExpenseId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("AttachmentPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("EnteredByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateOnly>("ExpenseDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ExpenseNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("ModifiedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<byte>("PaymentMethod")
+                        .HasColumnType("tinyint");
+
+                    b.Property<long?>("PurchaseOrderId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Remarks")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("SupplierId")
+                        .HasColumnType("int");
+
+                    b.HasKey("ExpenseId");
+
+                    b.HasIndex("ExpenseNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Expense_Number");
+
+                    b.HasIndex("PurchaseOrderId");
+
+                    b.HasIndex("SupplierId");
+
+                    b.HasIndex("Category", "ExpenseDate")
+                        .HasDatabaseName("IX_Expense_Category_Date");
+
+                    b.HasIndex("LocationId", "ExpenseDate")
+                        .HasDatabaseName("IX_Expense_Location_Date");
+
+                    b.ToTable("TRN_Expense", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Expense_Amount", "[Amount] > 0");
+                        });
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.Invoice", b =>
@@ -827,6 +1146,9 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<long?>("QuotationId")
+                        .HasColumnType("bigint");
+
                     b.Property<long?>("ServiceOrderId")
                         .HasColumnType("bigint");
 
@@ -849,6 +1171,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("TermsAndConditions")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<decimal>("TotalAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -858,6 +1184,11 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.HasIndex("InvoiceNumber")
                         .IsUnique()
                         .HasDatabaseName("UX_Invoice_Number");
+
+                    b.HasIndex("QuotationId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Invoice_Quotation")
+                        .HasFilter("[QuotationId] IS NOT NULL");
 
                     b.HasIndex("CustomerId", "InvoiceDate")
                         .HasDatabaseName("IX_Invoice_Customer_Date");
@@ -1041,6 +1372,485 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.ToTable("TRN_Payment", (string)null);
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.PurchaseOrder", b =>
+                {
+                    b.Property<long>("PurchaseOrderId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("PurchaseOrderId"));
+
+                    b.Property<string>("AttachmentPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("CancelledUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateOnly?>("ExpectedDeliveryDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("ModifiedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<DateOnly>("PoDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("PoNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("SentUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<byte>("Status")
+                        .HasColumnType("tinyint");
+
+                    b.Property<decimal>("SubTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("SupplierId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TaxableAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("PurchaseOrderId");
+
+                    b.HasIndex("PoNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PurchaseOrder_Number");
+
+                    b.HasIndex("SupplierId", "PoDate")
+                        .HasDatabaseName("IX_PurchaseOrder_Supplier_Date");
+
+                    b.HasIndex("LocationId", "Status", "PoDate")
+                        .HasDatabaseName("IX_PurchaseOrder_Location_Status_Date");
+
+                    b.ToTable("TRN_PurchaseOrder", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.PurchaseOrderLine", b =>
+                {
+                    b.Property<long>("PurchaseOrderLineId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("PurchaseOrderLineId"));
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("HsnSacCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int?>("InventoryItemId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ItemName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<decimal>("LineAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("int");
+
+                    b.Property<long>("PurchaseOrderId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("Rate")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ReceivedQuantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TaxPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("PurchaseOrderLineId");
+
+                    b.HasIndex("InventoryItemId");
+
+                    b.HasIndex("PurchaseOrderId");
+
+                    b.ToTable("TRN_PurchaseOrderLine", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PoLine_Received", "[ReceivedQuantity] >= 0 AND [ReceivedQuantity] <= [Quantity]");
+                        });
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.Quotation", b =>
+                {
+                    b.Property<long>("QuotationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("QuotationId"));
+
+                    b.Property<string>("BillingAddress")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("CgstAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("CgstPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("CompanyAddress")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("CompanyGstin")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("CustomerEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("CustomerGstin")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<long>("CustomerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("CustomerMobile")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("ExpiredUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<decimal>("IgstAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("IgstPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<long?>("InvoiceId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("ModifiedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("PdfPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PlaceOfSupply")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateOnly>("QuotationDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("QuotationNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<long?>("RespondedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("RespondedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<DateTime?>("SentUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<decimal>("SgstAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("SgstPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<byte>("Status")
+                        .HasColumnType("tinyint");
+
+                    b.Property<decimal>("SubTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TaxableAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TermsAndConditions")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateOnly>("ValidUntil")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime?>("ViewedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("QuotationId");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.HasIndex("QuotationNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Quotation_Number");
+
+                    b.HasIndex("CustomerId", "QuotationDate")
+                        .HasDatabaseName("IX_Quotation_Customer_Date");
+
+                    b.HasIndex("ValidUntil", "Status")
+                        .HasDatabaseName("IX_Quotation_ValidUntil_Status");
+
+                    b.HasIndex("LocationId", "Status", "QuotationDate")
+                        .HasDatabaseName("IX_Quotation_Location_Status_Date");
+
+                    b.ToTable("TRN_Quotation", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.QuotationLine", b =>
+                {
+                    b.Property<long>("QuotationLineId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("QuotationLineId"));
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("DurationUnit")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal?>("DurationValue")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<string>("HsnSacCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("LineAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<long>("QuotationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("ServiceItemId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TaxPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("WorkspaceTypeId")
+                        .HasColumnType("int");
+
+                    b.HasKey("QuotationLineId");
+
+                    b.HasIndex("QuotationId");
+
+                    b.HasIndex("ServiceItemId");
+
+                    b.HasIndex("WorkspaceTypeId");
+
+                    b.ToTable("TRN_QuotationLine", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.QuotationStatusHistory", b =>
+                {
+                    b.Property<long>("QuotationStatusHistoryId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("QuotationStatusHistoryId"));
+
+                    b.Property<long>("ChangedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("ChangedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<byte?>("FromStatus")
+                        .HasColumnType("tinyint");
+
+                    b.Property<long>("QuotationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<byte>("ToStatus")
+                        .HasColumnType("tinyint");
+
+                    b.HasKey("QuotationStatusHistoryId");
+
+                    b.HasIndex("QuotationId")
+                        .HasDatabaseName("IX_QuotationStatusHistory_Quotation");
+
+                    b.ToTable("TRN_QuotationStatusHistory", (string)null);
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.ServiceOrder", b =>
                 {
                     b.Property<long>("ServiceOrderId")
@@ -1162,6 +1972,103 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.HasIndex("ServiceOrderId");
 
                     b.ToTable("TRN_ServiceOrderLine", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.Supplier", b =>
+                {
+                    b.Property<int>("SupplierId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SupplierId"));
+
+                    b.Property<string>("AddressLine")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ContactPerson")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Gstin")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MobileNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<long?>("ModifiedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PaymentTerms")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Pincode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("State")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SupplierCode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("SupplierName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("SupplierId");
+
+                    b.HasIndex("SupplierCode")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Supplier_Code");
+
+                    b.HasIndex("LocationId", "SupplierName")
+                        .HasDatabaseName("IX_Supplier_Location_Name");
+
+                    b.ToTable("MST_Supplier", (string)null);
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.Wallet", b =>
@@ -2966,6 +3873,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("InventoryTransactionId"));
 
+                    b.Property<string>("AttachmentPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<long?>("CreatedBy")
                         .HasColumnType("bigint");
 
@@ -3015,6 +3926,13 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("PurchaseInvoiceNumber")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<long?>("PurchaseOrderId")
+                        .HasColumnType("bigint");
+
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 3)
                         .HasColumnType("decimal(18,3)");
@@ -3026,6 +3944,9 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<string>("SourceOrDestination")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("SupplierId")
+                        .HasColumnType("int");
 
                     b.Property<DateOnly>("TransactionDate")
                         .HasColumnType("date");
@@ -3043,6 +3964,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("InventoryTransactionId");
+
+                    b.HasIndex("PurchaseOrderId")
+                        .HasDatabaseName("IX_InvTxn_PurchaseOrder")
+                        .HasFilter("[PurchaseOrderId] IS NOT NULL");
 
                     b.HasIndex("TransactionNumber")
                         .IsUnique()
@@ -3463,6 +4388,41 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.BankAccount", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Masters.Location", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.BankTransaction", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Finance.BankAccount", "BankAccount")
+                        .WithMany("Transactions")
+                        .HasForeignKey("BankAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Regalis.Domain.Entities.Masters.Location", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Regalis.Domain.Entities.Finance.Expense", null)
+                        .WithMany()
+                        .HasForeignKey("MatchedExpenseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Regalis.Domain.Entities.Finance.Payment", null)
+                        .WithMany()
+                        .HasForeignKey("MatchedPaymentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("BankAccount");
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.CustomerPass", b =>
                 {
                     b.HasOne("Regalis.Domain.Entities.Identity.User", null)
@@ -3478,6 +4438,25 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("PassPlan");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.Expense", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Masters.Location", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Regalis.Domain.Entities.Finance.PurchaseOrder", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Regalis.Domain.Entities.Finance.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.Invoice", b =>
@@ -3509,6 +4488,91 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.PurchaseOrder", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Masters.Location", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Regalis.Domain.Entities.Finance.Supplier", "Supplier")
+                        .WithMany("PurchaseOrders")
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Supplier");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.PurchaseOrderLine", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Operations.InventoryItem", null)
+                        .WithMany()
+                        .HasForeignKey("InventoryItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Regalis.Domain.Entities.Finance.PurchaseOrder", "PurchaseOrder")
+                        .WithMany("Lines")
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PurchaseOrder");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.Quotation", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Regalis.Domain.Entities.Finance.Invoice", null)
+                        .WithMany()
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Regalis.Domain.Entities.Masters.Location", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.QuotationLine", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Finance.Quotation", "Quotation")
+                        .WithMany("Lines")
+                        .HasForeignKey("QuotationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Regalis.Domain.Entities.Masters.ServiceItem", null)
+                        .WithMany()
+                        .HasForeignKey("ServiceItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Regalis.Domain.Entities.Masters.WorkspaceType", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Quotation");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.QuotationStatusHistory", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Finance.Quotation", "Quotation")
+                        .WithMany("StatusHistory")
+                        .HasForeignKey("QuotationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Quotation");
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.ServiceOrder", b =>
                 {
                     b.HasOne("Regalis.Domain.Entities.Identity.User", null)
@@ -3535,6 +4599,14 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Navigation("ServiceItem");
 
                     b.Navigation("ServiceOrder");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.Supplier", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Masters.Location", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.Wallet", b =>
@@ -3825,14 +4897,36 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Navigation("StatusHistory");
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.BankAccount", b =>
+                {
+                    b.Navigation("Transactions");
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.Invoice", b =>
                 {
                     b.Navigation("Lines");
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.PurchaseOrder", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.Quotation", b =>
+                {
+                    b.Navigation("Lines");
+
+                    b.Navigation("StatusHistory");
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.ServiceOrder", b =>
                 {
                     b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.Supplier", b =>
+                {
+                    b.Navigation("PurchaseOrders");
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.Wallet", b =>

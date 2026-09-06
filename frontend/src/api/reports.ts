@@ -36,6 +36,8 @@ export interface CustomerDashboard {
 export const dashboardApi = {
   admin: () => unwrap<AdminDashboard>(api.get('/dashboard/admin')),
   customer: () => unwrap<CustomerDashboard>(api.get('/dashboard/customer')),
+  /** The Billing & Finance summary (requirements §16). */
+  finance: () => unwrap<AdminDashboard>(api.get('/dashboard/finance')),
 };
 
 export const reportsApi = {

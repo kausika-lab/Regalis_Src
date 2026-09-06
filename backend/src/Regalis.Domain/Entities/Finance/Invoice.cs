@@ -14,6 +14,9 @@ public class Invoice : AuditableEntity
     public long? BookingId { get; set; }
     public long? CustomerPassId { get; set; }
     public long? ServiceOrderId { get; set; }
+    /// <summary>Set when this invoice was generated from an approved quotation
+    /// (document §9, rule 5). Null for booking, pass and service-order invoices.</summary>
+    public long? QuotationId { get; set; }
     public int LocationId { get; set; }
     public DateOnly InvoiceDate { get; set; }
     public DateOnly DueDate { get; set; }
@@ -46,6 +49,9 @@ public class Invoice : AuditableEntity
 
     public string? PdfPath { get; set; }
     public string? Notes { get; set; }
+    /// <summary>Snapshotted from the quotation at issue time, like every other
+    /// customer-facing field on this row.</summary>
+    public string? TermsAndConditions { get; set; }
     public string? CancellationReason { get; set; }
 
     public ICollection<InvoiceLine> Lines { get; set; } = new List<InvoiceLine>();

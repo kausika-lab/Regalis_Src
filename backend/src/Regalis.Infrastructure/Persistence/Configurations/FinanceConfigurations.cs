@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Regalis.Domain.Entities.Finance;
 using Regalis.Domain.Entities.Identity;
+using Regalis.Domain.Entities.Masters;
+using Regalis.Domain.Entities.Operations;
 
 namespace Regalis.Infrastructure.Persistence.Configurations;
 
@@ -91,10 +93,16 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(x => x.PdfPath).HasMaxLength(500);
         builder.Property(x => x.Notes).HasMaxLength(500);
         builder.Property(x => x.CancellationReason).HasMaxLength(500);
+        builder.Property(x => x.TermsAndConditions).HasMaxLength(2000);
 
         builder.HasIndex(x => x.InvoiceNumber).IsUnique().HasDatabaseName("UX_Invoice_Number");
         builder.HasIndex(x => new { x.CustomerId, x.InvoiceDate }).HasDatabaseName("IX_Invoice_Customer_Date");
         builder.HasIndex(x => new { x.Status, x.InvoiceDate }).HasDatabaseName("IX_Invoice_Status_Date");
+        // One invoice per quotation — the database refuses a second conversion of
+        // the same approved quotation, so a double-click cannot double-bill.
+        builder.HasIndex(x => x.QuotationId).IsUnique()
+            .HasDatabaseName("UX_Invoice_Quotation")
+            .HasFilter("[QuotationId] IS NOT NULL");
 
         builder.HasOne<User>().WithMany()
             .HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
@@ -165,5 +173,256 @@ public class ServiceOrderLineConfiguration : IEntityTypeConfiguration<ServiceOrd
             .HasForeignKey(x => x.ServiceOrderId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne(x => x.ServiceItem).WithMany()
             .HasForeignKey(x => x.ServiceItemId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
+{
+    public void Configure(EntityTypeBuilder<Supplier> builder)
+    {
+        builder.ToTable("MST_Supplier");
+        builder.HasKey(x => x.SupplierId);
+        builder.Property(x => x.SupplierCode).HasMaxLength(30).IsRequired();
+        builder.Property(x => x.SupplierName).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.ContactPerson).HasMaxLength(150);
+        builder.Property(x => x.Email).HasMaxLength(256);
+        builder.Property(x => x.MobileNumber).HasMaxLength(20);
+        builder.Property(x => x.Gstin).HasMaxLength(20);
+        builder.Property(x => x.AddressLine).HasMaxLength(500);
+        builder.Property(x => x.City).HasMaxLength(100);
+        builder.Property(x => x.State).HasMaxLength(100);
+        builder.Property(x => x.Pincode).HasMaxLength(10);
+        builder.Property(x => x.PaymentTerms).HasMaxLength(100);
+        builder.Property(x => x.Notes).HasMaxLength(500);
+
+        builder.HasIndex(x => x.SupplierCode).IsUnique().HasDatabaseName("UX_Supplier_Code");
+        builder.HasIndex(x => new { x.LocationId, x.SupplierName }).HasDatabaseName("IX_Supplier_Location_Name");
+
+        builder.HasOne<Location>().WithMany()
+            .HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class PurchaseOrderConfiguration : IEntityTypeConfiguration<PurchaseOrder>
+{
+    public void Configure(EntityTypeBuilder<PurchaseOrder> builder)
+    {
+        builder.ToTable("TRN_PurchaseOrder");
+        builder.HasKey(x => x.PurchaseOrderId);
+        builder.Property(x => x.PoNumber).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.Remarks).HasMaxLength(1000);
+        builder.Property(x => x.AttachmentPath).HasMaxLength(500);
+        builder.Property(x => x.CancellationReason).HasMaxLength(500);
+
+        builder.HasIndex(x => x.PoNumber).IsUnique().HasDatabaseName("UX_PurchaseOrder_Number");
+        builder.HasIndex(x => new { x.SupplierId, x.PoDate }).HasDatabaseName("IX_PurchaseOrder_Supplier_Date");
+        builder.HasIndex(x => new { x.LocationId, x.Status, x.PoDate })
+            .HasDatabaseName("IX_PurchaseOrder_Location_Status_Date");
+
+        builder.HasOne(x => x.Supplier).WithMany(x => x.PurchaseOrders)
+            .HasForeignKey(x => x.SupplierId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Location>().WithMany()
+            .HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class PurchaseOrderLineConfiguration : IEntityTypeConfiguration<PurchaseOrderLine>
+{
+    public void Configure(EntityTypeBuilder<PurchaseOrderLine> builder)
+    {
+        // Receiving can never exceed what was ordered, and never runs backwards.
+        builder.ToTable("TRN_PurchaseOrderLine", t =>
+            t.HasCheckConstraint("CK_PoLine_Received",
+                "[ReceivedQuantity] >= 0 AND [ReceivedQuantity] <= [Quantity]"));
+        builder.HasKey(x => x.PurchaseOrderLineId);
+        builder.Property(x => x.ItemName).HasMaxLength(300).IsRequired();
+        builder.Property(x => x.HsnSacCode).HasMaxLength(20);
+        builder.Property(x => x.Unit).HasMaxLength(20);
+        builder.Property(x => x.Quantity).HasPrecision(18, 3);
+        builder.Property(x => x.ReceivedQuantity).HasPrecision(18, 3);
+        builder.Property(x => x.TaxPercent).HasPrecision(5, 2);
+        builder.Property(x => x.Remarks).HasMaxLength(500);
+
+        builder.HasOne(x => x.PurchaseOrder).WithMany(x => x.Lines)
+            .HasForeignKey(x => x.PurchaseOrderId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<InventoryItem>().WithMany()
+            .HasForeignKey(x => x.InventoryItemId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class ExpenseConfiguration : IEntityTypeConfiguration<Expense>
+{
+    public void Configure(EntityTypeBuilder<Expense> builder)
+    {
+        // An expense is money out; zero or negative is a data-entry error, not a
+        // correction — reverse a wrong expense by cancelling it, not by negating it.
+        builder.ToTable("TRN_Expense", t =>
+            t.HasCheckConstraint("CK_Expense_Amount", "[Amount] > 0"));
+        builder.HasKey(x => x.ExpenseId);
+        builder.Property(x => x.ExpenseNumber).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.Category).HasMaxLength(100).IsRequired();
+        // Required by the document, so the database enforces it too.
+        builder.Property(x => x.Description).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.Remarks).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.AttachmentPath).HasMaxLength(500);
+
+        builder.HasIndex(x => x.ExpenseNumber).IsUnique().HasDatabaseName("UX_Expense_Number");
+        builder.HasIndex(x => new { x.LocationId, x.ExpenseDate }).HasDatabaseName("IX_Expense_Location_Date");
+        builder.HasIndex(x => new { x.Category, x.ExpenseDate }).HasDatabaseName("IX_Expense_Category_Date");
+
+        builder.HasOne<Location>().WithMany()
+            .HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Supplier>().WithMany()
+            .HasForeignKey(x => x.SupplierId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<PurchaseOrder>().WithMany()
+            .HasForeignKey(x => x.PurchaseOrderId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class QuotationConfiguration : IEntityTypeConfiguration<Quotation>
+{
+    public void Configure(EntityTypeBuilder<Quotation> builder)
+    {
+        builder.ToTable("TRN_Quotation");
+        builder.HasKey(x => x.QuotationId);
+        builder.Property(x => x.QuotationNumber).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.CgstPercent).HasPrecision(5, 2);
+        builder.Property(x => x.SgstPercent).HasPrecision(5, 2);
+        builder.Property(x => x.IgstPercent).HasPrecision(5, 2);
+        builder.Property(x => x.CustomerName).HasMaxLength(150).IsRequired();
+        builder.Property(x => x.CustomerEmail).HasMaxLength(256).IsRequired();
+        builder.Property(x => x.CustomerMobile).HasMaxLength(20);
+        builder.Property(x => x.CustomerGstin).HasMaxLength(20);
+        builder.Property(x => x.BillingAddress).HasMaxLength(500);
+        builder.Property(x => x.CompanyName).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.CompanyGstin).HasMaxLength(20);
+        builder.Property(x => x.CompanyAddress).HasMaxLength(500);
+        builder.Property(x => x.PlaceOfSupply).HasMaxLength(100);
+        builder.Property(x => x.TermsAndConditions).HasMaxLength(2000);
+        builder.Property(x => x.Remarks).HasMaxLength(1000);
+        builder.Property(x => x.RejectionReason).HasMaxLength(500);
+        builder.Property(x => x.PdfPath).HasMaxLength(500);
+
+        builder.HasIndex(x => x.QuotationNumber).IsUnique().HasDatabaseName("UX_Quotation_Number");
+        builder.HasIndex(x => new { x.CustomerId, x.QuotationDate }).HasDatabaseName("IX_Quotation_Customer_Date");
+        builder.HasIndex(x => new { x.LocationId, x.Status, x.QuotationDate })
+            .HasDatabaseName("IX_Quotation_Location_Status_Date");
+        // Drives the expiry sweeper, the same shape as IX_CustomerPass_ValidTo_Status.
+        builder.HasIndex(x => new { x.ValidUntil, x.Status }).HasDatabaseName("IX_Quotation_ValidUntil_Status");
+
+        builder.HasOne<User>().WithMany()
+            .HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Location>().WithMany()
+            .HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Restrict);
+        // The invoice points back through UX_Invoice_Quotation; this side stays a
+        // plain column so converting never rewrites the quotation's own foreign keys.
+        builder.HasOne<Invoice>().WithMany()
+            .HasForeignKey(x => x.InvoiceId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class QuotationLineConfiguration : IEntityTypeConfiguration<QuotationLine>
+{
+    public void Configure(EntityTypeBuilder<QuotationLine> builder)
+    {
+        builder.ToTable("TRN_QuotationLine");
+        builder.HasKey(x => x.QuotationLineId);
+        builder.Property(x => x.Description).HasMaxLength(300).IsRequired();
+        builder.Property(x => x.HsnSacCode).HasMaxLength(20);
+        builder.Property(x => x.Quantity).HasPrecision(18, 3);
+        builder.Property(x => x.DurationValue).HasPrecision(18, 3);
+        builder.Property(x => x.DurationUnit).HasMaxLength(20);
+        builder.Property(x => x.TaxPercent).HasPrecision(5, 2);
+
+        builder.HasOne(x => x.Quotation).WithMany(x => x.Lines)
+            .HasForeignKey(x => x.QuotationId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<WorkspaceType>().WithMany()
+            .HasForeignKey(x => x.WorkspaceTypeId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ServiceItem>().WithMany()
+            .HasForeignKey(x => x.ServiceItemId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class QuotationStatusHistoryConfiguration : IEntityTypeConfiguration<QuotationStatusHistory>
+{
+    public void Configure(EntityTypeBuilder<QuotationStatusHistory> builder)
+    {
+        builder.ToTable("TRN_QuotationStatusHistory");
+        builder.HasKey(x => x.QuotationStatusHistoryId);
+        builder.Property(x => x.Reason).HasMaxLength(500);
+        builder.HasIndex(x => x.QuotationId).HasDatabaseName("IX_QuotationStatusHistory_Quotation");
+
+        builder.HasOne(x => x.Quotation).WithMany(x => x.StatusHistory)
+            .HasForeignKey(x => x.QuotationId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class BankAccountConfiguration : IEntityTypeConfiguration<BankAccount>
+{
+    public void Configure(EntityTypeBuilder<BankAccount> builder)
+    {
+        builder.ToTable("MST_BankAccount");
+        builder.HasKey(x => x.BankAccountId);
+        builder.Property(x => x.AccountCode).HasMaxLength(30).IsRequired();
+        builder.Property(x => x.BankName).HasMaxLength(150).IsRequired();
+        builder.Property(x => x.AccountName).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.AccountNumberMasked).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.Ifsc).HasMaxLength(20);
+        builder.Property(x => x.Branch).HasMaxLength(150);
+        builder.Property(x => x.AccountType).HasMaxLength(40);
+        builder.Property(x => x.Notes).HasMaxLength(500);
+
+        builder.HasIndex(x => x.AccountCode).IsUnique().HasDatabaseName("UX_BankAccount_Code");
+
+        builder.HasOne<Location>().WithMany()
+            .HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class BankTransactionConfiguration : IEntityTypeConfiguration<BankTransaction>
+{
+    public void Configure(EntityTypeBuilder<BankTransaction> builder)
+    {
+        // A statement line is a credit or a debit of a real amount, and it can be
+        // matched to a payment or an expense but never to both.
+        builder.ToTable("TRN_BankTransaction", t =>
+        {
+            t.HasCheckConstraint("CK_BankTxn_Amount", "[Amount] > 0");
+            t.HasCheckConstraint("CK_BankTxn_SingleMatch",
+                "[MatchedPaymentId] IS NULL OR [MatchedExpenseId] IS NULL");
+        });
+        builder.HasKey(x => x.BankTransactionId);
+        builder.Property(x => x.Narration).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.ReferenceNumber).HasMaxLength(80);
+        builder.Property(x => x.BankReferenceId).HasMaxLength(120);
+        builder.Property(x => x.Category).HasMaxLength(100);
+        builder.Property(x => x.ImportBatchId).HasMaxLength(60);
+        builder.Property(x => x.Remarks).HasMaxLength(500);
+
+        builder.HasIndex(x => new { x.BankAccountId, x.TransactionDate })
+            .HasDatabaseName("IX_BankTxn_Account_Date");
+        builder.HasIndex(x => new { x.ReconciliationStatus, x.TransactionDate })
+            .HasDatabaseName("IX_BankTxn_Reconciliation_Date");
+        // Re-importing the same statement must not duplicate a line.
+        builder.HasIndex(x => new { x.BankAccountId, x.BankReferenceId }).IsUnique()
+            .HasDatabaseName("UX_BankTxn_Account_BankReference")
+            .HasFilter("[BankReferenceId] IS NOT NULL");
+        // A payment or an expense can only be reconciled once.
+        builder.HasIndex(x => x.MatchedPaymentId).IsUnique()
+            .HasDatabaseName("UX_BankTxn_MatchedPayment")
+            .HasFilter("[MatchedPaymentId] IS NOT NULL");
+        builder.HasIndex(x => x.MatchedExpenseId).IsUnique()
+            .HasDatabaseName("UX_BankTxn_MatchedExpense")
+            .HasFilter("[MatchedExpenseId] IS NOT NULL");
+
+        builder.HasOne(x => x.BankAccount).WithMany(x => x.Transactions)
+            .HasForeignKey(x => x.BankAccountId).OnDelete(DeleteBehavior.Restrict);
+        // Matching points at an existing record; it never creates or cascades into one.
+        builder.HasOne<Payment>().WithMany()
+            .HasForeignKey(x => x.MatchedPaymentId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Expense>().WithMany()
+            .HasForeignKey(x => x.MatchedExpenseId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Location>().WithMany()
+            .HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Restrict);
     }
 }

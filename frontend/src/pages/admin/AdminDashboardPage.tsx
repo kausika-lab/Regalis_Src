@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { dashboardApi, type AdminDashboard } from '@/api/reports';
 import { Card, EmptyState } from '@/components/ui';
 import { useAuthStore } from '@/store/authStore';
+import { greeting } from '@/utils/greeting';
 import { resolveMenuIcon } from '@/utils/menuIcons';
 
 /** Admin dashboard: live aggregate cards + module tiles from the menu tree. */
@@ -19,7 +20,7 @@ export function AdminDashboardPage() {
     <>
       <Card>
         <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 800 }}>
-          {user?.fullName ?? 'Administrator'}
+          {greeting()}, {user?.fullName ?? 'Administrator'}
         </h2>
         <p style={{ color: 'var(--text-secondary)', marginTop: 'var(--space-2)' }}>
           Signed in as {roles.join(', ') || 'no role assigned'}. Operational modules appear

@@ -130,4 +130,119 @@ public class DashboardService(
         query.Select(b => new DashboardBookingDto(
             b.BookingId, b.BookingNumber, b.Workspace.WorkspaceName,
             b.Workspace.WorkspaceType.TypeName, b.StartUtc, b.EndUtc, (byte)b.Status));
+
+    /// <summary>
+    /// The Billing &amp; Finance dashboard (document §16). Kept separate from the
+    /// operational dashboard so the two do not compete for space, and gated on
+    /// PAYMENT.VIEW rather than DASHBOARD.VIEW — customers hold the latter for their
+    /// own home screen and must never see company money.
+    /// </summary>
+    public async Task<AdminDashboardDto> GetFinanceAsync(CancellationToken ct = default)
+    {
+        if (currentUser.UserType == UserType.Customer)
+        {
+            throw new ForbiddenException();
+        }
+
+        var nowUtc = clock.UtcNow;
+        var todayIst = IstClock.IstDateOf(nowUtc);
+        var monthStartIst = new DateOnly(todayIst.Year, todayIst.Month, 1);
+        var monthStartUtc = IstClock.ToUtc(monthStartIst.ToDateTime(TimeOnly.MinValue));
+
+        // Quotations
+        var quotations = await db.Quotations
+            .GroupBy(q => q.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+        int QuotationCount(QuotationStatus status) =>
+            quotations.FirstOrDefault(q => q.Status == status)?.Count ?? 0;
+        var quotationTotal = quotations.Sum(q => q.Count);
+        var awaitingDecision = QuotationCount(QuotationStatus.Sent) + QuotationCount(QuotationStatus.Viewed);
+
+        // Invoices. Overdue is derived here exactly as it is on the invoice itself —
+        // due date passed, money still owed, still awaiting payment.
+        var invoices = await db.Invoices
+            .Select(i => new { i.Status, i.DueDate, i.OutstandingAmount, i.TotalAmount })
+            .ToListAsync(ct);
+        var invoicesPending = invoices.Count(i =>
+            i.Status is InvoiceStatus.Pending or InvoiceStatus.Sent or InvoiceStatus.PartiallyPaid);
+        var invoicesPaid = invoices.Count(i => i.Status == InvoiceStatus.Paid);
+        var invoicesOverdue = invoices.Count(i =>
+            i.DueDate < todayIst && i.OutstandingAmount > 0
+            && i.Status is InvoiceStatus.Pending or InvoiceStatus.Sent or InvoiceStatus.PartiallyPaid);
+        var outstanding = invoices.Sum(i => i.OutstandingAmount);
+
+        var receivedMonth = await db.Payments
+            .Where(p => p.Status == PaymentStatus.Success && p.PaidUtc >= monthStartUtc)
+            .SumAsync(p => (decimal?)p.Amount, ct) ?? 0m;
+
+        var expensesMonth = await db.Expenses
+            .Where(e => e.ExpenseDate >= monthStartIst)
+            .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
+
+        var openPoValue = await db.PurchaseOrders
+            .Where(p => p.Status != PurchaseOrderStatus.Cancelled
+                        && p.Status != PurchaseOrderStatus.Received)
+            .SumAsync(p => (decimal?)p.TotalAmount, ct) ?? 0m;
+
+        // Stock is derived from the ledger (Invariant 11), never a stored column.
+        var items = await db.InventoryItems
+            .Select(i => new { i.InventoryItemId, i.OpeningQuantity, i.ReorderLevel })
+            .ToListAsync(ct);
+        var movements = await db.InventoryTransactions
+            .GroupBy(t => new { t.InventoryItemId, t.TransactionType })
+            .Select(g => new { g.Key.InventoryItemId, g.Key.TransactionType, Total = g.Sum(t => t.Quantity) })
+            .ToListAsync(ct);
+        var lowStock = 0;
+        foreach (var item in items)
+        {
+            decimal SumOf(InventoryTransactionType type) => movements
+                .Where(m => m.InventoryItemId == item.InventoryItemId && m.TransactionType == type)
+                .Sum(m => m.Total);
+            var current = item.OpeningQuantity
+                          + SumOf(InventoryTransactionType.In)
+                          + SumOf(InventoryTransactionType.OpeningBalance)
+                          + SumOf(InventoryTransactionType.Adjustment)
+                          - SumOf(InventoryTransactionType.Out)
+                          - SumOf(InventoryTransactionType.Damage);
+            if (current <= item.ReorderLevel)
+            {
+                lowStock++;
+            }
+        }
+
+        var bank = await db.BankTransactions
+            .Where(t => t.TransactionDate >= monthStartIst)
+            .Select(t => new { t.Direction, t.Amount, t.ReconciliationStatus })
+            .ToListAsync(ct);
+        var bankCredits = bank.Where(b => b.Direction == BankTransactionDirection.Credit).Sum(b => b.Amount);
+        var bankDebits = bank.Where(b => b.Direction == BankTransactionDirection.Debit).Sum(b => b.Amount);
+        var unreconciled = bank.Count(b => b.ReconciliationStatus != ReconciliationStatus.Reconciled);
+
+        var cards = new List<DashboardCard>
+        {
+            new("quotations", "Quotations", quotationTotal.ToString(),
+                $"{awaitingDecision} awaiting a decision · {QuotationCount(QuotationStatus.Approved)} approved · "
+                + $"{QuotationCount(QuotationStatus.Rejected)} rejected",
+                "/admin/quotations"),
+            new("invoices", "Invoices", invoices.Count.ToString(),
+                $"{invoicesPending} pending · {invoicesPaid} paid · {invoicesOverdue} overdue",
+                "/admin/invoices"),
+            new("received-month", "Received this month", $"₹ {receivedMonth:N2}",
+                "Successful payments since the 1st", "/admin/payments"),
+            new("outstanding", "Outstanding", $"₹ {outstanding:N2}",
+                $"Across {invoices.Count(i => i.OutstandingAmount > 0)} invoice(s)", "/admin/invoices"),
+            new("expenses-month", "Expenses this month", $"₹ {expensesMonth:N2}",
+                "Recorded company spend", "/admin/expenses"),
+            new("purchase-orders", "Open purchase orders", $"₹ {openPoValue:N2}",
+                "Committed but not fully received", "/admin/purchase-orders"),
+            new("inventory", "Low stock items", lowStock.ToString(),
+                $"Of {items.Count} stocked item(s)", "/admin/inventory/stock"),
+            new("bank", "Bank this month", $"₹ {bankCredits - bankDebits:N2}",
+                $"₹ {bankCredits:N2} in · ₹ {bankDebits:N2} out · {unreconciled} unreconciled",
+                "/admin/bank/reconciliation")
+        };
+
+        return new AdminDashboardDto(cards, nowUtc);
+    }
 }

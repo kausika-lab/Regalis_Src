@@ -4,12 +4,14 @@ import { authApi, profileApi, type Profile } from '@/api/auth';
 import { ApiClientError } from '@/api/client';
 import { Button, Card, Input, PageHeader, Spinner } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
+import { useAuthStore } from '@/store/authStore';
 import { formatDate } from '@/utils/formatters';
 
 /** /profile and /admin/profile — the caller's own record (matrix §6). Email is the
  * login and stays read-only; invoices are unaffected (they snapshot at issue). */
 export function ProfilePage() {
   const toast = useToast();
+  const updateUser = useAuthStore((state) => state.updateUser);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [form, setForm] = useState({ fullName: '', mobileNumber: '', companyName: '', address: '' });
@@ -18,6 +20,7 @@ export function ProfilePage() {
 
   const applyProfile = (p: Profile) => {
     setProfile(p);
+    updateUser({ fullName: p.fullName, email: p.email, userType: p.userType });
     setForm({
       fullName: p.fullName,
       mobileNumber: p.mobileNumber,

@@ -7,7 +7,7 @@ import './styles/components.css';
 import './styles/layouts.css';
 import './styles/auth.css';
 
-// Apply the saved theme/accent before first paint — no flash of the wrong theme.
+// Apply the saved theme before first paint — no flash of the wrong theme.
 initTheme();
 
 createRoot(document.getElementById('root')!).render(

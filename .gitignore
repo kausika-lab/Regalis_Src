@@ -35,6 +35,8 @@ e2e-report/
 !.env.example
 appsettings.*.Local.json
 **/secrets.json
+# UAT sign-in details handed to testers — credentials, never committed
+UAT-ACCESS.txt
 
 # ── Logs ──
 logs/

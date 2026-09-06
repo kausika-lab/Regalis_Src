@@ -10,6 +10,7 @@ import { AuthField } from '@/components/auth/AuthField';
 import { useToast } from '@/components/ui/Toast';
 import { AuthBrand } from '@/layouts/AuthLayout';
 import type { Portal } from '@/models/auth';
+import { homeOf, isAdminPath } from '@/routes/PortalRoute';
 import { useAuthStore } from '@/store/authStore';
 
 const loginSchema = z.object({
@@ -36,8 +37,13 @@ export function LoginPage() {
     try {
       const session = await authApi.login({ ...values, portal });
       setSession(session);
+      // ProtectedRoute parks the interrupted path here, but it belongs to
+      // whoever was signed in before. Honour it only when it is in the portal
+      // just signed into — otherwise a customer signing in behind an expired
+      // admin session is thrown at an admin URL and meets /forbidden.
       const from = (location.state as { from?: string } | null)?.from;
-      navigate(from ?? (portal === 'admin' ? '/admin' : '/'), { replace: true });
+      const target = from && isAdminPath(from) === (portal === 'admin') ? from : homeOf(portal);
+      navigate(target, { replace: true });
     } catch (error) {
       toast.error(error instanceof ApiClientError ? error.message : 'Sign in failed. Please try again.');
     }

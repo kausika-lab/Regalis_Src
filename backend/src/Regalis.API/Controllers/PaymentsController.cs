@@ -58,4 +58,33 @@ public class PaymentsController(IPaymentService paymentService) : ApiControllerB
             body, Request.Headers["X-Razorpay-Signature"].FirstOrDefault(), ct);
         return OkEnvelope("Acknowledged.");
     }
+
+    /// <summary>Pay Now against an invoice (document §11). Omit the amount to pay the
+    /// full outstanding balance.</summary>
+    [HttpPost("invoice-order")]
+    [HasPermission(PermissionCodes.Payment.Create)]
+    [ProducesResponseType(typeof(ApiResponse<PaymentOrderResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> CreateInvoiceOrder(CreateInvoicePaymentOrderRequest request,
+        CancellationToken ct) =>
+        OkEnvelope(await paymentService.CreateInvoiceOrderAsync(request, ct));
+
+    /// <summary>Settles the invoice order once the gateway returns. The signature is
+    /// recomputed here; a failure leaves the invoice unpaid and retryable.</summary>
+    [HttpPost("invoice-verify")]
+    [HasPermission(PermissionCodes.Payment.Create)]
+    [ProducesResponseType(typeof(ApiResponse<InvoicePaymentResult>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> VerifyInvoicePayment(VerifyInvoicePaymentRequest request,
+        CancellationToken ct) =>
+        OkEnvelope(await paymentService.VerifyInvoicePaymentAsync(request, ct), "Payment received.");
+
+    /// <summary>The receipt for a successful payment. Scoped: a customer gets only
+    /// their own.</summary>
+    [HttpGet("{id:long}/receipt")]
+    [HasPermission(PermissionCodes.Payment.View)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetReceipt(long id, CancellationToken ct)
+    {
+        var pdf = await paymentService.GetReceiptPdfAsync(id, ct);
+        return File(pdf, "application/pdf", $"receipt-{id}.pdf");
+    }
 }

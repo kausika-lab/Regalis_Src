@@ -4,6 +4,51 @@ namespace Regalis.Application.Finance;
 
 public record CreatePaymentOrderRequest(long BookingId);
 
+/// <summary>
+/// Pay Now against an invoice (document §11). Amount is optional: omitted means the
+/// full outstanding balance, which is the ordinary case. A smaller amount is accepted
+/// and leaves the invoice PartiallyPaid — the stored model already supports that, so
+/// refusing it here would be the engine lying about what it can represent.
+/// </summary>
+public record CreateInvoicePaymentOrderRequest(long InvoiceId, decimal? Amount);
+
+/// <summary>Settles an invoice payment order after the gateway returns. The signature
+/// is recomputed server-side; a client-reported success is never trusted.</summary>
+public record VerifyInvoicePaymentRequest(
+    string GatewayOrderId,
+    string GatewayPaymentId,
+    string GatewaySignature);
+
+public record InvoicePaymentResult(
+    PaymentDto Payment,
+    long InvoiceId,
+    string InvoiceNumber,
+    decimal PaidAmount,
+    decimal OutstandingAmount,
+    byte InvoiceStatus);
+
+public class CreateInvoicePaymentOrderRequestValidator
+    : AbstractValidator<CreateInvoicePaymentOrderRequest>
+{
+    public CreateInvoicePaymentOrderRequestValidator()
+    {
+        RuleFor(x => x.InvoiceId).GreaterThan(0);
+        RuleFor(x => x.Amount).GreaterThan(0)
+            .When(x => x.Amount is not null)
+            .WithMessage("Enter an amount greater than zero, or leave it blank to pay in full.");
+    }
+}
+
+public class VerifyInvoicePaymentRequestValidator : AbstractValidator<VerifyInvoicePaymentRequest>
+{
+    public VerifyInvoicePaymentRequestValidator()
+    {
+        RuleFor(x => x.GatewayOrderId).NotEmpty().MaximumLength(120);
+        RuleFor(x => x.GatewayPaymentId).NotEmpty().MaximumLength(120);
+        RuleFor(x => x.GatewaySignature).NotEmpty().MaximumLength(256);
+    }
+}
+
 public record PaymentOrderResponse(
     long PaymentId,
     string PaymentNumber,
@@ -43,11 +88,17 @@ public record PaymentDto(
     string CustomerName,
     long? BookingId,
     long? InvoiceId,
+    string? InvoiceNumber,
+    decimal? InvoiceAmount,
     long? CustomerPassId,
     decimal Amount,
     byte PaymentMethod,
     string? Gateway,
     string? GatewayOrderId,
+    // The gateway transaction id: document §12 calls this the Transaction ID.
+    string? GatewayPaymentId,
+    decimal? RefundedAmount,
+    string? RefundReference,
     bool IsSignatureVerified,
     byte Status,
     DateTime? PaidUtc,
@@ -79,4 +130,17 @@ public interface IPaymentService
     /// <summary>Gateway webhook: signature-verified, idempotent on GatewayPaymentId.
     /// A safety net behind the inline confirm verification.</summary>
     Task HandleWebhookAsync(string body, string? signature, CancellationToken ct = default);
+
+    /// <summary>Opens a gateway order against an invoice for the amount owed.</summary>
+    Task<PaymentOrderResponse> CreateInvoiceOrderAsync(CreateInvoicePaymentOrderRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>Verifies the gateway signature and applies the money to the invoice in
+    /// one transaction: payment, invoice balance and invoice status move together.</summary>
+    Task<InvoicePaymentResult> VerifyInvoicePaymentAsync(VerifyInvoicePaymentRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>The payment receipt as a PDF. The payment number is the receipt
+    /// reference -- there is no second numbered document.</summary>
+    Task<byte[]> GetReceiptPdfAsync(long paymentId, CancellationToken ct = default);
 }

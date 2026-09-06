@@ -1,0 +1,53 @@
+%% Regalis WorkSpace — booking lifecycle
+%% generated from enum BookingStatus (backend/src/Regalis.Domain/Enums/BookingEnums.cs)
+%% Transitions verified against the assigning call sites, cited per edge.
+%% Every transition below also writes a TRN_BookingStatusHistory row.
+
+stateDiagram-v2
+  direction TB
+
+  [*] --> Pending : booking created
+
+  Pending --> Confirmed : payment captured
+  Pending --> Expired : Booking.PendingHoldMinutes elapsed
+  Pending --> Cancelled : cancelled before start
+
+  Confirmed --> CheckedIn : gate scan or self check-in
+  Confirmed --> Cancelled : cancelled before start
+  Confirmed --> Confirmed : rescheduled
+
+  CheckedIn --> Completed : check-out
+
+  Completed --> [*]
+  Cancelled --> [*]
+  Expired --> [*]
+
+  note right of Pending
+    Created by BookingService (:110 customer, :242 pass/admin).
+    Holds the slot for Booking.PendingHoldMinutes (default 10).
+    Expiry is swept by the BookingHoldSweeper background job.
+  end note
+
+  note right of Confirmed
+    Reschedule keeps the status at Confirmed but still records a
+    history row (BookingMutationService :159).
+  end note
+
+  note right of CheckedIn
+    In  : AccessService :364 (gate) / AttendanceService :142 (app)
+    Out : AccessService :370 (gate) / AttendanceService :161 (app)
+  end note
+
+  note right of Cancelled
+    Guard: status must be Pending or Confirmed AND StartUtc > now.
+    A Confirmed + Paid booking refunds, setting PaymentStatus to
+    Refunded or PartiallyRefunded.
+  end note
+
+%% NoShow (BookingStatus = 7) is intentionally absent as a transition.
+%% It is declared in the enum and read once as a terminal-state filter
+%% (BookingService :538), but no code path ever assigns it. Add the edge
+%% Confirmed --> NoShow only once a sweeper or admin action sets it.
+%%
+%% BookingPaymentStatus (Pending/Paid/Failed/Refunded/PartiallyRefunded)
+%% is a separate axis and deliberately not merged into these states.

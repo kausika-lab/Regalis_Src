@@ -60,17 +60,19 @@
 .portal__sidebar {
   width: var(--sidebar-width);
   background:
-    radial-gradient(480px 260px at 20% -5%, rgb(var(--accent-rgb) / 12%), transparent),
-    linear-gradient(180deg, var(--surface-chrome-raised), var(--surface-chrome) 240px);
-  color: var(--text-on-chrome);
+    radial-gradient(480px 260px at 20% -5%, rgb(var(--accent-rgb) / 8%), transparent),
+    linear-gradient(180deg, var(--sidebar-bg-raised), var(--sidebar-bg) 240px);
+  color: var(--sidebar-text);
   display: flex;
   flex-direction: column;
   position: fixed;
   inset-block: 0;
   inset-inline-start: 0;
   z-index: 50;
-  border-right: 1px solid var(--chrome-border);
-  box-shadow: 2px 0 18px rgb(0 0 0 / 22%);
+  border-right: 1px solid var(--sidebar-border);
+  /* Light enough not to read as a shadow gutter now the sidebar is the same
+     surface as the content; the border carries the separation. */
+  box-shadow: 2px 0 12px rgb(0 0 0 / 5%);
   transition: transform var(--transition-base);
 }
 
@@ -80,7 +82,6 @@
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
   height: var(--topbar-height);
-  border-bottom: 1px solid var(--chrome-border);
   font-family: var(--font-display);
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -91,8 +92,10 @@
   height: 32px;
 }
 
+/* --accent-strong flips to the bright gold under the dark theme, so the mark
+   keeps its contrast on either sidebar. */
 .portal__brand em {
-  color: var(--regalis-gold);
+  color: var(--accent-strong);
   font-style: normal;
 }
 
@@ -111,25 +114,26 @@
   gap: var(--space-3);
   padding: 10px var(--space-3);
   border-radius: var(--radius-md);
-  color: var(--text-on-chrome-muted);
+  color: var(--sidebar-text-muted);
   font-size: var(--font-size-sm);
   font-weight: 500;
 }
 
 .portal__nav-link:hover {
-  color: var(--text-on-chrome);
-  background: var(--surface-chrome-raised);
+  color: var(--sidebar-text);
+  background: var(--sidebar-bg-raised);
   text-decoration: none;
 }
 
 .portal__nav-link.active {
-  color: var(--accent-bright);
+  color: var(--accent-strong);
   background: linear-gradient(90deg, rgb(var(--accent-rgb) / 22%), rgb(var(--accent-rgb) / 8%));
   box-shadow: inset 2px 0 0 var(--accent);
+  font-weight: 600;
 }
 
 .portal__nav-empty {
-  color: var(--text-on-chrome-muted);
+  color: var(--sidebar-text-muted);
   font-size: var(--font-size-xs);
   padding: var(--space-4);
   text-align: center;
@@ -145,10 +149,14 @@
 
 .portal__topbar {
   height: var(--topbar-height);
-  background: var(--glass-bg);
-  backdrop-filter: blur(14px) saturate(1.3);
-  -webkit-backdrop-filter: blur(14px) saturate(1.3);
-  border-bottom: 1px solid var(--border-subtle);
+  /* Merged into the page: no border, no blur, and the same fixed-attachment
+     wash the body paints — because it is viewport-anchored, the topbar's copy
+     lines up exactly with the body's, so the seam disappears while the bar
+     stays opaque enough to sit above scrolling content. */
+  background:
+    radial-gradient(1100px 500px at 85% -10%, rgb(var(--accent-rgb) / 7%), transparent),
+    var(--surface-page);
+  background-attachment: fixed;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -159,27 +167,145 @@
   z-index: 40;
 }
 
-.portal__topbar-title {
-  font-family: var(--font-display);
-  font-size: var(--font-size-lg);
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
 .portal__user {
   display: flex;
   align-items: center;
   gap: var(--space-3);
 }
 
-.portal__user-name {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
+/* ── Topbar account menu ────────────────────────────────────────────────── */
+.account {
+  position: relative;
 }
 
-.portal__user-role {
+.account__trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 6px 10px 6px 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  background: var(--surface-card);
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.account__trigger:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.account__avatar {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--accent-bright), var(--accent-strong));
+  color: var(--accent-contrast);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.account__identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.account__name {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account__email {
   font-size: var(--font-size-xs);
   color: var(--text-muted);
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account__chevron {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.account__popover {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  min-width: 200px;
+  padding: var(--space-2);
+  background: var(--surface-card);
+  background-image: var(--card-sheen);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  z-index: 60;
+  animation: modal-in 0.15s ease;
+}
+
+.account__section {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: var(--space-2) var(--space-3);
+}
+
+.account__item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.account__item:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.account__item svg {
+  flex: none;
+  color: var(--text-muted);
+}
+
+/* The identity text is the first thing to go when the topbar gets tight. */
+@media (max-width: 640px) {
+  .account__identity,
+  .account__chevron {
+    display: none;
+  }
+
+  .account__trigger {
+    padding: 5px;
+    border-radius: var(--radius-full);
+  }
 }
 
 .portal__content {
@@ -190,8 +316,63 @@
   gap: var(--space-6);
 }
 
-.portal__menu-toggle {
+.portal__menu-toggle,
+.portal__collapse-toggle {
   display: none;
+}
+
+/* Collapsing is a desktop affordance; below 1024px the sidebar is a drawer. */
+@media (min-width: 1024px) {
+  .portal__collapse-toggle {
+    display: inline-flex;
+  }
+
+  .portal--collapsed .portal__sidebar {
+    width: var(--sidebar-width-collapsed);
+  }
+
+  .portal--collapsed .portal__main {
+    margin-inline-start: var(--sidebar-width-collapsed);
+  }
+
+  /* Only the crown survives the fold. */
+  .portal--collapsed .portal__brand {
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .portal--collapsed .portal__brand-name {
+    display: none;
+  }
+
+  .portal--collapsed .portal__nav-link {
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .portal--collapsed .portal__nav-label {
+    display: none;
+  }
+
+  .portal--collapsed .portal__nav-empty {
+    display: none;
+  }
+}
+
+/* The rail animates with the content it pushes. */
+.portal__sidebar,
+.portal__main {
+  transition:
+    width var(--transition-base),
+    margin-inline-start var(--transition-base),
+    transform var(--transition-base);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal__sidebar,
+  .portal__main {
+    transition: none;
+  }
 }
 
 /* ── Responsive: sidebar collapses below 1024 ───────────────────────────── */

@@ -247,6 +247,33 @@
   color: var(--auth-placeholder);
 }
 
+/* The wrapper owns the focus ring (:focus-within above). Without this the bare
+   input inside also picks up the global :focus-visible ring and paints a second
+   box around the text, inset within the field. */
+.auth__input input:focus-visible {
+  box-shadow: none;
+}
+
+/* Chrome paints its own pale-blue ground and text colour on an autofilled
+   field, which reads as a second box floating inside the cream input. The
+   background is a UA style that background-color cannot override, so cover it
+   with an inset shadow in our own colour and restyle the text and caret. */
+.auth__input input:-webkit-autofill,
+.auth__input input:-webkit-autofill:hover,
+.auth__input input:-webkit-autofill:focus,
+.auth__input input:-webkit-autofill:active {
+  box-shadow: inset 0 0 0 100px var(--auth-input-bg);
+  -webkit-text-fill-color: var(--auth-label);
+  caret-color: var(--auth-label);
+}
+
+/* Standard selector, in its own rule so an engine that does not know it cannot
+   invalidate the -webkit- list above. */
+.auth__input input:autofill {
+  box-shadow: inset 0 0 0 100px var(--auth-input-bg);
+  caret-color: var(--auth-label);
+}
+
 .auth__eye {
   border: none;
   background: none;

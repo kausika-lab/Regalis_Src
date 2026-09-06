@@ -45,7 +45,11 @@ public enum InvoiceStatus : byte
     Paid = 2,
     PartiallyPaid = 3,
     Cancelled = 4,
-    Refunded = 5
+    Refunded = 5,
+
+    /// <summary>Issued and delivered to the customer, nothing paid yet. Appended
+    /// rather than inserted so existing tinyint values keep their meaning.</summary>
+    Sent = 6
 }
 
 public enum PassType : byte
@@ -69,4 +73,45 @@ public enum ServiceOrderStatus : byte
     Ready = 3,
     Delivered = 4,
     Cancelled = 5
+}
+
+/// <summary>The quotation lifecycle from document §6/§20. Draft lives here, not on
+/// the invoice: an invoice exists only once issued, and is immutable from that moment.</summary>
+public enum QuotationStatus : byte
+{
+    Draft = 1,
+    Sent = 2,
+    Viewed = 3,
+    Approved = 4,
+    Rejected = 5,
+    Expired = 6,
+    Cancelled = 7
+}
+
+/// <summary>Purchase order lifecycle from document §4/§20. PartiallyReceived and
+/// Received are derived from the lines' ReceivedQuantity, never set by hand.</summary>
+public enum PurchaseOrderStatus : byte
+{
+    Draft = 1,
+    Sent = 2,
+    PartiallyReceived = 3,
+    Received = 4,
+    Cancelled = 5
+}
+
+/// <summary>Direction of a bank statement line. Separate from WalletDirection —
+/// that one describes the customer's wallet, this one the company's bank account.</summary>
+public enum BankTransactionDirection : byte
+{
+    Credit = 1,
+    Debit = 2
+}
+
+/// <summary>Reconciliation lifecycle from document §14. Matched means a candidate
+/// system record is linked; Reconciled means a human confirmed it.</summary>
+public enum ReconciliationStatus : byte
+{
+    Unreconciled = 1,
+    Matched = 2,
+    Reconciled = 3
 }

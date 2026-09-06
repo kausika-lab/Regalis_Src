@@ -12,6 +12,10 @@ public class ReportFilterRequest
     public long? CustomerId { get; set; }
     public byte? BookingStatus { get; set; }
     public byte? PaymentStatus { get; set; }
+    /// <summary>Expense, inventory or bank-line category (document §15).</summary>
+    public string? Category { get; set; }
+    /// <summary>1 Wallet, 2 UPI, 3 Credit card, 4 Debit card, 5 Net banking, 6 Cash, 7 Other.</summary>
+    public byte? PaymentMethod { get; set; }
 }
 
 /// <summary>Column type drives frontend rendering and export formatting:

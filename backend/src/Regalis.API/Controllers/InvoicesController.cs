@@ -49,4 +49,35 @@ public class InvoicesController(IInvoiceService invoiceService) : ApiControllerB
         var fileName = $"{invoice.InvoiceNumber.Replace('/', '-')}.pdf";
         return File(pdf, "application/pdf", fileName);
     }
+
+    /// <summary>Raises the invoice for an approved quotation (document §9, rules 4
+    /// and 5). The quotation is the only source; a second attempt is refused both here
+    /// and by the unique index behind it.</summary>
+    [HttpPost("from-quotation/{quotationId:long}")]
+    [HasPermission(PermissionCodes.Invoice.Create)]
+    [ProducesResponseType(typeof(ApiResponse<InvoiceDto>), StatusCodes.Status201Created)]
+    public async Task<IActionResult> CreateFromQuotation(long quotationId, CancellationToken ct)
+    {
+        var invoice = await invoiceService.CreateFromQuotationAsync(quotationId, ct);
+        return CreatedEnvelope($"/api/invoices/{invoice.InvoiceId}", invoice, "Invoice raised.");
+    }
+
+    /// <summary>Marks a pending invoice as delivered to the customer.</summary>
+    [HttpPost("{id:long}/send")]
+    [HasPermission(PermissionCodes.Invoice.Edit)]
+    [ProducesResponseType(typeof(ApiResponse<InvoiceDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Send(long id, CancellationToken ct) =>
+        OkEnvelope(await invoiceService.SendAsync(id, ct), "Invoice marked as sent.");
+
+    /// <summary>An issued invoice is never edited or deleted — this is the
+    /// correction path, and it is refused once any payment exists.</summary>
+    [HttpPost("{id:long}/cancel")]
+    [HasPermission(PermissionCodes.Invoice.Edit)]
+    [ProducesResponseType(typeof(ApiResponse<InvoiceDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Cancel(long id, CancelInvoiceRequest request,
+        CancellationToken ct) =>
+        OkEnvelope(await invoiceService.CancelAsync(id, request.Reason, ct), "Invoice cancelled.");
 }
+
+/// <summary>Body for the cancel route — a reason is mandatory.</summary>
+public record CancelInvoiceRequest(string Reason);

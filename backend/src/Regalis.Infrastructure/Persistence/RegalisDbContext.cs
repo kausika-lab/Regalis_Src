@@ -54,6 +54,15 @@ public class RegalisDbContext(DbContextOptions<RegalisDbContext> options) : DbCo
     public DbSet<CustomerPass> CustomerPasses => Set<CustomerPass>();
     public DbSet<ServiceOrder> ServiceOrders => Set<ServiceOrder>();
     public DbSet<ServiceOrderLine> ServiceOrderLines => Set<ServiceOrderLine>();
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+    public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+    public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
+    public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<Quotation> Quotations => Set<Quotation>();
+    public DbSet<QuotationLine> QuotationLines => Set<QuotationLine>();
+    public DbSet<QuotationStatusHistory> QuotationStatusHistories => Set<QuotationStatusHistory>();
+    public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
+    public DbSet<BankTransaction> BankTransactions => Set<BankTransaction>();
 
     // Access & Attendance
     public DbSet<AccessToken> AccessTokens => Set<AccessToken>();

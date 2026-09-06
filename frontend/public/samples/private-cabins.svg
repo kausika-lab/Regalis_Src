@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" role="img" aria-label="Private cabins">
+  <defs>
+    <linearGradient id="pcBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1a1a21"/><stop offset="1" stop-color="#0d0d11"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="640" fill="url(#pcBg)"/>
+  <circle cx="200" cy="80" r="260" fill="#c9a227" opacity=".14"/>
+  <g transform="translate(90 140)">
+    <rect width="320" height="360" rx="12" fill="#22222c" stroke="#c9a227" stroke-width="3"/>
+    <rect x="24" y="30" width="272" height="200" rx="8" fill="#4f7188" opacity=".75"/>
+    <rect x="80" y="255" width="160" height="16" rx="8" fill="#c9a227"/>
+    <rect x="96" y="271" width="128" height="60" rx="8" fill="#2e2e38"/>
+    <circle cx="300" cy="330" r="7" fill="#e3c767"/>
+  </g>
+  <g transform="translate(440 110)">
+    <rect width="320" height="390" rx="12" fill="#262631" stroke="#e3c767" stroke-width="3"/>
+    <rect x="24" y="32" width="272" height="220" rx="8" fill="#5c7f96" opacity=".8"/>
+    <rect x="80" y="278" width="160" height="16" rx="8" fill="#e3c767"/>
+    <rect x="96" y="294" width="128" height="62" rx="8" fill="#33333f"/>
+    <circle cx="300" cy="356" r="7" fill="#e3c767"/>
+  </g>
+  <g transform="translate(790 140)">
+    <rect width="320" height="360" rx="12" fill="#22222c" stroke="#c9a227" stroke-width="3"/>
+    <rect x="24" y="30" width="272" height="200" rx="8" fill="#4f7188" opacity=".75"/>
+    <rect x="80" y="255" width="160" height="16" rx="8" fill="#c9a227"/>
+    <rect x="96" y="271" width="128" height="60" rx="8" fill="#2e2e38"/>
+    <circle cx="300" cy="330" r="7" fill="#e3c767"/>
+  </g>
+  <rect y="500" width="1200" height="140" fill="#0b0b0f"/>
+  <rect y="500" width="1200" height="4" fill="#c9a227" opacity=".5"/>
+</svg>

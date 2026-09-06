@@ -1,24 +1,27 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, LogOut, MenuIcon } from 'lucide-react';
-import { AppearanceMenu } from '@/components/AppearanceMenu';
+import { Bell, PanelLeft } from 'lucide-react';
+import { AccountMenu } from '@/components/AccountMenu';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { resolveMenuIcon } from '@/utils/menuIcons';
 import { authApi } from '@/api/auth';
 import { notificationApi } from '@/api/finance';
 import { Button } from '@/components/ui';
-import type { MenuItem } from '@/models/auth';
+import type { MenuItem, Portal } from '@/models/auth';
 import { useAuthStore } from '@/store/authStore';
+import { useUiStore } from '@/store/uiStore';
 
 /**
  * The shared shell for both portals: dark sidebar built from GET /menus/my
  * (dynamic — adding a screen is a data insert, ARCHITECTURE §5), topbar with
  * the signed-in user, content outlet. Responsive: the sidebar collapses below 1024px.
  */
-export function PortalLayout({ title }: { title: string }) {
+export function PortalLayout({ title, portal }: { title: string; portal: Portal }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, roles, refreshToken, menus, setMenus, clearSession } = useAuthStore();
+  const { refreshToken, menus, setMenus, clearSession } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { sidebarCollapsed, toggleSidebar } = useUiStore();
   const [unreadCount, setUnreadCount] = useState(0);
 
   // Refresh the bell on navigation — cheap and keeps the badge honest.
@@ -55,12 +58,12 @@ export function PortalLayout({ title }: { title: string }) {
   }, [refreshToken, clearSession, navigate]);
 
   return (
-    <div className="portal">
+    <div className={`portal${sidebarCollapsed ? ' portal--collapsed' : ''}`}>
       {sidebarOpen && <div className="portal__backdrop" onClick={() => setSidebarOpen(false)} />}
       <aside className={`portal__sidebar${sidebarOpen ? ' portal__sidebar--open' : ''}`}>
         <div className="portal__brand">
           <img src="/icons/icon.svg" alt="" />
-          <span>
+          <span className="portal__brand-name">
             REGALIS <em>WS</em>
           </span>
         </div>
@@ -84,27 +87,40 @@ export function PortalLayout({ title }: { title: string }) {
                 size="sm"
                 onClick={() => setSidebarOpen((open) => !open)}
                 aria-label="Toggle menu"
+                aria-expanded={sidebarOpen}
               >
-                <MenuIcon size={20} />
+                <PanelLeft size={20} />
               </Button>
             </span>
-            <h1 className="portal__topbar-title">{title}</h1>
+            <span className="portal__collapse-toggle">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleSidebar}
+                aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                aria-expanded={!sidebarCollapsed}
+                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              >
+                <PanelLeft size={20} />
+              </Button>
+            </span>
+            {/* The brand already names the product in the sidebar; the topbar
+                carries only controls. The heading stays for assistive tech. */}
+            <h1 className="sr-only">{title}</h1>
           </div>
           <div className="portal__user">
-            <AppearanceMenu />
-            <Link to="/notifications" className="portal__bell" aria-label="Notifications">
+            <ThemeToggle />
+            <Link
+              to={portal === 'admin' ? '/admin/notifications' : '/notifications'}
+              className="portal__bell"
+              aria-label="Notifications"
+            >
               <Bell size={20} />
               {unreadCount > 0 && (
                 <span className="portal__bell-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
               )}
             </Link>
-            <div style={{ textAlign: 'right' }}>
-              <div className="portal__user-name">{user?.fullName}</div>
-              <div className="portal__user-role">{roles.join(', ')}</div>
-            </div>
-            <Button variant="outline" size="sm" onClick={logout}>
-              <LogOut size={16} /> Sign out
-            </Button>
+            <AccountMenu portal={portal} onLogout={logout} />
           </div>
         </header>
         <main className="portal__content">
@@ -128,9 +144,14 @@ function SidebarLink({ item, onNavigate }: { item: MenuItem; onNavigate: () => v
     );
   }
   return (
-    <NavLink to={item.route} className="portal__nav-link" onClick={onNavigate}>
+    <NavLink
+      to={item.route}
+      className="portal__nav-link"
+      onClick={onNavigate}
+      title={item.displayName}
+    >
       <Icon size={18} />
-      <span>{item.displayName}</span>
+      <span className="portal__nav-label">{item.displayName}</span>
     </NavLink>
   );
 }

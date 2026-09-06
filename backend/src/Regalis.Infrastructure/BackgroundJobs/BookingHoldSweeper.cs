@@ -100,6 +100,33 @@ public class BookingHoldSweeper(IServiceScopeFactory scopeFactory, ILogger<Booki
             logger.LogInformation("Expired {Count} pass(es)", stalePasses.Count);
         }
 
+        // Quotations past their validity date — only the ones still awaiting a
+        // decision; an approved or rejected quotation keeps the outcome it reached.
+        // ChangedByUserId 0 = system, matching the booking rows above.
+        var staleQuotations = await db.Quotations
+            .Where(q => (q.Status == QuotationStatus.Sent || q.Status == QuotationStatus.Viewed)
+                        && q.ValidUntil < todayIst)
+            .ToListAsync(ct);
+        if (staleQuotations.Count > 0)
+        {
+            foreach (var quotation in staleQuotations)
+            {
+                quotation.StatusHistory.Add(new Domain.Entities.Finance.QuotationStatusHistory
+                {
+                    QuotationId = quotation.QuotationId,
+                    FromStatus = quotation.Status,
+                    ToStatus = QuotationStatus.Expired,
+                    ChangedByUserId = 0,
+                    ChangedUtc = nowUtc,
+                    Reason = $"Validity lapsed on {quotation.ValidUntil:dd MMM yyyy} without a decision."
+                });
+                quotation.Status = QuotationStatus.Expired;
+                quotation.ExpiredUtc = nowUtc;
+            }
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Expired {Count} quotation(s)", staleQuotations.Count);
+        }
+
         // Attendance left open past Attendance.AutoCheckoutHour (IST) → AutoClosed
         // (usp_AutoCloseAttendance equivalent). Corrections stay auditable.
         var autoCloseHour = await settings.GetIntAsync(

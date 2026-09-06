@@ -87,16 +87,31 @@ button {
   font-family: inherit;
 }
 
+/* Present to screen readers and search, absent on screen. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* Tables scroll inside their own container; the page never scrolls horizontally. */
 .table-scroll {
   overflow-x: auto;
   max-width: 100%;
 }
 
+/* One ring, drawn on whatever the element's own shape is. This must not set a
+   border-radius: doing so reshapes the focused control itself, which squared
+   off the corners of every .field__input the moment it took focus. */
 :focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
-  border-radius: var(--radius-sm);
 }
 
 @media (prefers-reduced-motion: reduce) {

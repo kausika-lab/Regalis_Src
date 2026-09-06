@@ -84,6 +84,11 @@ public static class DependencyInjection
         services.AddScoped<IInvoiceService, InvoiceService>();
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IPassService, PassService>();
+        services.AddScoped<ISupplierService, SupplierService>();
+        services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+        services.AddScoped<IExpenseService, ExpenseService>();
+        services.AddScoped<IQuotationService, QuotationService>();
+        services.AddScoped<IBankService, BankService>();
 
         // Operations
         services.AddScoped<INotificationService, NotificationService>();

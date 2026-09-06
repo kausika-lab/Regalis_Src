@@ -51,8 +51,11 @@ public class NumberSequenceService(RegalisDbContext db) : INumberSequenceService
         var financialYear = reader.IsDBNull(2) ? null : reader.GetString(2);
 
         // REG-000123 · REG/INV/2026-27/00042 (A09)
-        return sequenceKey == SequenceKeys.Invoice
-            ? $"{prefix}/{financialYear}/{value:D5}"
-            : $"{prefix}{value:D6}";
+        // Year-scoped sequences are the ones seeded with a FinancialYear, so the shape
+        // follows the data rather than a hard-coded key list. Behaviour for the rows
+        // that exist today (Invoice alone carries a year) is unchanged.
+        return financialYear is null
+            ? $"{prefix}{value:D6}"
+            : $"{prefix}/{financialYear}/{value:D5}";
     }
 }

@@ -23,4 +23,12 @@ public class DashboardController(IDashboardService dashboardService) : ApiContro
     [ProducesResponseType(typeof(ApiResponse<CustomerDashboardDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetCustomer(CancellationToken ct) =>
         OkEnvelope(await dashboardService.GetCustomerAsync(ct));
+
+    /// <summary>The Billing &amp; Finance summary. Gated on PAYMENT.VIEW, not
+    /// DASHBOARD.VIEW -- customers hold that for their own home screen.</summary>
+    [HttpGet("finance")]
+    [HasPermission(PermissionCodes.Payment.View)]
+    [ProducesResponseType(typeof(ApiResponse<AdminDashboardDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetFinance(CancellationToken ct) =>
+        OkEnvelope(await dashboardService.GetFinanceAsync(ct));
 }

@@ -1,0 +1,1 @@
+import{j as r}from"./index-DI5X4c9f.js";function n({title:s,actions:a,children:d,className:e}){return r.jsxs("section",{className:`card${e?` ${e}`:""}`,children:[(s||a)&&r.jsxs("header",{className:"card__header",children:[s&&r.jsx("h2",{className:"card__title",children:s}),a]}),r.jsx("div",{className:"card__body",children:d})]})}export{n as C};

@@ -1,4 +1,4 @@
-import{a as ue,r as a,m as ye,y as ge,z as xe,D as fe,E as je,A as y,j as e,I as ee,F as ve,G as te,p as h,W as ke,H as we,Q as be,g as Se,J as Be}from"./index-DI5X4c9f.js";
+import{a as ue,r as a,m as ye,y as ge,z as xe,D as fe,E as je,A as y,j as e,I as ee,F as ve,G as te,p as h,W as ke,H as we,Q as be,g as Se,J as Be,Z as PASS}from"./index-DI5X4c9f.js";
 import{a as ae,i as Ne,b as k,p as se}from"./bookings-DrKATIWm.js";
 import{C}from"./Card-CNXipofE.js";
 import{E}from"./EmptyState-B4UbbVj4.js";
@@ -17,6 +17,10 @@ function ne(o,T){return(o.find(x=>x.locationId===T)??o.find(x=>x.isDefault)??o[0
 function dms(iso){const[Y,M,D]=iso.split("-").map(Number);return Date.UTC(Y,M-1,D)}
 function countDays(from,to){return Math.round((dms(to)-dms(from))/864e5)+1}
 function eachDay(from,to){const out=[],end=dms(to);for(let t=dms(from);t<=end;t+=864e5)out.push(new Date(t).toISOString().slice(0,10));return out}
+function addDaysIso(iso,n){return new Date(dms(iso)+n*864e5).toISOString().slice(0,10)}
+const VO_CODE=/^MEM-VIRTUAL-(\d+)M$/;
+function VOMONTHS(t){const m=VO_CODE.exec(t?.planCode??"");return m?Number(m[1]):0}
+function VOTERM(t){const m=VOMONTHS(t);return m===1?"1 month":`${m} months`}
 function parseUtc(v){return v instanceof Date?v:new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(v)?v:`${v}Z`)}
 function dayLabel(iso){return DY(`${iso}T12:00:00Z`)}
 
@@ -57,7 +61,15 @@ function Ee(){
   const[plan,setPlan]=a.useState(null);
   const[busy,setBusy]=a.useState(!1);
   const[multi,setMulti]=a.useState(null);
+  const[voPlans,setVoPlans]=a.useState(null);
+  const[voPlan,setVoPlan]=a.useState(null);
+  const[voDone,setVoDone]=a.useState(null);
   const K=g.find(t=>String(t.locationId)===j)??null;
+
+  /* A Virtual Office is a business address, not a room: no slots, no workspace to
+     pick, and it is sold by the month as a MEM-VIRTUAL-* pass plan. */
+  const VOT=T.find(t=>/virtual/i.test(t.typeName??""))??null;
+  const isVO=!!VOT&&v===String(VOT.workspaceTypeId);
 
   a.useEffect(()=>{g.length!==0&&M(String(ne(g,z)))},[z,g]);
   a.useEffect(()=>{
@@ -69,14 +81,22 @@ function Ee(){
 
   /* Slots are fetched only once BOTH a date and a workspace type are chosen. */
   const I=a.useCallback(async()=>{
-    if(!j||!v||!b||!W){re(null);return}
+    if(!j||!v||!b||!W||isVO){re(null);return}
     G(!0);H(null);
     try{re(await ae.slots(Number(j),Number(v),b))}
     catch(t){o.error(t instanceof y?t.message:"Failed to load slots.")}
     finally{G(!1)}
-  },[j,v,b,W]);
+  },[j,v,b,W,isVO]);
   a.useEffect(()=>{I()},[I]);
   a.useEffect(()=>{setPlan(null);Y(null);$(null);J(null)},[b,A,v,j]);
+  a.useEffect(()=>{setVoPlan(null)},[v,j]);
+  a.useEffect(()=>{
+    if(!isVO||voPlans!==null)return;
+    PASS.activePlans(2).then(t=>{
+      const s=Array.isArray(t)?t:t?.items??[];
+      setVoPlans(s.filter(u=>VOMONTHS(u)>0).sort((u,B2)=>VOMONTHS(u)-VOMONTHS(B2)))
+    }).catch(()=>o.error("Failed to load Virtual Office plans."))
+  },[isVO,voPlans]);
 
   /* Builds the whole-day window for every date in the range and keeps only the
      workspaces that are free on every one of them. */
@@ -192,12 +212,29 @@ function Ee(){
     setMulti(done);r("done");N(null)
   };
 
-  const X=[{key:"when",label:"1 · Date, type & time"},{key:"workspace",label:"2 · Pick a workspace"},{key:"pay",label:"3 · Review & pay"},{key:"done",label:"4 · Confirmed"}];
+  const payVO=async method=>{
+    if(!voPlan)return;
+    N(method);
+    try{
+      let res;
+      if(method==="wallet")res=await PASS.purchase({passPlanId:voPlan.passPlanId,validFrom:b,paymentMethod:"wallet"});
+      else{
+        const ord=await PASS.order(voPlan.passPlanId);
+        const paid=await se.sandboxComplete(ord.gatewayOrderId);
+        res=await PASS.purchase({passPlanId:voPlan.passPlanId,validFrom:b,paymentMethod:"gateway",gatewayOrderId:ord.gatewayOrderId,gatewayPaymentId:paid.gatewayPaymentId,gatewaySignature:paid.gatewaySignature})
+      }
+      setVoDone(res);r("done")
+    }catch(t){o.error(t instanceof y?t.message:"Payment failed.")}
+    finally{N(null)}
+  };
+
+  const X=isVO?[{key:"when",label:"1 · Term & start date"},{key:"pay",label:"2 · Review & pay"},{key:"done",label:"3 · Confirmed"}]:[{key:"when",label:"1 · Date, type & time"},{key:"workspace",label:"2 · Pick a workspace"},{key:"pay",label:"3 · Review & pay"},{key:"done",label:"4 · Confirmed"}];
   const Z=X.findIndex(t=>t.key===f);
-  const U=a.useMemo(()=>c!==null&&n!==null&&c.balance>=n.totalAmount,[c,n]);
+  const payTotal=isVO?voPlan?.totalAmount??null:n?.totalAmount??null;
+  const U=a.useMemo(()=>c!==null&&payTotal!==null&&c.balance>=payTotal,[c,payTotal]);
   const dayRateOf=t=>plan&&plan.length>0?t.pricePerHour*plan[0].minutes/60:null;
-  const canContinue=!!v&&A>=b&&nDays>0&&(W?!!i:!0);
-  const reset=()=>{F(null);setMulti(null);setPlan(null);Y(null);$(null);J(null);r("when");I()};
+  const canContinue=isVO?!!voPlan&&!!b:!!v&&A>=b&&nDays>0&&(W?!!i:!0);
+  const reset=()=>{F(null);setMulti(null);setPlan(null);Y(null);$(null);J(null);setVoPlan(null);setVoDone(null);r("when");I()};
 
   return e.jsxs(e.Fragment,{children:[
     e.jsx(Ie,{title:"Book a Workspace",description:K?`Live availability at ${K.locationName} — the calendar you see is the calendar the front desk sees.`:"Live availability — the calendar you see is the calendar the front desk sees."}),
@@ -205,19 +242,30 @@ function Ee(){
 
     f==="when"&&e.jsx(C,{title:"What, where and when",children:e.jsxs("div",{className:"form-stack",children:[
       e.jsxs("div",{className:"toolbar toolbar--when",style:{marginBottom:0},children:[
-        e.jsx(ee,{label:"From date",type:"date",value:b,min:w,onChange:t=>{const s=t.target.value;ie(s);s>A&&q(s)}}),
-        e.jsx(ee,{label:"To date",type:"date",value:A,min:b||w,onChange:t=>q(t.target.value)}),
-        W&&e.jsx(ve,{label:"Duration",value:String(m),options:Ce.map(t=>({value:t,label:t<60?`${t} min`:`${t/60} hour${t>60?"s":""}`})),onChange:t=>ce(Number(t.target.value))})
+        e.jsx(ee,{label:isVO?"Starts on":"From date",type:"date",value:b,min:w,onChange:t=>{const s=t.target.value;ie(s);s>A&&q(s)}}),
+        !isVO&&e.jsx(ee,{label:"To date",type:"date",value:A,min:b||w,onChange:t=>q(t.target.value)}),
+        !isVO&&W&&e.jsx(ve,{label:"Duration",value:String(m),options:Ce.map(t=>({value:t,label:t<60?`${t} min`:`${t/60} hour${t>60?"s":""}`})),onChange:t=>ce(Number(t.target.value))})
       ]}),
-      e.jsx("p",{className:"choice-card__meta",style:{margin:0},children:nDays>0?`${nDays} day${nDays===1?"":"s"}${W?" · pick a start time below":" · booked as a whole day on each date"}`:"The To date cannot be before the From date."}),
+      e.jsx("p",{className:"choice-card__meta",style:{margin:0},children:isVO?"A Virtual Office is sold by the month, not by the hour — the minimum term is 1 month.":nDays>0?`${nDays} day${nDays===1?"":"s"}${W?" · pick a start time below":" · booked as a whole day on each date"}`:"The To date cannot be before the From date."}),
       e.jsx("div",{className:"field__label",children:"Workspace"}),
       e.jsx("div",{className:"choice-grid",children:T.map(t=>e.jsxs("button",{type:"button",className:`choice-card${v===String(t.workspaceTypeId)?" choice-card--selected":""}`,onClick:()=>Q(String(t.workspaceTypeId)),children:[
         e.jsx("div",{className:"choice-card__title",children:t.typeName}),
-        e.jsxs("div",{className:"choice-card__meta",children:[t.workspaceCount," workspace",t.workspaceCount===1?"":"s"]})
+        e.jsx("div",{className:"choice-card__meta",children:VOT&&t.workspaceTypeId===VOT.workspaceTypeId?"Business address · from 1 month":`${t.workspaceCount} workspace${t.workspaceCount===1?"":"s"}`})
       ]},t.workspaceTypeId))}),
 
-      !v?e.jsx(E,{title:"Pick a workspace type",description:"Choose Desk, Cabin, Meeting Room or Virtual Workspace to see live availability for the dates above."})
-        :W?(le?e.jsx(te,{center:!0})
+      !v?e.jsx(E,{title:"Pick a workspace type",description:"Choose Desk, Cabin or Meeting Room to see live availability for the dates above — or Virtual Office for a monthly business address."})
+        :isVO?(voPlans===null?e.jsx(te,{center:!0})
+          :voPlans.length===0?e.jsx(E,{title:"No Virtual Office plans on sale",description:"Please check back soon, or ask the front desk."})
+          :e.jsxs("div",{children:[
+            e.jsx("div",{className:"field__label",style:{marginBottom:"var(--space-2)"},children:"Term"}),
+            e.jsx("div",{className:"choice-grid",children:voPlans.map(t=>e.jsxs("button",{type:"button",className:`choice-card${voPlan?.passPlanId===t.passPlanId?" choice-card--selected":""}`,onClick:()=>setVoPlan(t),children:[
+              e.jsx("div",{className:"choice-card__title",children:VOTERM(t)}),
+              e.jsxs("div",{className:"choice-card__meta",children:[t.validityDays," days from your start date"]}),
+              e.jsxs("div",{className:"choice-card__price",children:[p(t.totalAmount)," ",e.jsx("span",{style:{fontWeight:400,color:"var(--text-muted)",fontSize:"var(--font-size-xs)"},children:"incl. GST"})]}),
+              e.jsxs("div",{className:"choice-card__meta",children:[p(t.price/VOMONTHS(t))," per month before GST"]})
+            ]},t.passPlanId))})
+          ]})
+        ):W?(le?e.jsx(te,{center:!0})
           :!D||D.length===0?e.jsx(E,{title:"Closed on this date",description:"Pick another date — the location has no working hours that day."})
           :e.jsxs("div",{children:[
             e.jsx("div",{className:"field__label",style:{marginBottom:"var(--space-2)"},children:"Start time (IST)"}),
@@ -225,7 +273,7 @@ function Ee(){
           ]})
         ):e.jsx(E,{title:`Whole-day booking · ${nDays} days`,description:`${dayLabel(b)} to ${dayLabel(A)} — both dates included. Every date is booked for the full working day, and the range is only offered if the same workspace is free on all ${nDays} days.`}),
 
-      e.jsx(h,{size:"lg",disabled:!canContinue||busy,loading:busy,onClick:de,children:"Find available workspaces"})
+      e.jsx(h,{size:"lg",disabled:!canContinue||busy,loading:busy,onClick:isVO?()=>r("pay"):de,children:isVO?"Continue to payment":"Find available workspaces"})
     ]})}),
 
     f==="workspace"&&e.jsx(C,{title:W?`Available ${O(i)} · ${m} min`:`Available all ${nDays} days · ${dayLabel(b)} to ${dayLabel(A)}`,actions:e.jsx(h,{variant:"ghost",onClick:()=>r("when"),children:"Change dates"}),children:_?_.length===0?e.jsx(E,{title:W?"Nothing free in that window":"Nothing free for the whole range",description:W?"Try a different time, duration or workspace type.":"No workspace of this type is free on every date. Try a shorter range or another workspace type."}):e.jsx("div",{className:"choice-grid",children:_.map(t=>e.jsxs("button",{type:"button",className:`choice-card${d?.workspaceId===t.workspaceId?" choice-card--selected":""}`,onClick:()=>he(t),disabled:busy,children:[
@@ -235,7 +283,26 @@ function Ee(){
       e.jsxs("div",{className:"choice-card__price",children:[W?p(t.pricePerHour):p(dayRateOf(t)??0),W?"/hour":"/day"]})
     ]},t.workspaceId))}):e.jsx(te,{center:!0})}),
 
-    f==="pay"&&n&&d&&e.jsx(C,{title:"Review & pay",actions:e.jsx(h,{variant:"ghost",onClick:()=>r("workspace"),children:"Back"}),children:e.jsxs("div",{className:"form-stack",children:[
+    f==="pay"&&isVO&&voPlan&&e.jsx(C,{title:"Review & pay",actions:e.jsx(h,{variant:"ghost",onClick:()=>r("when"),children:"Back"}),children:e.jsxs("div",{className:"form-stack",children:[
+      e.jsxs("div",{className:"summary-rows",children:[
+        e.jsxs("div",{children:[e.jsx("span",{children:"Service"}),e.jsx("strong",{children:"Virtual Office"})]}),
+        e.jsxs("div",{children:[e.jsx("span",{children:"Location"}),e.jsx("strong",{children:K?K.locationName:"—"})]}),
+        e.jsxs("div",{children:[e.jsx("span",{children:"Term"}),e.jsx("strong",{children:VOTERM(voPlan)})]}),
+        e.jsxs("div",{children:[e.jsx("span",{children:"Starts on"}),e.jsx("strong",{children:dayLabel(b)})]}),
+        e.jsxs("div",{children:[e.jsx("span",{children:"Renews on"}),e.jsx("strong",{children:dayLabel(addDaysIso(b,Number(voPlan.validityDays)||30))})]}),
+        e.jsxs("div",{children:[e.jsx("span",{children:"Base amount"}),e.jsx("span",{children:p(voPlan.price)})]}),
+        e.jsxs("div",{children:[e.jsx("span",{children:"CGST + SGST"}),e.jsx("span",{children:p((voPlan.totalAmount??0)-(voPlan.price??0))})]}),
+        e.jsxs("div",{className:"summary-total",children:[e.jsx("span",{children:"Total"}),e.jsx("span",{children:p(voPlan.totalAmount)})]})
+      ]}),
+      e.jsxs("div",{className:"pay-options",children:[
+        e.jsxs(h,{size:"lg",variant:U?"primary":"outline",disabled:!U||S!==null,loading:S==="wallet",onClick:()=>payVO("wallet"),children:[e.jsx(ke,{size:18})," Wallet",c&&` (${p(c.balance)})`]}),
+        e.jsxs(h,{size:"lg",variant:"primary",disabled:S!==null,loading:S==="gateway",onClick:()=>payVO("gateway"),children:[e.jsx(we,{size:18})," Pay online"]})
+      ]}),
+      !U&&c&&e.jsxs("p",{style:{color:"var(--text-muted)",fontSize:"var(--font-size-xs)"},children:["Wallet balance ",p(c.balance)," doesn't cover this — pay online or top up from the Wallet page."]}),
+      e.jsx("p",{style:{color:"var(--text-muted)",fontSize:"var(--font-size-xs)"},children:"No desk or room is reserved — a Virtual Office is a business address with mail handling. A GST invoice is raised as soon as the payment goes through."})
+    ]})}),
+
+    f==="pay"&&!isVO&&n&&d&&e.jsx(C,{title:"Review & pay",actions:e.jsx(h,{variant:"ghost",onClick:()=>r("workspace"),children:"Back"}),children:e.jsxs("div",{className:"form-stack",children:[
       e.jsxs("div",{className:"summary-rows",children:[
         e.jsxs("div",{children:[e.jsx("span",{children:"Workspace"}),e.jsxs("strong",{children:[n.workspaceName," (",d.workspaceCode,")"]})]}),
         e.jsxs("div",{children:[e.jsx("span",{children:"Location"}),e.jsx("strong",{children:K?K.locationName:"—"})]}),
@@ -262,7 +329,15 @@ function Ee(){
       e.jsx("p",{style:{color:"var(--text-muted)",fontSize:"var(--font-size-xs)"},children:n.multi?`Each of the ${n.days} days is held for 10 minutes while payment completes. If any day cannot be held, the whole range is released and nothing is charged.`:"The slot is held for 10 minutes while payment completes."})
     ]})}),
 
-    f==="done"&&(l||multi)&&e.jsx(C,{children:e.jsxs("div",{style:{textAlign:"center",padding:"var(--space-6) 0"},children:[
+    f==="done"&&isVO&&voDone&&e.jsx(C,{children:e.jsxs("div",{style:{textAlign:"center",padding:"var(--space-6) 0"},children:[
+      e.jsx(Te,{size:56,color:"var(--color-success)"}),
+      e.jsx("h2",{style:{fontSize:"var(--font-size-2xl)",fontWeight:800,marginTop:"var(--space-3)"},children:"Virtual Office active"}),
+      e.jsxs("p",{style:{color:"var(--text-secondary)",marginTop:"var(--space-2)"},children:[e.jsx("strong",{children:voDone.pass?.passNumber})," · ",VOTERM(voPlan)," from ",dayLabel(b)," · ",p(voDone.pass?.totalAmount??voPlan.totalAmount)," paid, including GST"]}),
+      e.jsx("p",{style:{color:"var(--text-muted)",marginTop:"var(--space-2)",fontSize:"var(--font-size-sm)"},children:"Your GST invoice is under Invoices, and the address service shows under Passes. No desk or room was reserved."}),
+      e.jsx("div",{style:{display:"flex",gap:"var(--space-3)",justifyContent:"center",marginTop:"var(--space-6)",flexWrap:"wrap"},children:e.jsx(h,{onClick:reset,children:"Done"})})
+    ]})}),
+
+    f==="done"&&!isVO&&(l||multi)&&e.jsx(C,{children:e.jsxs("div",{style:{textAlign:"center",padding:"var(--space-6) 0"},children:[
       e.jsx(Te,{size:56,color:"var(--color-success)"}),
       e.jsx("h2",{style:{fontSize:"var(--font-size-2xl)",fontWeight:800,marginTop:"var(--space-3)"},children:multi?`${multi.length} day${multi.length===1?"":"s"} confirmed`:"Booking confirmed"}),
       l&&e.jsxs("p",{style:{color:"var(--text-secondary)",marginTop:"var(--space-2)"},children:[e.jsx("strong",{children:l.booking.bookingNumber})," · ",l.booking.workspaceName," ·"," ",O(l.booking.startUtc)," – ",L(l.booking.endUtc)]}),

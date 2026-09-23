@@ -26,4 +26,11 @@ public static class SequenceKeys
 public interface INumberSequenceService
 {
     Task<string> NextAsync(string sequenceKey, CancellationToken ct = default);
+
+    /// <summary>The number <see cref="NextAsync"/> would hand out, without consuming
+    /// it — for the read-only "Quotation #" preview on the new-quotation form
+    /// (document §3.2). It is a preview only: the number that sticks is the one the
+    /// server issues on first save, so two admins drafting at once still get
+    /// different numbers.</summary>
+    Task<string> PeekAsync(string sequenceKey, CancellationToken ct = default);
 }

@@ -45,6 +45,7 @@ public record WorkspaceDto(
     int Capacity,
     decimal PricePerHour,
     decimal? PricePerDay,
+    decimal? PricePerMonth,
     string? Equipment,
     string? Description,
     byte Status,
@@ -61,6 +62,7 @@ public record SaveWorkspaceRequest(
     int Capacity,
     decimal PricePerHour,
     decimal? PricePerDay,
+    decimal? PricePerMonth,
     string? Equipment,
     string? Description,
     bool IsBookable,
@@ -81,6 +83,7 @@ public class SaveWorkspaceRequestValidator : AbstractValidator<SaveWorkspaceRequ
         RuleFor(x => x.Capacity).GreaterThanOrEqualTo(1);
         RuleFor(x => x.PricePerHour).GreaterThanOrEqualTo(0);
         RuleFor(x => x.PricePerDay).GreaterThanOrEqualTo(0).When(x => x.PricePerDay is not null);
+        RuleFor(x => x.PricePerMonth).GreaterThanOrEqualTo(0).When(x => x.PricePerMonth is not null);
         RuleFor(x => x.Equipment).MaximumLength(500);
     }
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, PanelLeft } from 'lucide-react';
 import { AccountMenu } from '@/components/AccountMenu';
+import { LocationSwitcher } from '@/components/LocationSwitcher';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { resolveMenuIcon } from '@/utils/menuIcons';
 import { authApi } from '@/api/auth';
@@ -109,6 +110,7 @@ export function PortalLayout({ title, portal }: { title: string; portal: Portal 
             <h1 className="sr-only">{title}</h1>
           </div>
           <div className="portal__user">
+            {portal === 'customer' && <LocationSwitcher />}
             <ThemeToggle />
             <Link
               to={portal === 'admin' ? '/admin/notifications' : '/notifications'}

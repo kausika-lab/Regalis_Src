@@ -10,7 +10,15 @@ import { useToast } from '@/components/ui/Toast';
 import type { AvailableWorkspace, ConfirmResult, Quote, Slot } from '@/models/bookings';
 import { DURATION_OPTIONS } from '@/models/bookings';
 import type { Location, WorkspaceType } from '@/models/masters';
+import { useUiStore } from '@/store/uiStore';
 import { formatDateTime, formatInr, formatTime } from '@/utils/formatters';
+
+/** The header's choice when it is bookable here, else the house default. */
+function resolveLocation(locations: Location[], headerLocationId: number | null): number {
+  const chosen = locations.find((l) => l.locationId === headerLocationId);
+  const preferred = chosen ?? locations.find((l) => l.isDefault) ?? locations[0];
+  return preferred.locationId;
+}
 
 type Step = 'when' | 'workspace' | 'pay' | 'done';
 
@@ -28,9 +36,15 @@ export function BookWorkspacePage() {
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
 
   const [step, setStep] = useState<Step>('when');
+  const headerLocationId = useUiStore((state) => state.locationId);
   const [locationId, setLocationId] = useState('');
   const [typeId, setTypeId] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const today = new Date().toISOString().slice(0, 10);
+  const [fromDate, setFromDate] = useState(today);
+  const [toDate, setToDate] = useState(today);
+  // Duration only means something inside a single day; a range is whole days.
+  const singleDay = fromDate === toDate;
+  const date = fromDate;
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [startUtc, setStartUtc] = useState<string | null>(null);
@@ -40,15 +54,23 @@ export function BookWorkspacePage() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [paying, setPaying] = useState<'wallet' | 'gateway' | null>(null);
   const [result, setResult] = useState<ConfirmResult | null>(null);
+  const currentLocation = locations.find((l) => String(l.locationId) === locationId) ?? null;
+
+  // Follow the header switcher once the locations are known.
+  useEffect(() => {
+    if (locations.length === 0) return;
+    setLocationId(String(resolveLocation(locations, headerLocationId)));
+  }, [headerLocationId, locations]);
 
   useEffect(() => {
     Promise.all([workspaceTypesApi.list(), locationsApi.list({ pageSize: 100 })])
       .then(([typeList, locationPage]) => {
         setTypes(typeList);
-        setLocations(locationPage.items);
-        if (locationPage.items.length > 0) {
-          const preferred = locationPage.items.find((l) => l.isDefault) ?? locationPage.items[0];
-          setLocationId(String(preferred.locationId));
+        // A deactivated location must not be bookable.
+        const activeLocations = locationPage.items.filter((l) => l.isActive);
+        setLocations(activeLocations);
+        if (activeLocations.length > 0) {
+          setLocationId(String(resolveLocation(activeLocations, headerLocationId)));
         }
         if (typeList.length > 0) {
           setTypeId(String(typeList[0].workspaceTypeId));
@@ -181,8 +203,14 @@ export function BookWorkspacePage() {
 
   return (
     <>
+      {/* The location field is gone from the form, so name it here instead —
+          it is still what every slot below is filtered by. */}
       <PageHeader title="Book a Workspace"
-        description="Live availability — the calendar you see is the calendar the front desk sees." />
+        description={
+          currentLocation
+            ? `Live availability at ${currentLocation.locationName} — the calendar you see is the calendar the front desk sees.`
+            : "Live availability — the calendar you see is the calendar the front desk sees."
+        } />
       <div className="wizard-steps">
         {steps.map((s, index) => (
           <span key={s.key}
@@ -208,13 +236,20 @@ export function BookWorkspacePage() {
               ))}
             </div>
             <div className="toolbar" style={{ marginBottom: 0 }}>
-              <Select label="Location" value={locationId}
-                options={locations.map((l) => ({ value: l.locationId, label: l.locationName }))}
-                onChange={(e) => setLocationId(e.target.value)} />
-              <Input label="Date" type="date" value={date}
-                min={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => setDate(e.target.value)} />
+              <Input label="From date" type="date" value={fromDate}
+                min={today}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setFromDate(next);
+                  // Never leave To before From.
+                  if (next > toDate) setToDate(next);
+                }} />
+              <Input label="To date" type="date" value={toDate}
+                min={fromDate || today}
+                onChange={(e) => setToDate(e.target.value)} />
               <Select label="Duration" value={String(duration)}
+                disabled={!singleDay}
+                hint={singleDay ? undefined : 'Same From and To date to pick a duration'}
                 options={DURATION_OPTIONS.map((m) => ({
                   value: m,
                   label: m < 60 ? `${m} min` : `${m / 60} hour${m > 60 ? 's' : ''}`,
@@ -222,7 +257,10 @@ export function BookWorkspacePage() {
                 onChange={(e) => setDuration(Number(e.target.value))} />
             </div>
 
-            {slotsLoading ? (
+            {!singleDay ? (
+              <EmptyState title="Multi-day booking is not available yet"
+                description="Booking runs a day at a time, so set From and To to the same date. For a longer stay, buy a weekly or monthly pass instead." />
+            ) : slotsLoading ? (
               <Spinner center />
             ) : !slots || slots.length === 0 ? (
               <EmptyState title="Closed on this date"

@@ -164,6 +164,21 @@ export const INVOICE_STATUS_LABELS: Record<number, string> = {
   6: 'Sent',
 };
 
+/** PassType. Listed in duration order, which is how the Passes page reads. */
+export const PASS_TYPES: { value: number; label: string }[] = [
+  { value: 1, label: 'Day pass' },
+  { value: 3, label: 'Weekly pass' },
+  { value: 2, label: 'Monthly pass' },
+  { value: 4, label: 'Yearly pass' },
+];
+
+export const PASS_TYPE_LABELS: Record<number, string> = {
+  1: 'Day pass',
+  2: 'Monthly pass',
+  3: 'Weekly pass',
+  4: 'Yearly pass',
+};
+
 export const PASS_STATUS_LABELS: Record<number, string> = {
   1: 'Active',
   2: 'Used',

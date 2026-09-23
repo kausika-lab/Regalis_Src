@@ -29,6 +29,16 @@ public class Invoice : AuditableEntity
     public decimal CgstAmount { get; set; }
     public decimal SgstAmount { get; set; }
     public decimal IgstAmount { get; set; }
+    /// <summary>Carried from the quotation when one is converted (document §4.4), so
+    /// the bill still adds up: taxable + GST − TDS + adjustment + round off = total.
+    /// Zero on an invoice raised directly, which is every invoice raised before
+    /// quotations learned about TDS.</summary>
+    public string? TdsLabel { get; set; }
+    public decimal TdsPercent { get; set; }
+    public decimal TdsAmount { get; set; }
+    public string? AdjustmentLabel { get; set; }
+    public decimal AdjustmentAmount { get; set; }
+    public decimal RoundOffAmount { get; set; }
     public decimal TotalAmount { get; set; }
     public decimal PaidAmount { get; set; }
     /// <summary>Computed persisted column: TotalAmount − PaidAmount.</summary>

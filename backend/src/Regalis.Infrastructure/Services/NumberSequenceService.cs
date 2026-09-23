@@ -58,4 +58,21 @@ public class NumberSequenceService(RegalisDbContext db) : INumberSequenceService
             ? $"{prefix}{value:D6}"
             : $"{prefix}/{financialYear}/{value:D5}";
     }
+
+    public async Task<string> PeekAsync(string sequenceKey, CancellationToken ct = default)
+    {
+        // Read-only twin of NextAsync: same row, same shape, but CurrentValue is left
+        // alone and the "+ 1" happens here instead of in the UPDATE.
+        var row = await db.NumberSequences.AsNoTracking()
+            .Where(x => x.SequenceKey == sequenceKey)
+            .OrderByDescending(x => x.NumberSequenceId)
+            .Select(x => new { x.CurrentValue, x.Prefix, x.FinancialYear })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new BusinessRuleException($"Number sequence '{sequenceKey}' is not seeded.");
+
+        var value = row.CurrentValue + 1;
+        return string.IsNullOrWhiteSpace(row.FinancialYear)
+            ? $"{row.Prefix}{value:D6}"
+            : $"{row.Prefix}/{row.FinancialYear}/{value:D5}";
+    }
 }

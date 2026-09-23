@@ -37,10 +37,14 @@ public static class DependencyInjection
         });
 
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
+        services.Configure<GoogleOptions>(configuration.GetSection(GoogleOptions.SectionName));
 
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<ITokenService, JwtTokenService>();
+        // Singleton: the Google verifier caches Google's signing keys between calls.
+        // An empty client id leaves it reporting "not configured" rather than failing.
+        services.AddSingleton<IGoogleTokenVerifier, GoogleTokenVerifier>();
 
         services.AddMemoryCache();
         services.AddScoped<ISettingService, SettingService>();
@@ -113,6 +117,13 @@ public static class DependencyInjection
 
         // Payment gateway — chosen by Payments:Provider (Invariant 5). Sandbox is
         // registered alongside so the demo checkout can sign in dev/test.
+        // Quotation delivery — email through the same SMTP account the OTP sender
+        // uses, WhatsApp through the Business API when one is configured and a wa.me
+        // link to send by hand when it is not (Invariant 5, document §3.5).
+        services.Configure<WhatsAppOptions>(configuration.GetSection(WhatsAppOptions.SectionName));
+        services.AddHttpClient(nameof(QuotationDispatcher));
+        services.AddScoped<IQuotationDispatcher, QuotationDispatcher>();
+
         services.AddScoped<SandboxPaymentGateway>();
         services.AddHttpClient<RazorpayPaymentGateway>();
         services.AddScoped<IPaymentGateway>(provider =>

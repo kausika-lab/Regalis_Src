@@ -147,17 +147,22 @@ internal static class SeedCatalogue
         new("CUST_DASHBOARD", null, "Dashboard", "/", "LayoutDashboard", "DASHBOARD.VIEW", PortalType.Customer, CustomerOnly),
         new("CUST_BOOK", null, "Book Workspace", "/book", "CalendarDays", "BOOKING.CREATE", PortalType.Customer, CustomerOnly),
         new("CUST_BOOKINGS", null, "My Bookings", "/bookings", "ClipboardList", "BOOKING.VIEW", PortalType.Customer, CustomerOnly),
-        new("CUST_DAYPASS", null, "Day Pass", "/day-pass", "Ticket", "PASS.VIEW", PortalType.Customer, CustomerOnly),
-        new("CUST_MONTHLYPASS", null, "Monthly Pass", "/monthly-pass", "CalendarRange", "PASS.VIEW", PortalType.Customer, CustomerOnly),
+        new("CUST_PASSES", null, "Passes", "/passes", "Ticket", "PASS.VIEW", PortalType.Customer, CustomerOnly),
         new("CUST_WALLET", null, "Wallet", "/wallet", "Wallet", "WALLET.VIEW", PortalType.Customer, CustomerOnly),
         new("CUST_INVOICES", null, "Invoices", "/invoices", "ReceiptText", "INVOICE.VIEW", PortalType.Customer, CustomerOnly),
         new("CUST_QR", null, "My QR / Access", "/qr", "QrCode", "ACCESS.VIEW", PortalType.Customer, CustomerOnly),
-        new("CUST_WORKSTATUS", null, "My Work Status", "/work-status", "Clock", "ATTENDANCE.VIEW", PortalType.Customer, CustomerOnly),
+        // "My Work Status" was withdrawn from the customer portal on 2026-09-22. Left
+        // commented rather than deleted so its shape is here if it comes back. The live
+        // row is hidden by 20260922030000_HideCustomerWorkStatusMenu.sql and the SPA
+        // route is commented out in index-DI5X4c9f.js; seeding it again would restore a
+        // sidebar link pointing at a route that no longer exists.
+        // Attendance itself is untouched: TRN_Attendance still accrues and the admin
+        // screens under /admin/attendance still report on it.
+        // new("CUST_WORKSTATUS", null, "My Work Status", "/work-status", "Clock", "ATTENDANCE.VIEW", PortalType.Customer, CustomerOnly),
         new("CUST_NOTIFICATIONS", null, "Notifications", "/notifications", "Bell", "NOTIFICATION.VIEW", PortalType.Customer, CustomerOnly),
-        new("CUST_SUPPORT", null, "Support", "/support", "LifeBuoy", "TICKET.VIEW", PortalType.Customer, CustomerOnly),
+        new("CUST_SUPPORT", null, "Support & Contact", "/support", "LifeBuoy", "TICKET.VIEW", PortalType.Customer, CustomerOnly),
         new("CUST_SUPPORT_RAISE", "CUST_SUPPORT", "Raise Ticket", "/support/raise", "MessageSquarePlus", "TICKET.CREATE", PortalType.Customer, CustomerOnly),
         new("CUST_SUPPORT_ALL", "CUST_SUPPORT", "All Tickets", "/support/tickets", "Tickets", "TICKET.VIEW", PortalType.Customer, CustomerOnly),
-        new("CUST_CONTACT", null, "Contact Us", "/contact", "Phone", null, PortalType.Customer, CustomerOnly),
         new("CUST_PROFILE", null, "Profile", "/profile", "UserRound", null, PortalType.Customer, CustomerOnly),
 
         // Admin portal
@@ -230,6 +235,18 @@ internal static class SeedCatalogue
             (AppSettingKeys.Invoice.DueDays, "7", "Invoice", "int", "Days until an invoice is due"),
             (AppSettingKeys.Quotation.ValidityDays, "15", "Quotation", "int", "Days a quotation stays valid before it expires"),
             (AppSettingKeys.Quotation.TermsAndConditions, "", "Quotation", "string", "Default terms printed on a quotation"),
+            (AppSettingKeys.Quotation.DefaultGstPercent, "18", "Quotation", "decimal", "Default GST rate on a quotation line"),
+            (AppSettingKeys.Quotation.GstRateOptions, "0,5,12,18,28", "Quotation", "string", "GST rates the line dropdown offers"),
+            (AppSettingKeys.Quotation.HomeStateCode, "29", "Quotation", "string", "GST state Regalis supplies from; a match is intra-state (CGST+SGST)"),
+            (AppSettingKeys.Quotation.RoundOffEnabled, "true", "Quotation", "bool", "Round the quotation total to the nearest rupee"),
+            (AppSettingKeys.Quotation.CustomerNotes, "Thank you for considering Regalis WorkSpace.", "Quotation", "string", "Default customer notes printed on a quotation"),
+            (AppSettingKeys.Quotation.TdsOptions, "194I|194-I Rent 10%|10;194J|194-J Professional 10%|10", "Quotation", "string", "TDS sections offered, as code|label|percent rows"),
+            (AppSettingKeys.Quotation.EmailSubjectTemplate, "Quotation {quote_number} from Regalis WorkSpace", "Quotation", "string", "Subject of the quotation email"),
+            (AppSettingKeys.Quotation.EmailBodyTemplate, "", "Quotation", "string", "Body of the quotation email; {customer_name} {quote_number} {total} {valid_until} {portal_link}"),
+            (AppSettingKeys.Quotation.WhatsAppTemplate, "", "Quotation", "string", "WhatsApp message for a quotation; same placeholders as the email"),
+            (AppSettingKeys.Quotation.PortalBaseUrl, "", "Quotation", "string", "Base URL the customer portal approval link is built on"),
+            (AppSettingKeys.Quotation.ExpiryReminderDays, "2", "Quotation", "int", "Days before expiry the reminder goes out"),
+            (AppSettingKeys.Quotation.AdvanceMonths, "1", "Quotation", "decimal", "Default months of rent for the advance (security deposit) invoice"),
             (AppSettingKeys.Booking.SlotGranularityMinutes, "30", "Booking", "int", "Calendar slot granularity"),
             (AppSettingKeys.Booking.MinMinutes, "30", "Booking", "int", "Minimum booking duration"),
             (AppSettingKeys.Booking.MaxMinutes, "480", "Booking", "int", "Maximum booking duration"),
@@ -261,7 +278,8 @@ internal static class SeedCatalogue
         [
             ("DESK", "Desk", "Armchair", 1, false),
             ("CABIN", "Cabin", "DoorClosed", 2, true),
-            ("MEETING_ROOM", "Meeting Room", "Presentation", 3, true)
+            ("MEETING_ROOM", "Meeting Room", "Presentation", 3, true),
+            ("VIRTUAL_WORKSPACE", "Virtual Workspace", "Globe", 4, false)
         ];
 
     /// <summary>Ticket categories per DATABASE_DESIGN. Doc-1 lists concrete issue

@@ -122,9 +122,93 @@ public class BookingHoldSweeper(IServiceScopeFactory scopeFactory, ILogger<Booki
                 });
                 quotation.Status = QuotationStatus.Expired;
                 quotation.ExpiredUtc = nowUtc;
+                quotation.Events.Add(new Domain.Entities.Finance.QuotationEvent
+                {
+                    QuotationId = quotation.QuotationId,
+                    EventType = Domain.Enums.QuotationEventType.Expired,
+                    ActorType = Domain.Enums.QuotationActorType.System,
+                    Summary = $"Expired on {quotation.ValidUntil:dd MMM yyyy} without a decision.",
+                    CreatedUtc = nowUtc
+                });
+                // The document asks that the admin be told when one lapses (§5.3).
+                db.Notifications.Add(new Domain.Entities.Operations.Notification
+                {
+                    Audience = Domain.Enums.NotificationAudience.AllAdmins,
+                    Title = "Quotation expired",
+                    Message = $"{quotation.QuotationNumber} for {quotation.CustomerName} "
+                              + $"lapsed on {quotation.ValidUntil:dd MMM yyyy} with no decision.",
+                    Category = Domain.Enums.NotificationCategory.Invoice,
+                    Priority = Domain.Enums.NotificationPriority.Normal,
+                    ReferenceType = "Quotation",
+                    ReferenceId = quotation.QuotationId,
+                    ActionLabel = "Open",
+                    ActionRoute = $"/admin/billing/quotations/{quotation.QuotationId}",
+                    SentUtc = nowUtc
+                });
             }
             await db.SaveChangesAsync(ct);
             logger.LogInformation("Expired {Count} quotation(s)", staleQuotations.Count);
+        }
+
+        // Expiry reminder: the customer and the salesperson are nudged N days before a
+        // quotation lapses (document §5.3). One notification row per quotation is the
+        // guard against repeats — the sweep runs more than once a day.
+        var reminderDays = await settings.GetIntAsync(
+            Shared.Constants.AppSettingKeys.Quotation.ExpiryReminderDays, 2, ct);
+        var reminderDate = todayIst.AddDays(reminderDays);
+        var expiringSoon = await db.Quotations
+            .Where(q => (q.Status == QuotationStatus.Sent || q.Status == QuotationStatus.Viewed)
+                        && q.ValidUntil == reminderDate)
+            .ToListAsync(ct);
+        var reminded = 0;
+        foreach (var quotation in expiringSoon)
+        {
+            var alreadySent = await db.Notifications.AnyAsync(n =>
+                n.ReferenceType == "QuotationExpiry" && n.ReferenceId == quotation.QuotationId, ct);
+            if (alreadySent)
+            {
+                continue;
+            }
+            db.Notifications.Add(new Domain.Entities.Operations.Notification
+            {
+                UserId = quotation.CustomerId,
+                Audience = Domain.Enums.NotificationAudience.SingleUser,
+                Title = "Your quotation expires soon",
+                Message = $"Quotation {quotation.QuotationNumber} for "
+                          + $"Rs {quotation.TotalAmount:N2} is valid until "
+                          + $"{quotation.ValidUntil:dd MMM yyyy}.",
+                Category = Domain.Enums.NotificationCategory.Invoice,
+                Priority = Domain.Enums.NotificationPriority.High,
+                ReferenceType = "QuotationExpiry",
+                ReferenceId = quotation.QuotationId,
+                ActionLabel = "View quotation",
+                ActionRoute = $"/quotations/{quotation.QuotationId}",
+                SentUtc = nowUtc
+            });
+            if (quotation.SalespersonId is not null)
+            {
+                db.Notifications.Add(new Domain.Entities.Operations.Notification
+                {
+                    UserId = quotation.SalespersonId,
+                    Audience = Domain.Enums.NotificationAudience.SingleUser,
+                    Title = "Quotation expires soon",
+                    Message = $"{quotation.QuotationNumber} for {quotation.CustomerName} "
+                              + $"expires on {quotation.ValidUntil:dd MMM yyyy}.",
+                    Category = Domain.Enums.NotificationCategory.Invoice,
+                    Priority = Domain.Enums.NotificationPriority.Normal,
+                    ReferenceType = "Quotation",
+                    ReferenceId = quotation.QuotationId,
+                    ActionLabel = "Open",
+                    ActionRoute = $"/admin/billing/quotations/{quotation.QuotationId}",
+                    SentUtc = nowUtc
+                });
+            }
+            reminded++;
+        }
+        if (reminded > 0)
+        {
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Sent {Count} quotation expiry reminder(s)", reminded);
         }
 
         // Attendance left open past Attendance.AutoCheckoutHour (IST) → AutoClosed

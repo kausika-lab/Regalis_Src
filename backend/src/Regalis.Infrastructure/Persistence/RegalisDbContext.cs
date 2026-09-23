@@ -61,6 +61,8 @@ public class RegalisDbContext(DbContextOptions<RegalisDbContext> options) : DbCo
     public DbSet<Quotation> Quotations => Set<Quotation>();
     public DbSet<QuotationLine> QuotationLines => Set<QuotationLine>();
     public DbSet<QuotationStatusHistory> QuotationStatusHistories => Set<QuotationStatusHistory>();
+    public DbSet<QuotationAttachment> QuotationAttachments => Set<QuotationAttachment>();
+    public DbSet<QuotationEvent> QuotationEvents => Set<QuotationEvent>();
     public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
     public DbSet<BankTransaction> BankTransactions => Set<BankTransaction>();
 

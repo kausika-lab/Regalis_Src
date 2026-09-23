@@ -355,7 +355,11 @@ public class DatabaseSeeder(
                 AssignedDateUtc = clock.UtcNow
             });
         }
-        if (!await db.PasswordHistories.AnyAsync(h => h.UserId == admin.UserId, ct))
+        // PasswordHash is nullable since Google sign-in landed. An admin always has one,
+        // but there is nothing to record if it is ever absent, and a history row holding
+        // null would break the "differs from your last N passwords" comparison.
+        if (admin.PasswordHash is not null &&
+            !await db.PasswordHistories.AnyAsync(h => h.UserId == admin.UserId, ct))
         {
             db.PasswordHistories.Add(new PasswordHistory
             {

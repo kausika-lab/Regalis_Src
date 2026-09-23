@@ -1016,6 +1016,14 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("InvoiceId"));
 
+                    b.Property<decimal>("AdjustmentAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("AdjustmentLabel")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<string>("BillingAddress")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -1149,6 +1157,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<long?>("QuotationId")
                         .HasColumnType("bigint");
 
+                    b.Property<decimal>("RoundOffAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<long?>("ServiceOrderId")
                         .HasColumnType("bigint");
 
@@ -1170,6 +1182,18 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("TaxableAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TdsAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TdsLabel")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<decimal>("TdsPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
 
                     b.Property<string>("TermsAndConditions")
                         .HasMaxLength(2000)
@@ -1563,6 +1587,24 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("QuotationId"));
 
+                    b.Property<decimal>("AdjustmentAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("AdjustmentLabel")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("AdvanceInvoiceEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<byte>("AdvanceType")
+                        .HasColumnType("tinyint");
+
+                    b.Property<decimal>("AdvanceValue")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("decimal(14,2)");
+
                     b.Property<string>("BillingAddress")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -1594,6 +1636,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2(3)");
 
+                    b.Property<string>("CustomerCompanyName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("CustomerEmail")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -1615,6 +1661,24 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<string>("DecisionConfirmedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("DecisionIpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("nvarchar(45)");
+
+                    b.Property<byte?>("DecisionMode")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("DecisionOnBehalf")
+                        .HasColumnType("bit");
+
                     b.Property<long?>("DeletedBy")
                         .HasColumnType("bigint");
 
@@ -1624,6 +1688,13 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("DiscountAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte>("DiscountType")
+                        .HasColumnType("tinyint");
+
+                    b.Property<decimal>("DiscountValue")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("decimal(14,2)");
 
                     b.Property<DateTime?>("ExpiredUtc")
                         .HasColumnType("datetime2(3)");
@@ -1635,6 +1706,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("IgstPercent")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("InternalNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<long?>("InvoiceId")
                         .HasColumnType("bigint");
@@ -1662,11 +1737,23 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("PlaceOfSupplyStateCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
                     b.Property<DateOnly>("QuotationDate")
                         .HasColumnType("date");
 
                     b.Property<string>("QuotationNumber")
                         .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ReferenceNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("RejectionCode")
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
@@ -1683,6 +1770,19 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime?>("RespondedUtc")
                         .HasColumnType("datetime2(3)");
+
+                    b.Property<int>("RevisionNumber")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("RevisionOfQuotationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("RoundOffAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long?>("SalespersonId")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime?>("SentUtc")
                         .HasColumnType("datetime2(3)");
@@ -1702,9 +1802,32 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("Subject")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<byte>("TaxMode")
+                        .HasColumnType("tinyint");
+
                     b.Property<decimal>("TaxableAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TdsAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TdsCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("TdsLabel")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<decimal>("TdsPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
 
                     b.Property<string>("TermsAndConditions")
                         .HasMaxLength(2000)
@@ -1728,6 +1851,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("UX_Quotation_Number");
 
+                    b.HasIndex("RevisionOfQuotationId")
+                        .HasDatabaseName("IX_Quotation_RevisionOf")
+                        .HasFilter("[RevisionOfQuotationId] IS NOT NULL");
+
                     b.HasIndex("CustomerId", "QuotationDate")
                         .HasDatabaseName("IX_Quotation_Customer_Date");
 
@@ -1740,6 +1867,108 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.ToTable("TRN_Quotation", (string)null);
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.QuotationAttachment", b =>
+                {
+                    b.Property<long>("QuotationAttachmentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("QuotationAttachmentId"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("QuotationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("SendWithEmail")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long>("UploadedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("UploadedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("QuotationAttachmentId");
+
+                    b.HasIndex("QuotationId")
+                        .HasDatabaseName("IX_QuotationAttachment_Quotation");
+
+                    b.ToTable("TRN_QuotationAttachment", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.QuotationEvent", b =>
+                {
+                    b.Property<long>("QuotationEventId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("QuotationEventId"));
+
+                    b.Property<byte>("ActorType")
+                        .HasColumnType("tinyint");
+
+                    b.Property<long?>("ActorUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Channel")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<byte?>("DeliveryStatus")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("Destination")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<byte>("EventType")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("QuotationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.HasKey("QuotationEventId");
+
+                    b.HasIndex("QuotationId", "CreatedUtc")
+                        .HasDatabaseName("IX_QuotationEvent_Quotation_Created");
+
+                    b.ToTable("TRN_QuotationEvent", (string)null);
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.QuotationLine", b =>
                 {
                     b.Property<long>("QuotationLineId")
@@ -1748,12 +1977,20 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("QuotationLineId"));
 
+                    b.Property<decimal>("CgstAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
                     b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("DiscountShare")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
@@ -1765,15 +2002,32 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 3)
                         .HasColumnType("decimal(18,3)");
 
+                    b.Property<DateTime?>("EndUtc")
+                        .HasColumnType("datetime2(3)");
+
                     b.Property<string>("HsnSacCode")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("IgstAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("LineAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("LineNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<int>("LineNumber")
+                        .HasColumnType("int");
+
+                    b.Property<byte>("LineType")
+                        .HasColumnType("tinyint");
+
+                    b.Property<int?>("PassPlanId")
                         .HasColumnType("int");
 
                     b.Property<decimal>("Quantity")
@@ -1786,6 +2040,20 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<int?>("ServiceItemId")
                         .HasColumnType("int");
 
+                    b.Property<byte>("ServiceType")
+                        .HasColumnType("tinyint");
+
+                    b.Property<decimal>("SgstAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("StandardRate")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("decimal(14,2)");
+
+                    b.Property<DateTime?>("StartUtc")
+                        .HasColumnType("datetime2(3)");
+
                     b.Property<decimal>("TaxAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -1794,6 +2062,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
 
+                    b.Property<decimal>("TaxableAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("TotalAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -1801,6 +2073,9 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("WorkspaceId")
+                        .HasColumnType("int");
 
                     b.Property<int?>("WorkspaceTypeId")
                         .HasColumnType("int");
@@ -2749,15 +3024,34 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("AddressLine1")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("AddressLine2")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("CompanyName")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<long?>("CreatedBy")
                         .HasColumnType("bigint");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2(3)");
+
+                    b.Property<DateOnly?>("DateOfBirth")
+                        .HasColumnType("date");
 
                     b.Property<int?>("DefaultLocationId")
                         .HasColumnType("int");
@@ -2780,6 +3074,17 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
+
+                    b.Property<byte?>("Gender")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("GoogleId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Gstin")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -2817,13 +3122,20 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasColumnType("bit");
 
                     b.Property<string>("PasswordHash")
-                        .IsRequired()
                         .HasMaxLength(400)
                         .HasColumnType("nvarchar(400)");
 
                     b.Property<string>("PhotoPath")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PostalCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("State")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<byte>("Status")
                         .HasColumnType("tinyint");
@@ -2840,10 +3152,15 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("UX_User_Email")
                         .HasFilter("[IsDeleted] = 0");
 
+                    b.HasIndex("GoogleId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_User_GoogleId")
+                        .HasFilter("[GoogleId] IS NOT NULL");
+
                     b.HasIndex("MobileNumber")
                         .IsUnique()
                         .HasDatabaseName("UX_User_Mobile")
-                        .HasFilter("[IsDeleted] = 0");
+                        .HasFilter("[IsDeleted] = 0 AND [MobileNumber] <> ''");
 
                     b.ToTable("MST_User", null, t =>
                         {
@@ -3540,6 +3857,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("PricePerHour")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("PricePerMonth")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
@@ -4541,6 +4862,28 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.QuotationAttachment", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Finance.Quotation", "Quotation")
+                        .WithMany("Attachments")
+                        .HasForeignKey("QuotationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Quotation");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.QuotationEvent", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Finance.Quotation", "Quotation")
+                        .WithMany("Events")
+                        .HasForeignKey("QuotationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Quotation");
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.QuotationLine", b =>
                 {
                     b.HasOne("Regalis.Domain.Entities.Finance.Quotation", "Quotation")
@@ -4914,6 +5257,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.Quotation", b =>
                 {
+                    b.Navigation("Attachments");
+
+                    b.Navigation("Events");
+
                     b.Navigation("Lines");
 
                     b.Navigation("StatusHistory");

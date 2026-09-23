@@ -20,7 +20,7 @@ public static class BookingTestHelpers
         var response = await adminClient.PostAsJsonAsync("/api/workspaces", new SaveWorkspaceRequest(
             LocationId: 1, WorkspaceTypeId: deskTypeId, WorkspaceCode: code,
             WorkspaceName: $"Test Desk {code}", FloorNumber: "1", Capacity: 1,
-            PricePerHour: pricePerHour, PricePerDay: null, Equipment: null,
+            PricePerHour: pricePerHour, PricePerDay: null, PricePerMonth: null, Equipment: null,
             Description: null, IsBookable: true, AmenityIds: []));
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<ApiResponse<WorkspaceDto>>())!.Data!.WorkspaceId;

@@ -33,6 +33,31 @@ public static class AppSettingKeys
     {
         public const string ValidityDays = "Quotation.ValidityDays";
         public const string TermsAndConditions = "Quotation.TermsAndConditions";
+        /// <summary>Default GST rate for coworking services, 18 (document §2.3).</summary>
+        public const string DefaultGstPercent = "Quotation.DefaultGstPercent";
+        /// <summary>GST rates the line dropdown offers, e.g. "0,5,12,18,28".</summary>
+        public const string GstRateOptions = "Quotation.GstRateOptions";
+        /// <summary>The state Regalis supplies from; a matching place of supply is
+        /// intra-state (CGST + SGST), anything else inter-state (IGST). "29" is Karnataka.</summary>
+        public const string HomeStateCode = "Quotation.HomeStateCode";
+        /// <summary>Round the total to the nearest rupee; switchable per §2.3.</summary>
+        public const string RoundOffEnabled = "Quotation.RoundOffEnabled";
+        /// <summary>Pre-filled customer notes, printed on the PDF.</summary>
+        public const string CustomerNotes = "Quotation.CustomerNotes";
+        /// <summary>TDS options as "code|label|percent" rows separated by ';', e.g.
+        /// "194I|194-I Rent 10%|10;194J|194-J Professional 10%|10" (document §2.3).</summary>
+        public const string TdsOptions = "Quotation.TdsOptions";
+        /// <summary>Send templates; {customer_name} {quote_number} {total}
+        /// {valid_until} {portal_link} are substituted (document §3.5).</summary>
+        public const string EmailSubjectTemplate = "Quotation.EmailSubjectTemplate";
+        public const string EmailBodyTemplate = "Quotation.EmailBodyTemplate";
+        public const string WhatsAppTemplate = "Quotation.WhatsAppTemplate";
+        /// <summary>Base URL the customer portal link is built on.</summary>
+        public const string PortalBaseUrl = "Quotation.PortalBaseUrl";
+        /// <summary>Days before expiry the reminder goes out (document §5.3).</summary>
+        public const string ExpiryReminderDays = "Quotation.ExpiryReminderDays";
+        /// <summary>Default months of rent for the advance/security-deposit invoice.</summary>
+        public const string AdvanceMonths = "Quotation.AdvanceMonths";
     }
 
     public static class Booking

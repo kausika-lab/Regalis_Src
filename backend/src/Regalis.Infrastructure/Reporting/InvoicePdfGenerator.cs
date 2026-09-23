@@ -119,6 +119,21 @@ public static class InvoicePdfGenerator
                         {
                             TotalRow(totals, $"IGST @ {invoice.IgstPercent:0.##}%", invoice.IgstAmount);
                         }
+                        if (invoice.TdsAmount > 0)
+                        {
+                            TotalRow(totals,
+                                invoice.TdsLabel ?? $"TDS @ {invoice.TdsPercent:0.##}%",
+                                -invoice.TdsAmount);
+                        }
+                        if (invoice.AdjustmentAmount != 0)
+                        {
+                            TotalRow(totals, invoice.AdjustmentLabel ?? "Adjustment",
+                                invoice.AdjustmentAmount);
+                        }
+                        if (invoice.RoundOffAmount != 0)
+                        {
+                            TotalRow(totals, "Round off", invoice.RoundOffAmount);
+                        }
                         totals.Item().BorderTop(1).BorderColor(Colors.Grey.Medium).PaddingTop(4).Row(row =>
                         {
                             row.RelativeItem().Text("Total").Bold();

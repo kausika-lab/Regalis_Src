@@ -34,7 +34,6 @@ const InvoicesPage = lazyPage(() => import('@/pages/customer/InvoicesPage'), 'In
 const MyQuotationsPage = lazyPage(() => import('@/pages/customer/QuotationsPage'), 'MyQuotationsPage');
 const MyQuotationDetailPage = lazyPage(() => import('@/pages/customer/QuotationsPage'), 'MyQuotationDetailPage');
 const PassPlansPage = lazyPage(() => import('@/pages/customer/PassesPage'), 'PassPlansPage');
-const MyPassesPage = lazyPage(() => import('@/pages/customer/PassesPage'), 'MyPassesPage');
 const MyQrPage = lazyPage(() => import('@/pages/customer/MyQrPage'), 'MyQrPage');
 const WorkStatusPage = lazyPage(() => import('@/pages/customer/WorkStatusPage'), 'WorkStatusPage');
 const ServicesPage = lazyPage(() => import('@/pages/customer/ServicesPage'), 'ServicesPage');
@@ -131,7 +130,7 @@ export function AppRoutes() {
               <Route element={<PermissionRoute permission="PASS.VIEW" />}>
                 <Route path="/day-pass" element={<PassPlansPage passType={1} />} />
                 <Route path="/monthly-pass" element={<PassPlansPage passType={2} />} />
-                <Route path="/passes" element={<MyPassesPage />} />
+                <Route path="/passes" element={<PassPlansPage />} />
               </Route>
               <Route element={<PermissionRoute permission="ACCESS.VIEW" />}>
                 <Route path="/qr" element={<MyQrPage />} />

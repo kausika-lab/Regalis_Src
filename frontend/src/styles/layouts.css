@@ -173,6 +173,129 @@
   gap: var(--space-3);
 }
 
+/* ── Header location switcher ───────────────────────────────────────────── */
+.locpick {
+  position: relative;
+}
+
+.locpick__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 230px;
+  padding: 7px var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  background: var(--surface-card);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.locpick__trigger:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.locpick__trigger > svg:first-child {
+  flex: none;
+  color: var(--accent-strong);
+}
+
+.locpick__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.locpick__chevron {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.locpick__popover {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  inset-inline-start: 0;
+  min-width: 240px;
+  padding: var(--space-2);
+  background: var(--surface-card);
+  background-image: var(--card-sheen);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  z-index: 60;
+  animation: modal-in 0.15s ease;
+}
+
+.locpick__section {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: var(--space-2) var(--space-3);
+}
+
+.locpick__item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.locpick__item:hover {
+  background: var(--surface-hover);
+}
+
+.locpick__item svg {
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--accent-strong);
+}
+
+.locpick__item-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.locpick__item-name {
+  font-weight: 600;
+}
+
+.locpick__item-meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* The topbar gets crowded on a phone; the pin alone still says which space. */
+@media (max-width: 780px) {
+  .locpick__name,
+  .locpick__chevron {
+    display: none;
+  }
+
+  .locpick__trigger {
+    padding: 7px;
+  }
+}
+
 /* ── Topbar account menu ────────────────────────────────────────────────── */
 .account {
   position: relative;

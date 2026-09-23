@@ -156,6 +156,12 @@ public class InvoiceService(
             CgstAmount = quotation.CgstAmount,
             SgstAmount = quotation.SgstAmount,
             IgstAmount = quotation.IgstAmount,
+            TdsLabel = quotation.TdsLabel,
+            TdsPercent = quotation.TdsPercent,
+            TdsAmount = quotation.TdsAmount,
+            AdjustmentLabel = quotation.AdjustmentLabel,
+            AdjustmentAmount = quotation.AdjustmentAmount,
+            RoundOffAmount = quotation.RoundOffAmount,
             TotalAmount = quotation.TotalAmount,
             PaidAmount = 0,
             Status = InvoiceStatus.Pending,
@@ -232,6 +238,106 @@ public class InvoiceService(
         });
 
         return await GetInvoiceAsync(newId, ct);
+    }
+
+    public async Task<InvoiceDto> CreateAdvanceFromQuotationAsync(long quotationId,
+        CancellationToken ct = default)
+    {
+        var quotation = await db.Quotations
+            .Include(q => q.Lines.OrderBy(l => l.LineNumber))
+            .FirstOrDefaultAsync(q => q.QuotationId == quotationId, ct)
+            ?? throw new NotFoundException("Quotation", quotationId);
+
+        if (quotation.Status != QuotationStatus.Approved)
+        {
+            throw new BusinessRuleException(
+                "An advance invoice follows the customer's approval.");
+        }
+        if (!quotation.AdvanceInvoiceEnabled)
+        {
+            throw new BusinessRuleException(
+                $"{quotation.QuotationNumber} does not ask for an advance invoice.");
+        }
+
+        var amount = AdvanceAmountOf(quotation);
+        if (amount <= 0)
+        {
+            throw new BusinessRuleException(
+                "The advance works out to nothing. Check the deposit setting on the quotation.");
+        }
+
+        var invoiceDate = IstClock.IstDateOf(clock.UtcNow);
+        var dueDays = await settings.GetIntAsync(AppSettingKeys.Invoice.DueDays, 7, ct);
+        var description = quotation.AdvanceType == QuotationAdvanceType.Months
+            ? $"Security deposit — {quotation.AdvanceValue:0.##} month(s) of rent "
+              + $"(quotation {quotation.QuotationNumber})"
+            : $"Security deposit (quotation {quotation.QuotationNumber})";
+
+        var invoice = new Invoice
+        {
+            CustomerId = quotation.CustomerId,
+            // Deliberately not QuotationId: that slot belongs to the invoice the
+            // quotation converts into, and UX_Invoice_Quotation allows only one.
+            LocationId = quotation.LocationId,
+            InvoiceDate = invoiceDate,
+            DueDate = invoiceDate.AddDays(dueDays),
+            SubTotal = amount,
+            TaxableAmount = amount,
+            TotalAmount = amount,
+            PaidAmount = 0,
+            Status = InvoiceStatus.Pending,
+            CustomerName = quotation.CustomerName,
+            CustomerEmail = quotation.CustomerEmail,
+            CustomerMobile = quotation.CustomerMobile,
+            CustomerGstin = quotation.CustomerGstin,
+            BillingAddress = quotation.BillingAddress,
+            CompanyName = quotation.CompanyName,
+            CompanyGstin = quotation.CompanyGstin,
+            CompanyAddress = quotation.CompanyAddress,
+            TermsAndConditions = quotation.TermsAndConditions,
+            Notes = $"Refundable security deposit against quotation {quotation.QuotationNumber}."
+        };
+        invoice.Lines.Add(new InvoiceLine
+        {
+            LineNumber = 1,
+            Description = description,
+            Quantity = 1,
+            UnitPrice = amount,
+            LineAmount = amount,
+            // A refundable deposit is not consideration for a supply, so no GST.
+            TaxPercent = 0,
+            TaxAmount = 0,
+            TotalAmount = amount
+        });
+
+        var strategy = db.Database.CreateExecutionStrategy();
+        var newId = await strategy.ExecuteAsync(async () =>
+        {
+            await using var dbTransaction = await db.Database.BeginTransactionAsync(ct);
+            invoice.InvoiceNumber = await numberSequence.NextAsync(SequenceKeys.Invoice, ct);
+            db.Invoices.Add(invoice);
+            await db.SaveChangesAsync(ct);
+            await dbTransaction.CommitAsync(ct);
+            return invoice.InvoiceId;
+        });
+
+        return await GetInvoiceAsync(newId, ct);
+    }
+
+    /// <summary>Months of rent, or the flat sum. "A month's rent" is one month of the
+    /// lines actually priced by the month; an hourly meeting room is not rent.</summary>
+    private static decimal AdvanceAmountOf(Quotation quotation)
+    {
+        if (quotation.AdvanceType == QuotationAdvanceType.FixedAmount)
+        {
+            return Math.Round(quotation.AdvanceValue, 2, MidpointRounding.AwayFromZero);
+        }
+
+        var monthlyRent = quotation.Lines
+            .Where(l => l.LineType != QuotationLineType.Header
+                        && string.Equals(l.DurationUnit, "Month", StringComparison.OrdinalIgnoreCase))
+            .Sum(l => l.Quantity * l.UnitPrice);
+        return Math.Round(monthlyRent * quotation.AdvanceValue, 2, MidpointRounding.AwayFromZero);
     }
 
     public async Task<InvoiceDto> SendAsync(long invoiceId, CancellationToken ct = default)

@@ -16,6 +16,10 @@ public class Workspace : AuditableEntity
     public int Capacity { get; set; } = 1;
     public decimal PricePerHour { get; set; }
     public decimal? PricePerDay { get; set; }
+    /// <summary>Monthly rate for a cabin or dedicated desk. Quotations price cabins and
+    /// desks by the month (document §2.1), which hourly and daily rates cannot express;
+    /// null means no standard monthly price is configured and the admin types one.</summary>
+    public decimal? PricePerMonth { get; set; }
     /// <summary>Comma list, e.g. "Projector,Whiteboard,VC".</summary>
     public string? Equipment { get; set; }
     public string? Description { get; set; }

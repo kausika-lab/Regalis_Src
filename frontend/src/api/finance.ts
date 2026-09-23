@@ -47,7 +47,8 @@ export const invoiceApi = {
 };
 
 export const passApi = {
-  activePlans: (type?: 1 | 2) =>
+  /** PassType: 1 day, 2 monthly, 3 weekly, 4 yearly. */
+  activePlans: (type?: number) =>
     unwrap<PassPlan[]>(api.get('/pass-plans/active', { params: type ? { type } : {} })),
   allPlans: () => unwrap<PassPlan[]>(api.get('/pass-plans')),
   createPlan: (payload: Omit<PassPlan, 'passPlanId' | 'locationName' | 'cgstAmount' | 'sgstAmount' | 'totalAmount'>) =>

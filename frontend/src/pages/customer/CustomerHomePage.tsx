@@ -17,6 +17,7 @@ import { bannersApi } from '@/api/masters';
 import { dashboardApi, type CustomerDashboard } from '@/api/reports';
 import { Badge, Button, Card } from '@/components/ui';
 import { useAuthStore } from '@/store/authStore';
+import { useUiStore } from '@/store/uiStore';
 import type { Banner } from '@/models/masters';
 import { formatDateTime, formatInr, formatTime } from '@/utils/formatters';
 import { greeting } from '@/utils/greeting';
@@ -39,13 +40,18 @@ const QUICK_LINKS = [
  * today's booking and wallet. */
 export function CustomerHomePage() {
   const { user } = useAuthStore();
+  const locationId = useUiStore((state) => state.locationId);
   const [dashboard, setDashboard] = useState<CustomerDashboard | null>(null);
   const [banners, setBanners] = useState<Banner[]>([]);
 
   useEffect(() => {
     dashboardApi.customer().then(setDashboard).catch(() => {});
-    bannersApi.active().then(setBanners).catch(() => {});
   }, []);
+
+  // Re-fetch when the header switches workspace: banners are location-scoped.
+  useEffect(() => {
+    bannersApi.active(locationId ?? undefined).then(setBanners).catch(() => {});
+  }, [locationId]);
 
   const booking = dashboard?.todaysBooking ?? null;
 

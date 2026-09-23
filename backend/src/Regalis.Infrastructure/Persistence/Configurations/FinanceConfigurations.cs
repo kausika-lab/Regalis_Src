@@ -80,6 +80,9 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(x => x.CgstPercent).HasPrecision(5, 2);
         builder.Property(x => x.SgstPercent).HasPrecision(5, 2);
         builder.Property(x => x.IgstPercent).HasPrecision(5, 2);
+        builder.Property(x => x.TdsPercent).HasPrecision(5, 2);
+        builder.Property(x => x.TdsLabel).HasMaxLength(80);
+        builder.Property(x => x.AdjustmentLabel).HasMaxLength(50);
         builder.Property(x => x.OutstandingAmount)
             .HasComputedColumnSql("[TotalAmount] - [PaidAmount]", stored: true);
         builder.Property(x => x.CustomerName).HasMaxLength(150).IsRequired();
@@ -298,10 +301,25 @@ public class QuotationConfiguration : IEntityTypeConfiguration<Quotation>
         builder.Property(x => x.CompanyGstin).HasMaxLength(20);
         builder.Property(x => x.CompanyAddress).HasMaxLength(500);
         builder.Property(x => x.PlaceOfSupply).HasMaxLength(100);
+        builder.Property(x => x.PlaceOfSupplyStateCode).HasMaxLength(2);
+        builder.Property(x => x.CustomerCompanyName).HasMaxLength(200);
         builder.Property(x => x.TermsAndConditions).HasMaxLength(2000);
         builder.Property(x => x.Remarks).HasMaxLength(1000);
+        builder.Property(x => x.InternalNote).HasMaxLength(1000);
         builder.Property(x => x.RejectionReason).HasMaxLength(500);
+        builder.Property(x => x.RejectionCode).HasMaxLength(40);
         builder.Property(x => x.PdfPath).HasMaxLength(500);
+        builder.Property(x => x.ReferenceNumber).HasMaxLength(50);
+        builder.Property(x => x.Subject).HasMaxLength(250);
+        builder.Property(x => x.TdsCode).HasMaxLength(20);
+        builder.Property(x => x.TdsLabel).HasMaxLength(80);
+        builder.Property(x => x.TdsPercent).HasPrecision(5, 2);
+        builder.Property(x => x.DiscountValue).HasPrecision(14, 2);
+        builder.Property(x => x.AdjustmentLabel).HasMaxLength(50);
+        builder.Property(x => x.AdvanceValue).HasPrecision(14, 2);
+        builder.Property(x => x.DecisionIpAddress).HasMaxLength(45);
+        builder.Property(x => x.DecisionConfirmedBy).HasMaxLength(150);
+        builder.Property(x => x.DecisionNote).HasMaxLength(500);
 
         builder.HasIndex(x => x.QuotationNumber).IsUnique().HasDatabaseName("UX_Quotation_Number");
         builder.HasIndex(x => new { x.CustomerId, x.QuotationDate }).HasDatabaseName("IX_Quotation_Customer_Date");
@@ -309,6 +327,9 @@ public class QuotationConfiguration : IEntityTypeConfiguration<Quotation>
             .HasDatabaseName("IX_Quotation_Location_Status_Date");
         // Drives the expiry sweeper, the same shape as IX_CustomerPass_ValidTo_Status.
         builder.HasIndex(x => new { x.ValidUntil, x.Status }).HasDatabaseName("IX_Quotation_ValidUntil_Status");
+        // A revision thread is read from the newest back to the original.
+        builder.HasIndex(x => x.RevisionOfQuotationId).HasDatabaseName("IX_Quotation_RevisionOf")
+            .HasFilter("[RevisionOfQuotationId] IS NOT NULL");
 
         builder.HasOne<User>().WithMany()
             .HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
@@ -333,6 +354,8 @@ public class QuotationLineConfiguration : IEntityTypeConfiguration<QuotationLine
         builder.Property(x => x.DurationValue).HasPrecision(18, 3);
         builder.Property(x => x.DurationUnit).HasMaxLength(20);
         builder.Property(x => x.TaxPercent).HasPrecision(5, 2);
+        builder.Property(x => x.LineNotes).HasMaxLength(500);
+        builder.Property(x => x.StandardRate).HasPrecision(14, 2);
 
         builder.HasOne(x => x.Quotation).WithMany(x => x.Lines)
             .HasForeignKey(x => x.QuotationId).OnDelete(DeleteBehavior.Cascade);
@@ -340,6 +363,44 @@ public class QuotationLineConfiguration : IEntityTypeConfiguration<QuotationLine
             .HasForeignKey(x => x.WorkspaceTypeId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<ServiceItem>().WithMany()
             .HasForeignKey(x => x.ServiceItemId).OnDelete(DeleteBehavior.Restrict);
+        // WorkspaceId and PassPlanId are snapshots of what was quoted, not live links:
+        // a cabin retired next month must not orphan a quotation the customer holds.
+    }
+}
+
+public class QuotationAttachmentConfiguration : IEntityTypeConfiguration<QuotationAttachment>
+{
+    public void Configure(EntityTypeBuilder<QuotationAttachment> builder)
+    {
+        builder.ToTable("TRN_QuotationAttachment");
+        builder.HasKey(x => x.QuotationAttachmentId);
+        builder.Property(x => x.FileName).HasMaxLength(260).IsRequired();
+        builder.Property(x => x.StoredFileName).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.FilePath).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.ContentType).HasMaxLength(150).IsRequired();
+        builder.HasIndex(x => x.QuotationId).HasDatabaseName("IX_QuotationAttachment_Quotation");
+
+        builder.HasOne(x => x.Quotation).WithMany(x => x.Attachments)
+            .HasForeignKey(x => x.QuotationId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class QuotationEventConfiguration : IEntityTypeConfiguration<QuotationEvent>
+{
+    public void Configure(EntityTypeBuilder<QuotationEvent> builder)
+    {
+        builder.ToTable("TRN_QuotationEvent");
+        builder.HasKey(x => x.QuotationEventId);
+        builder.Property(x => x.Summary).HasMaxLength(400).IsRequired();
+        builder.Property(x => x.Channel).HasMaxLength(20);
+        builder.Property(x => x.Destination).HasMaxLength(256);
+        builder.Property(x => x.FailureReason).HasMaxLength(500);
+        // The timeline is read newest-last for one quotation, never across quotations.
+        builder.HasIndex(x => new { x.QuotationId, x.CreatedUtc })
+            .HasDatabaseName("IX_QuotationEvent_Quotation_Created");
+
+        builder.HasOne(x => x.Quotation).WithMany(x => x.Events)
+            .HasForeignKey(x => x.QuotationId).OnDelete(DeleteBehavior.Cascade);
     }
 }
 

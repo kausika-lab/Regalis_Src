@@ -81,6 +81,13 @@ public interface IInvoiceService
     /// </summary>
     Task<InvoiceDto> CreateFromQuotationAsync(long quotationId, CancellationToken ct = default);
 
+    /// <summary>The security-deposit invoice an approved quotation can raise
+    /// automatically (document §3.4) — Zoho's "retainer invoice". A refundable deposit
+    /// is not a supply, so it carries no GST; it is a separate invoice from the one
+    /// the quotation converts into, and does not consume UX_Invoice_Quotation.</summary>
+    Task<InvoiceDto> CreateAdvanceFromQuotationAsync(long quotationId,
+        CancellationToken ct = default);
+
     /// <summary>Marks a pending invoice as delivered to the customer.</summary>
     Task<InvoiceDto> SendAsync(long invoiceId, CancellationToken ct = default);
 

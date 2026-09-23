@@ -33,6 +33,61 @@
             <summary>Clock abstraction so services are testable. All timestamps are stored UTC
             and rendered in IST by the frontend (A13).</summary>
         </member>
+        <member name="T:Regalis.Application.Abstractions.GoogleIdentity">
+            <summary>
+            The verified contents of a Google ID token. Only produced after the signature,
+            issuer, audience and expiry have all been checked — never from an unverified token.
+            </summary>
+            <param name="Subject">Google's <c>sub</c> claim. Stable for the life of the Google
+            account and never reused, which is why it, not the email, is the identity we store.</param>
+            <param name="Email">Lower-cased email address from the token.</param>
+            <param name="EmailVerified">Whether Google has verified that address. An unverified
+            address must never be matched against an existing account.</param>
+            <param name="Name">Display name, when Google supplies one.</param>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.GoogleIdentity.#ctor(System.String,System.String,System.Boolean,System.String)">
+            <summary>
+            The verified contents of a Google ID token. Only produced after the signature,
+            issuer, audience and expiry have all been checked — never from an unverified token.
+            </summary>
+            <param name="Subject">Google's <c>sub</c> claim. Stable for the life of the Google
+            account and never reused, which is why it, not the email, is the identity we store.</param>
+            <param name="Email">Lower-cased email address from the token.</param>
+            <param name="EmailVerified">Whether Google has verified that address. An unverified
+            address must never be matched against an existing account.</param>
+            <param name="Name">Display name, when Google supplies one.</param>
+        </member>
+        <member name="P:Regalis.Application.Abstractions.GoogleIdentity.Subject">
+            <summary>Google's <c>sub</c> claim. Stable for the life of the Google
+            account and never reused, which is why it, not the email, is the identity we store.</summary>
+        </member>
+        <member name="P:Regalis.Application.Abstractions.GoogleIdentity.Email">
+            <summary>Lower-cased email address from the token.</summary>
+        </member>
+        <member name="P:Regalis.Application.Abstractions.GoogleIdentity.EmailVerified">
+            <summary>Whether Google has verified that address. An unverified
+            address must never be matched against an existing account.</summary>
+        </member>
+        <member name="P:Regalis.Application.Abstractions.GoogleIdentity.Name">
+            <summary>Display name, when Google supplies one.</summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.IGoogleTokenVerifier">
+            <summary>
+            Verifies a Google ID token (Google Identity Services token flow, ARCHITECTURE §4).
+            Kept behind an interface so the sign-in branches can be tested without reaching
+            Google, and so the Google SDK stays inside Infrastructure (Invariant 5).
+            </summary>
+        </member>
+        <member name="P:Regalis.Application.Abstractions.IGoogleTokenVerifier.IsConfigured">
+            <summary>True when a client id is configured; false disables the endpoint.</summary>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.IGoogleTokenVerifier.VerifyAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Validates the token against Google's published keys with the audience pinned to
+            our own client id. Returns null when the token is missing, malformed, expired,
+            signed by someone else, or minted for a different Google application.
+            </summary>
+        </member>
         <member name="T:Regalis.Application.Abstractions.SequenceKeys">
             <summary>Well-known sequence keys seeded in MST_NumberSequence.</summary>
         </member>
@@ -43,6 +98,13 @@
             transaction so the number commits or rolls back with the record.
             IDENTITY is not used for these — it leaks volume and skips on rollback.
             </summary>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.INumberSequenceService.PeekAsync(System.String,System.Threading.CancellationToken)">
+            <summary>The number <see cref="M:Regalis.Application.Abstractions.INumberSequenceService.NextAsync(System.String,System.Threading.CancellationToken)"/> would hand out, without consuming
+            it — for the read-only "Quotation #" preview on the new-quotation form
+            (document §3.2). It is a preview only: the number that sticks is the one the
+            server issues on first save, so two admins drafting at once still get
+            different numbers.</summary>
         </member>
         <member name="T:Regalis.Application.Abstractions.IOtpSender">
             <summary>Delivery channel for one-time codes, behind an adapter so the SMTP/SMS
@@ -81,6 +143,40 @@
             The payroll hand-off seam (A03): the payroll product is unknown, so attendance
             leaves the system as an export file — CSV in Phase 1, XLSX joins with the
             reporting toolkit. No direct integration.
+            </summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.QuotationOutboundFile">
+            <summary>One file travelling with a quotation send — the frozen PDF, plus any
+            attachment the admin ticked "Send with email" (document §3.5).</summary>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.QuotationOutboundFile.#ctor(System.String,System.String,System.Byte[])">
+            <summary>One file travelling with a quotation send — the frozen PDF, plus any
+            attachment the admin ticked "Send with email" (document §3.5).</summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.QuotationEmailMessage">
+            <summary>What the admin filled into the send popup, already resolved against the
+            settings templates by the service.</summary>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.QuotationEmailMessage.#ctor(System.String,System.String,System.String,System.String,System.String,System.Collections.Generic.IReadOnlyList{Regalis.Application.Abstractions.QuotationOutboundFile})">
+            <summary>What the admin filled into the send popup, already resolved against the
+            settings templates by the service.</summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.QuotationDeliveryResult">
+            <summary>The outcome of one channel. A failure is reported, never thrown: the send
+            popup shows the error per channel with a Retry, and a quotation that reached at
+            least one channel is still Sent (document §3.5).</summary>
+        </member>
+        <member name="M:Regalis.Application.Abstractions.QuotationDeliveryResult.#ctor(System.Boolean,System.String,System.String)">
+            <summary>The outcome of one channel. A failure is reported, never thrown: the send
+            popup shows the error per channel with a Retry, and a quotation that reached at
+            least one channel is still Sent (document §3.5).</summary>
+        </member>
+        <member name="T:Regalis.Application.Abstractions.IQuotationDispatcher">
+            <summary>
+            Delivery of a quotation to the customer, behind an adapter so the SMTP and WhatsApp
+            vendors never block the build (Invariant 5). The WhatsApp side is expected to use the
+            Business API with a pre-approved template; where none is configured it falls back to
+            a wa.me link the admin sends by hand, reported back as a note (document §3.5).
             </summary>
         </member>
         <member name="T:Regalis.Application.Abstractions.ISettingService">
@@ -161,6 +257,32 @@
             <summary>Which portal the client is signing in to. The portal constrains the
             user type: customer → Customer, admin → Admin/Staff.</summary>
         </member>
+        <member name="T:Regalis.Application.Auth.GoogleLoginRequest">
+            <summary>The ID token the browser received from Google Identity Services. The SPA
+            posts it unchanged; the API verifies it against Google rather than trusting anything
+            the SPA claims about who the user is.</summary>
+        </member>
+        <member name="M:Regalis.Application.Auth.GoogleLoginRequest.#ctor(System.String)">
+            <summary>The ID token the browser received from Google Identity Services. The SPA
+            posts it unchanged; the API verifies it against Google rather than trusting anything
+            the SPA claims about who the user is.</summary>
+        </member>
+        <member name="T:Regalis.Application.Auth.RegisterRequest">
+            <summary>
+            Self-registration. The profile fields are optional on the wire so an older client
+            keeps working, but the SPA sends them all and whatever arrives is stored — until now
+            they were accepted and silently dropped, which left every account incomplete.
+            Anyone who registers without them is sent to onboarding at first sign-in.
+            </summary>
+        </member>
+        <member name="M:Regalis.Application.Auth.RegisterRequest.#ctor(System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.Nullable{System.DateOnly},System.Nullable{System.Byte},System.String)">
+            <summary>
+            Self-registration. The profile fields are optional on the wire so an older client
+            keeps working, but the SPA sends them all and whatever arrives is stored — until now
+            they were accepted and silently dropped, which left every account incomplete.
+            Anyone who registers without them is sent to onboarding at first sign-in.
+            </summary>
+        </member>
         <member name="T:Regalis.Application.Auth.VerifyOtpResponse">
             <summary>ResetToken is set only for the ForgotPassword purpose.</summary>
         </member>
@@ -178,12 +300,65 @@
             dynamically against Security.PasswordMinLength in the service; the composition
             rule (upper + lower + digit + symbol) is validated here.</summary>
         </member>
+        <member name="M:Regalis.Application.Auth.IAuthService.GoogleSignInAsync(Regalis.Application.Auth.GoogleLoginRequest,System.Threading.CancellationToken)">
+            <summary>Exchanges a Google ID token for the same session a password login
+            returns, creating the customer account on first sign-in. Customer portal only:
+            an admin or staff account cannot be entered this way.</summary>
+        </member>
         <member name="M:Regalis.Application.Auth.IAuthService.ForgotPasswordAsync(Regalis.Application.Auth.ForgotPasswordRequest,System.Threading.CancellationToken)">
             <summary>Always succeeds from the caller's perspective — no account enumeration.</summary>
         </member>
         <member name="M:Regalis.Application.Auth.IMenuQueryService.GetMyMenusAsync(System.Threading.CancellationToken)">
             <summary>The caller's sidebar tree: menus mapped to any of their roles,
             visible, ordered by DisplayOrder, nested Module → Menu → Sub-menu → Screen.</summary>
+        </member>
+        <member name="T:Regalis.Application.Auth.CompleteOnboardingRequest">
+             <summary>
+             The details a member supplies to finish onboarding.
+            
+             Google gives us a name and a verified email and nothing else, so an account created
+             that way starts with no phone number and no address — and an address is what an
+             invoice needs. The same form also repairs accounts that predate the structured
+             columns, which is every account created before this shipped.
+            
+             Email is absent on purpose: it is the login, it arrived verified from Google or from
+             an OTP, and changing it is an admin action with re-verification.
+             </summary>
+        </member>
+        <member name="M:Regalis.Application.Auth.CompleteOnboardingRequest.#ctor(System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.DateOnly,System.Byte,System.String)">
+             <summary>
+             The details a member supplies to finish onboarding.
+            
+             Google gives us a name and a verified email and nothing else, so an account created
+             that way starts with no phone number and no address — and an address is what an
+             invoice needs. The same form also repairs accounts that predate the structured
+             columns, which is every account created before this shipped.
+            
+             Email is absent on purpose: it is the login, it arrived verified from Google or from
+             an OTP, and changing it is an admin action with re-verification.
+             </summary>
+        </member>
+        <member name="T:Regalis.Application.Auth.OnboardingStatusDto">
+            <summary>What the SPA needs to decide whether to send a member to onboarding, and to
+            pre-fill the form when it does.</summary>
+        </member>
+        <member name="M:Regalis.Application.Auth.OnboardingStatusDto.#ctor(System.Boolean,System.Collections.Generic.IReadOnlyList{System.String},Regalis.Application.Auth.ProfileDto)">
+            <summary>What the SPA needs to decide whether to send a member to onboarding, and to
+            pre-fill the form when it does.</summary>
+        </member>
+        <member name="T:Regalis.Application.Auth.ProfileDto">
+            <summary>
+            The caller's own profile. <c>Address</c> is the legacy single line, composed from the
+            structured parts on save and kept because TRN_Invoice snapshots it — read the parts.
+            The new members are optional so existing callers compile unchanged.
+            </summary>
+        </member>
+        <member name="M:Regalis.Application.Auth.ProfileDto.#ctor(System.Int64,System.String,System.String,System.String,System.String,System.String,System.Boolean,System.Byte,System.DateTime,System.String,System.String,System.String,System.String,System.String,System.String,System.Nullable{System.DateOnly},System.Nullable{System.Byte},System.String,System.Boolean,System.Boolean,System.Boolean)">
+            <summary>
+            The caller's own profile. <c>Address</c> is the legacy single line, composed from the
+            structured parts on save and kept because TRN_Invoice snapshots it — read the parts.
+            The new members are optional so existing callers compile unchanged.
+            </summary>
         </member>
         <member name="T:Regalis.Application.Auth.UpdateProfileRequest">
             <summary>Email is the login and is never edited here; a change of email is an
@@ -195,6 +370,13 @@
         </member>
         <member name="T:Regalis.Application.Auth.IProfileService">
             <summary>Own-record profile (API_PLAN §4): GET/PUT /profile + photo.</summary>
+        </member>
+        <member name="M:Regalis.Application.Auth.IProfileService.GetOnboardingStatusAsync(System.Threading.CancellationToken)">
+            <summary>What is still missing, for the SPA's onboarding gate.</summary>
+        </member>
+        <member name="M:Regalis.Application.Auth.IProfileService.CompleteOnboardingAsync(Regalis.Application.Auth.CompleteOnboardingRequest,System.Threading.CancellationToken)">
+            <summary>Finishes onboarding. Customers only — staff are created by an admin and
+            are never asked for a GSTIN or a date of birth.</summary>
         </member>
         <member name="M:Regalis.Application.Auth.IProfileService.SetPhotoAsync(Regalis.Application.Operations.AttachmentUpload,System.Threading.CancellationToken)">
             <summary>.png .jpg .jpeg .webp, ≤2 MB, content-sniffed like ticket attachments.</summary>
@@ -403,6 +585,12 @@
             once — the database enforces that as well through UX_Invoice_Quotation.
             </summary>
         </member>
+        <member name="M:Regalis.Application.Finance.IInvoiceService.CreateAdvanceFromQuotationAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>The security-deposit invoice an approved quotation can raise
+            automatically (document §3.4) — Zoho's "retainer invoice". A refundable deposit
+            is not a supply, so it carries no GST; it is a separate invoice from the one
+            the quotation converts into, and does not consume UX_Invoice_Quotation.</summary>
+        </member>
         <member name="M:Regalis.Application.Finance.IInvoiceService.SendAsync(System.Int64,System.Threading.CancellationToken)">
             <summary>Marks a pending invoice as delivered to the customer.</summary>
         </member>
@@ -501,21 +689,117 @@
             <summary>Receipt writes the incoming inventory rows and the PO status in one
             transaction — stock and the order never disagree.</summary>
         </member>
-        <member name="T:Regalis.Application.Finance.QuotationDecisionRequest">
-            <summary>The customer's decision. A reason is optional on approval and on
-            rejection alike — the document only asks that it be captured when given.</summary>
+        <member name="T:Regalis.Application.Finance.QuotationEventDto">
+            <summary>One line of the activity timeline (document §3.6).</summary>
         </member>
-        <member name="M:Regalis.Application.Finance.QuotationDecisionRequest.#ctor(System.String)">
-            <summary>The customer's decision. A reason is optional on approval and on
-            rejection alike — the document only asks that it be captured when given.</summary>
+        <member name="M:Regalis.Application.Finance.QuotationEventDto.#ctor(System.Int64,System.Byte,System.Byte,System.Nullable{System.Int64},System.String,System.String,System.String,System.String,System.Nullable{System.Byte},System.String,System.DateTime)">
+            <summary>One line of the activity timeline (document §3.6).</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.QuotationActionsDto">
+            <summary>The action matrix from document §3.6, resolved server-side. The screen
+            shows a button when the flag is true; the API enforces the same rule regardless.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.QuotationActionsDto.#ctor(System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean)">
+            <summary>The action matrix from document §3.6, resolved server-side. The screen
+            shows a button when the flag is true; the API enforces the same rule regardless.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.QuotationSummaryDto">
+            <summary>The four summary cards and the status tab counts (document §3.1).
+            Scoped to the current financial year, which is what "Total quotes" means there.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.QuotationSummaryDto.#ctor(System.String,System.Int32,System.Decimal,System.Int32,System.Decimal,System.Int32,System.Decimal,System.Int32,System.Decimal,System.Collections.Generic.Dictionary{System.Byte,System.Int32})">
+            <summary>The four summary cards and the status tab counts (document §3.1).
+            Scoped to the current financial year, which is what "Total quotes" means there.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.QuotationServiceOptionDto">
+            <summary>One pickable service for the item table, with the price already configured
+            for it (document §2.1). Grouped client-side by <see cref="P:Regalis.Application.Finance.QuotationServiceOptionDto.Group"/>.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.QuotationServiceOptionDto.#ctor(System.Byte,System.String,System.Nullable{System.Int32},System.Nullable{System.Int32},System.Nullable{System.Int32},System.String,System.String,System.Nullable{System.Int32},System.String,System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.Boolean)">
+            <summary>One pickable service for the item table, with the price already configured
+            for it (document §2.1). Grouped client-side by <see cref="P:Regalis.Application.Finance.QuotationServiceOptionDto.Group"/>.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.QuotationStateOptionDto">
+            <summary>GST state for the place-of-supply picker. Code 29 is Karnataka, the one
+            that makes a quotation intra-state.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.QuotationStateOptionDto.#ctor(System.String,System.String)">
+            <summary>GST state for the place-of-supply picker. Code 29 is Karnataka, the one
+            that makes a quotation intra-state.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.QuotationFormOptionsDto">
+            <summary>Everything the new-quotation form needs in one call: the service picker,
+            the tax and TDS options, the defaults from settings and a preview of the number
+            the server will issue (document §3.2–§3.4).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.QuotationFormOptionsDto.#ctor(System.String,System.Int32,System.Decimal,System.Collections.Generic.IReadOnlyList{System.Decimal},System.String,System.Boolean,System.String,System.String,System.Decimal,System.Collections.Generic.IReadOnlyList{Regalis.Application.Finance.QuotationTdsOptionDto},System.Collections.Generic.IReadOnlyList{Regalis.Application.Finance.QuotationServiceOptionDto},System.Collections.Generic.IReadOnlyList{Regalis.Application.Finance.QuotationStateOptionDto})">
+            <summary>Everything the new-quotation form needs in one call: the service picker,
+            the tax and TDS options, the defaults from settings and a preview of the number
+            the server will issue (document §3.2–§3.4).</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.SendQuotationRequest">
+            <summary>The send popup (document §3.5). At least one channel must be ticked; a
+            send that reaches neither channel leaves the quotation a draft.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.SendQuotationRequest.#ctor(System.Boolean,System.Boolean,System.String,System.String,System.Boolean,System.String,System.String,System.String,System.String)">
+            <summary>The send popup (document §3.5). At least one channel must be ticked; a
+            send that reaches neither channel leaves the quotation a draft.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.QuotationDecisionRequest">
+            <summary>The customer's own decision from the portal (document §3.7). The reason
+            code is required on a rejection; a comment is required when the code is "OTHER".</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.QuotationDecisionRequest.#ctor(System.String,System.String,System.Boolean)">
+            <summary>The customer's own decision from the portal (document §3.7). The reason
+            code is required on a rejection; a comment is required when the code is "OTHER".</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.RecordQuotationDecisionRequest">
+            <summary>An admin recording a decision the customer gave by phone or in person
+            (document §3.6). Never the customer's own act, and flagged as such on the record.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.RecordQuotationDecisionRequest.#ctor(System.Boolean,System.Byte,System.String,System.String,System.String)">
+            <summary>An admin recording a decision the customer gave by phone or in person
+            (document §3.6). Never the customer's own act, and flagged as such on the record.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.CancelQuotationRequest">
+            <summary>Body for the cancel route — a reason is mandatory, as on a purchase order.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.CancelQuotationRequest.#ctor(System.String)">
+            <summary>Body for the cancel route — a reason is mandatory, as on a purchase order.</summary>
+        </member>
+        <member name="P:Regalis.Application.Finance.QuotationListRequest.ServiceType">
+            <summary>Cabin / Desk / MeetingRoom / Pass / Other — matches any line (§3.1).</summary>
+        </member>
+        <member name="P:Regalis.Application.Finance.QuotationListRequest.DatePreset">
+            <summary>today | week | month | fy — a shorthand for From/To, which win if both
+            are given. Anything else is ignored rather than rejected.</summary>
+        </member>
+        <member name="P:Regalis.Application.Finance.QuotationListRequest.ExpiringInDays">
+            <summary>The "Expiring in 3 days" card: open quotations lapsing within N days.</summary>
+        </member>
+        <member name="F:Regalis.Application.Finance.SaveQuotationRequestValidator.MaxLines">
+            <summary>The item table is capped at 100 rows (document §3.3).</summary>
         </member>
         <member name="T:Regalis.Application.Finance.IQuotationService">
-            <summary>
-            Quotations (document §6–§8). A quotation is freely editable while Draft; sending it
-            snapshots the customer, company and tax details, and from that point the figures the
-            customer saw are the figures that stand. Approval and rejection are the customer's
-            own act, recorded with their identity and the moment they made it.
-            </summary>
+             <summary>
+             Quotations (document §6–§8). A quotation is freely editable while Draft; sending it
+             snapshots the customer, company and tax details, and from that point the figures the
+             customer saw are the figures that stand. Approval and rejection are the customer's
+             own act, recorded with their identity and the moment they made it.
+            
+             New prices go out as a revision rather than an edit: <see cref="M:Regalis.Application.Finance.IQuotationService.ReviseAsync(System.Int64,Regalis.Application.Finance.ReviseQuotationRequest,System.Threading.CancellationToken)"/> opens
+             a fresh draft numbered …-R1 and marks the old one Revised, so the document the
+             customer approves is always the document they were sent (document §1).
+             </summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.GetSummaryAsync(System.Threading.CancellationToken)">
+            <summary>The four summary cards and the status tab counts (document §3.1).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.GetFormOptionsAsync(System.Threading.CancellationToken)">
+            <summary>Everything the create form needs, in one call (document §3.2).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.ExportAsync(Regalis.Application.Finance.QuotationListRequest,System.Threading.CancellationToken)">
+            <summary>The filtered list as CSV, for the Export button (document §3.1).</summary>
         </member>
         <member name="M:Regalis.Application.Finance.IQuotationService.GetQuotationAsync(System.Int64,System.Threading.CancellationToken)">
             <summary>Admin read. Customers must use <see cref="M:Regalis.Application.Finance.IQuotationService.GetMyQuotationAsync(System.Int64,System.Threading.CancellationToken)"/>.</summary>
@@ -529,9 +813,24 @@
         <member name="M:Regalis.Application.Finance.IQuotationService.UpdateAsync(System.Int64,Regalis.Application.Finance.SaveQuotationRequest,System.Threading.CancellationToken)">
             <summary>Draft only — a quotation the customer has seen is frozen.</summary>
         </member>
-        <member name="M:Regalis.Application.Finance.IQuotationService.SendAsync(System.Int64,System.Threading.CancellationToken)">
+        <member name="M:Regalis.Application.Finance.IQuotationService.DeleteAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Draft only. The number is not reused (document §5.3).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.SendAsync(System.Int64,Regalis.Application.Finance.SendQuotationRequest,System.Threading.CancellationToken)">
             <summary>Draft to Sent: snapshots customer, company, place of supply and the
-            tax rates, and makes the quotation visible in the customer portal.</summary>
+            tax rates, freezes the PDF, and delivers on the chosen channels.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.ReviseAsync(System.Int64,Regalis.Application.Finance.ReviseQuotationRequest,System.Threading.CancellationToken)">
+            <summary>Opens a new draft …-R1 and marks this one Revised (document §1).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.CloneAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Copies the quotation into a brand-new draft with its own number.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.RecordDecisionAsync(System.Int64,Regalis.Application.Finance.RecordQuotationDecisionRequest,System.Threading.CancellationToken)">
+            <summary>An admin recording the customer's decision from a call or a visit.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.AddInternalNoteAsync(System.Int64,System.String,System.Threading.CancellationToken)">
+            <summary>Admin-only note, kept off the customer's copy and off the PDF.</summary>
         </member>
         <member name="M:Regalis.Application.Finance.IQuotationService.GetQuotationPdfAsync(System.Int64,System.Threading.CancellationToken)">
             <summary>The quotation as a PDF, generated from the snapshot.</summary>

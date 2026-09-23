@@ -41,6 +41,40 @@
             device down, exercising the DeviceError path end to end.
             </summary>
         </member>
+        <member name="P:Regalis.Infrastructure.Adapters.WhatsAppOptions.ApiBaseUrl">
+            <summary>Business API base, e.g. https://graph.facebook.com/v20.0/&lt;phone-id&gt;.
+            Empty means no provider is configured and the wa.me fallback is used.</summary>
+        </member>
+        <member name="P:Regalis.Infrastructure.Adapters.WhatsAppOptions.TemplateName">
+            <summary>The pre-approved template name from document §3.5.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Adapters.QuotationDispatcher">
+             <summary>
+             Real delivery for a quotation send (document §3.5), selected by configuration like
+             the other vendor seams (Invariant 5). Email reuses the same SMTP section the OTP
+             sender is configured with, so one mail account serves the whole system.
+            
+             WhatsApp degrades rather than fails: with no Business API configured it returns the
+             wa.me link for the admin to send by hand, which the service logs as
+             "Shared via WhatsApp (manual)" — the document's stated fallback.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Adapters.QuotationDispatcher.#ctor(Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Adapters.SmtpOptions},Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Adapters.WhatsAppOptions},System.Net.Http.IHttpClientFactory,Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Adapters.QuotationDispatcher})">
+             <summary>
+             Real delivery for a quotation send (document §3.5), selected by configuration like
+             the other vendor seams (Invariant 5). Email reuses the same SMTP section the OTP
+             sender is configured with, so one mail account serves the whole system.
+            
+             WhatsApp degrades rather than fails: with no Business API configured it returns the
+             wa.me link for the admin to send by hand, which the service logs as
+             "Shared via WhatsApp (manual)" — the document's stated fallback.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Adapters.QuotationDispatcher.NormaliseNumber(System.String)">
+            <summary>wa.me and the Business API both want digits only, country code first.
+            A bare 10-digit Indian number is assumed to be +91, which is what every mobile
+            in MST_User is.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Adapters.RazorpayPaymentGateway">
             <summary>
             Razorpay adapter (Payments:Provider = "Razorpay"). Orders via the REST API with
@@ -192,6 +226,42 @@
         <member name="M:Regalis.Infrastructure.Persistence.Migrations.RemoveDeadNumberPrefixSettings.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.AddGoogleSignIn">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddGoogleSignIn.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddGoogleSignIn.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddGoogleSignIn.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.AddUserProfileFields">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddUserProfileFields.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddUserProfileFields.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddUserProfileFields.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.AddQuotationBillingFields">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddQuotationBillingFields.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddQuotationBillingFields.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddQuotationBillingFields.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="T:Regalis.Infrastructure.Persistence.Seed.DatabaseSeeder">
             <summary>
             Idempotent seeding of the state defined by ROLE_PERMISSION_MATRIX.md and
@@ -229,12 +299,28 @@
             demand from the snapshotted invoice — later profile or settings edits never
             change what a customer already received.</summary>
         </member>
+        <member name="T:Regalis.Infrastructure.Reporting.QuotationPdfContext">
+            <summary>The few things the printed quotation needs that the row does not carry:
+            the salesperson's name and the portal link the customer approves through.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.QuotationPdfContext.#ctor(System.String,System.String,System.String,System.String,System.Nullable{Regalis.Domain.Enums.QuotationStatus})">
+            <summary>The few things the printed quotation needs that the row does not carry:
+            the salesperson's name and the portal link the customer approves through.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Reporting.QuotationPdfGenerator">
-            <summary>The customer-facing quotation as a PDF (QuestPDF, community license),
-            generated on demand from the snapshot taken when the quotation was sent — the copy
+            <summary>
+            Template "Regalis Standard – India GST" (document §3.8). The same A4 document
+            serves the admin preview, the download, the email attachment and the customer
+            portal, generated from the snapshot taken when the quotation was sent — the copy
             the customer downloads today is the one they were quoted, whatever the settings or
             their profile say now. Deliberately mirrors InvoicePdfGenerator so the quotation and
-            the invoice it becomes look like the same document.</summary>
+            the invoice it becomes look like the same document.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.QuotationPdfGenerator.StatusLabel(Regalis.Domain.Enums.QuotationStatus)">
+            <summary>What the customer should read on the document. Sent and Viewed both
+            say "awaiting approval": the difference between them is the admin's business,
+            not the customer's (document §3.7).</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Reporting.ReceiptPdfGenerator">
             <summary>
@@ -269,6 +355,44 @@
             Day 9 ships reports 1–8; the remaining keys are catalogued but flagged
             unavailable until Day 10.
             </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Security.GoogleOptions">
+             <summary>
+             Bound from the "Authentication:Google" configuration section.
+            
+             The client id is public — it ships inside the SPA bundle and Google expects it to be
+             visible. It is configuration rather than a secret, and it is pinned as the audience
+             when verifying an ID token so a token minted for a different Google application
+             cannot be replayed against this API.
+            
+             No client secret appears here: the token flow never needs one server-side. Only the
+             authorization-code redirect flow would, and this API does not implement it.
+             </summary>
+        </member>
+        <member name="P:Regalis.Infrastructure.Security.GoogleOptions.ClientId">
+            <summary>Empty disables Google sign-in; the endpoint then refuses cleanly.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Security.GoogleTokenVerifier">
+             <summary>
+             Verifies Google ID tokens with <see cref="T:Google.Apis.Auth.GoogleJsonWebSignature"/>, which checks the
+             signature, issuer, audience and expiry against Google's published JWKS and caches the
+             keys between calls.
+            
+             The token is never decoded by hand. An ID token that has not been verified is just
+             attacker-controlled JSON, and trusting its `sub` or `email` would hand over any
+             account named in it.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Security.GoogleTokenVerifier.#ctor(Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Security.GoogleOptions},Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Security.GoogleTokenVerifier})">
+             <summary>
+             Verifies Google ID tokens with <see cref="T:Google.Apis.Auth.GoogleJsonWebSignature"/>, which checks the
+             signature, issuer, audience and expiry against Google's published JWKS and caches the
+             keys between calls.
+            
+             The token is never decoded by hand. An ID token that has not been verified is just
+             attacker-controlled JSON, and trusting its `sub` or `email` would hand over any
+             account named in it.
+             </summary>
         </member>
         <member name="T:Regalis.Infrastructure.Security.JwtOptions">
             <summary>Bound from the "Jwt" configuration section. The signing key comes from
@@ -361,11 +485,37 @@
             password history, and audit/login-history rows for every attempt.
             </summary>
         </member>
-        <member name="M:Regalis.Infrastructure.Services.AuthService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.IPasswordHasher,Regalis.Application.Abstractions.ITokenService,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Abstractions.IOtpSender,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Security.JwtOptions},Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Services.AuthService})">
+        <member name="M:Regalis.Infrastructure.Services.AuthService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.IPasswordHasher,Regalis.Application.Abstractions.ITokenService,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Abstractions.IOtpSender,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Regalis.Application.Abstractions.IGoogleTokenVerifier,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Security.JwtOptions},Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Services.AuthService})">
             <summary>
             Authentication per ARCHITECTURE §4: PBKDF2 passwords, 15-minute JWTs, rotating
             single-use refresh tokens with family revocation on reuse, lockout, hashed OTPs,
             password history, and audit/login-history rows for every attempt.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AuthService.ApplyProfileFields(Regalis.Domain.Entities.Identity.User,Regalis.Application.Auth.RegisterRequest)">
+            <summary>
+            Copies whatever structured profile the registration form supplied. Each field is
+            only written when it is present, so an older client that omits them leaves the
+            account as it was rather than blanking it — the member then finishes at onboarding.
+            The legacy single-line Address is recomposed because TRN_Invoice snapshots it.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AuthService.GoogleSignInAsync(Regalis.Application.Auth.GoogleLoginRequest,System.Threading.CancellationToken)">
+             <summary>
+             Google Identity Services token flow: the browser gets an ID token from Google and
+             posts it here. Nothing the SPA says about who the user is is trusted — only what
+             a Google-signed token says, after it has been verified.
+            
+             The result is deliberately the same <see cref="T:Regalis.Application.Auth.LoginResponse"/> a password login
+             returns, so nothing downstream has to care how the member signed in.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AuthService.CreateGoogleCustomerAsync(Regalis.Application.Abstractions.GoogleIdentity,System.DateTime,System.Threading.CancellationToken)">
+            <summary>
+            First Google sign-in. Creates everything OTP registration creates — the user row,
+            the Customer role and the wallet. An account missing either is broken in ways that
+            are hard to trace: no role means no perm claims in the JWT, an empty sidebar from
+            /api/menus/my, and 403 on every guarded endpoint.
             </summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.AuthService.SetPasswordAsync(Regalis.Domain.Entities.Identity.User,System.String,System.DateTime,System.Threading.CancellationToken)">
@@ -562,6 +712,21 @@
             <summary>Leading-magic-byte checks for user uploads — a renamed executable never
             gets stored, whatever its extension claims (used by tickets and profile photos).</summary>
         </member>
+        <member name="T:Regalis.Infrastructure.Services.GstStates">
+             <summary>
+             The GST state codes, for the place-of-supply picker on a quotation (document §2.2).
+             These are statutory and do not change with configuration, so they are a constant
+             rather than an MST_ table: Invariant 6 is about business choices, and the state a
+             customer is in is not one Regalis gets to make.
+            
+             Code 29 (Karnataka) is the one that makes a quotation intra-state, which is a
+             setting (<c>Quotation.HomeStateCode</c>) because Regalis could move.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.GstStates.NameOf(System.String)">
+            <summary>The state's name, or the code itself when it is not one we know —
+            a quotation must still print something sensible.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Services.HousekeepingService">
             <summary>
             Housekeeping / maintenance scheduling (M18). A schedule that blocks a workspace
@@ -616,6 +781,10 @@
             path is an approved quotation, whose figures are carried across verbatim.
             </summary>
         </member>
+        <member name="M:Regalis.Infrastructure.Services.InvoiceService.AdvanceAmountOf(Regalis.Domain.Entities.Finance.Quotation)">
+            <summary>Months of rent, or the flat sum. "A month's rent" is one month of the
+            lines actually priced by the month; an hourly meeting room is not rent.</summary>
+        </member>
         <member name="M:Regalis.Infrastructure.Services.InvoiceService.LoadScopedAsync(System.Int64,System.Threading.CancellationToken)">
             <summary>Customers read their own invoices only, whatever id they pass.</summary>
         </member>
@@ -667,6 +836,15 @@
             from the client). Email is the login and is not edited here. Invoices are
             unaffected by profile edits — they snapshot at issue time.</summary>
         </member>
+        <member name="M:Regalis.Infrastructure.Services.ProfileService.MissingFields(Regalis.Domain.Entities.Identity.User)">
+            <summary>
+            What is still missing, in the order the form shows it. This mirrors
+            User.IsProfileComplete: change a rule there and it changes here too.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.ProfileService.ComposeAddress(Regalis.Domain.Entities.Identity.User)">
+            <summary>Flattens the structured address into the legacy single line.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Services.PurchaseOrderService">
             <summary>
             Purchase orders (document §4). Two rules carry the weight here. Totals are always
@@ -693,56 +871,118 @@
         </member>
         <member name="T:Regalis.Infrastructure.Services.QuotationService">
              <summary>
-             Quotations (document §6–§8). Three rules shape this service.
+             Quotations (document §6–§8). Four rules shape this service.
             
              A quotation is freely editable while Draft and frozen once sent: the customer,
-             company, place-of-supply and tax rates are snapshotted at that moment, so a later
-             settings change or profile edit never rewrites what the customer was quoted — the
-             same rule TRN_Invoice already lives by.
+             company, place-of-supply and tax rates are snapshotted at that moment and the PDF is
+             written to disk, so a later settings change or profile edit never rewrites what the
+             customer was quoted — the same rule TRN_Invoice already lives by.
             
-             Money is computed here, never accepted from the client. Tax comes from Tax.* in
-             MST_AppSetting (Invariant 6) and is rounded away from zero, matching the booking
-             and pass engines, so the invoice generated from an approved quotation agrees to
-             the paisa.
+             New prices never overwrite an old offer. <see cref="M:Regalis.Infrastructure.Services.QuotationService.ReviseAsync(System.Int64,Regalis.Application.Finance.ReviseQuotationRequest,System.Threading.CancellationToken)"/> opens a fresh
+             draft numbered …-R1 and marks the original Revised, so the document the customer
+             approves is always exactly the document they were sent (document §1).
             
-             Approval and rejection are the customer's own act. Each writes an append-only
-             TRN_QuotationStatusHistory row carrying who decided, when, and any reason —
-             the quotation's own row is never rewritten to record history.
+             Money is computed here, never accepted from the client. The whole-quotation discount
+             is split across lines in proportion to their value with the last line absorbing the
+             paisa difference, GST is charged per line and split CGST/SGST inside the home state
+             or as IGST outside it, and the total is rounded to the rupee (document §5.2).
+            
+             Approval and rejection are the customer's own act, recorded with their identity, the
+             moment and their IP. Everything that happens to a quotation — including sends,
+             notes and downloads — is written to the append-only TRN_QuotationEvent timeline.
              </summary>
         </member>
-        <member name="M:Regalis.Infrastructure.Services.QuotationService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Regalis.Application.Abstractions.IQuotationDispatcher,Regalis.Application.Finance.IInvoiceService,Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Services.QuotationService},Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Services.StorageOptions})">
              <summary>
-             Quotations (document §6–§8). Three rules shape this service.
+             Quotations (document §6–§8). Four rules shape this service.
             
              A quotation is freely editable while Draft and frozen once sent: the customer,
-             company, place-of-supply and tax rates are snapshotted at that moment, so a later
-             settings change or profile edit never rewrites what the customer was quoted — the
-             same rule TRN_Invoice already lives by.
+             company, place-of-supply and tax rates are snapshotted at that moment and the PDF is
+             written to disk, so a later settings change or profile edit never rewrites what the
+             customer was quoted — the same rule TRN_Invoice already lives by.
             
-             Money is computed here, never accepted from the client. Tax comes from Tax.* in
-             MST_AppSetting (Invariant 6) and is rounded away from zero, matching the booking
-             and pass engines, so the invoice generated from an approved quotation agrees to
-             the paisa.
+             New prices never overwrite an old offer. <see cref="M:Regalis.Infrastructure.Services.QuotationService.ReviseAsync(System.Int64,Regalis.Application.Finance.ReviseQuotationRequest,System.Threading.CancellationToken)"/> opens a fresh
+             draft numbered …-R1 and marks the original Revised, so the document the customer
+             approves is always exactly the document they were sent (document §1).
             
-             Approval and rejection are the customer's own act. Each writes an append-only
-             TRN_QuotationStatusHistory row carrying who decided, when, and any reason —
-             the quotation's own row is never rewritten to record history.
+             Money is computed here, never accepted from the client. The whole-quotation discount
+             is split across lines in proportion to their value with the last line absorbing the
+             paisa difference, GST is charged per line and split CGST/SGST inside the home state
+             or as IGST outside it, and the total is rounded to the rupee (document §5.2).
+            
+             Approval and rejection are the customer's own act, recorded with their identity, the
+             moment and their IP. Everything that happens to a quotation — including sends,
+             notes and downloads — is written to the append-only TRN_QuotationEvent timeline.
              </summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Services.QuotationService.AllowedAttachmentTypes">
+            <summary>Document §3.4: PDF, images, Word and Excel. Checked by extension, size
+            and leading magic bytes, exactly as ticket attachments are.</summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Services.QuotationService.OpenStatuses">
+            <summary>Statuses that are still waiting on the customer — the "Awaiting reply"
+            card and the expiry sweep both mean exactly these two (document §3.1).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.PdfContextAsync(Regalis.Domain.Entities.Finance.Quotation,System.Threading.CancellationToken)">
+            <summary>The salesperson, the portal link and the company's contact details —
+            everything the printed document needs that the row itself does not carry.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.ApplyLinesAndTotalsAsync(Regalis.Domain.Entities.Finance.Quotation,Regalis.Application.Finance.SaveQuotationRequest,System.Threading.CancellationToken)">
+            <summary>
+            Server-side money, recomputed on every save — totals sent from the browser are
+            ignored. Line value is quantity × duration × unit price; the whole-quotation
+            discount is spread across lines in proportion to that value, with the last
+            paying line absorbing the rounding difference so the shares always add back to
+            the discount. GST is charged per line on what is left, then split CGST/SGST
+            inside the home state or charged as IGST outside it.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.ResolveDateRange(Regalis.Application.Finance.QuotationListRequest)">
+            <summary>The Date filter's presets from document §3.1. Explicit From/To win.</summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.QuotationService.LoadScopedAsync(System.Int64,System.Threading.CancellationToken,System.Boolean)">
             <summary>Customers read their own quotations only, whatever id they pass.</summary>
         </member>
-        <member name="M:Regalis.Infrastructure.Services.QuotationService.ApplyLinesAndTotalsAsync(Regalis.Domain.Entities.Finance.Quotation,Regalis.Application.Finance.SaveQuotationRequest,System.Threading.CancellationToken)">
-            <summary>
-            Server-side money. Line value is quantity × duration × unit price − discount; GST
-            comes from Tax.* and is split CGST/SGST, matching the booking and pass engines.
-            Inter-state IGST is not applied anywhere in the system yet, so it stays zero here
-            too rather than this module inventing a second tax rule.
-            </summary>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.SnapshotAsync(Regalis.Domain.Entities.Finance.Quotation,System.Threading.CancellationToken)">
+            <summary>Freezes customer, company and place of supply onto the quotation. Called
+            once, on the first send — a resend must not re-snapshot a changed profile.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.Fill(System.String,Regalis.Domain.Entities.Finance.Quotation,System.String)">
+            <summary>The placeholders document §3.5 names, substituted in both templates.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.EmailHtml(System.String,System.String)">
+            <summary>The gold "View &amp; approve quotation" button the document asks for
+            (§3.5), wrapped around whatever message the admin typed.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.CopyOf(Regalis.Domain.Entities.Finance.Quotation)">
+            <summary>A fresh draft carrying everything but the identity and the history.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.BaseNumber(System.String)">
+            <summary>"REG/QTN/2026-27/00004-R1" → "REG/QTN/2026-27/00004", so -R2 follows
+            -R1 rather than becoming -R1-R2.</summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.QuotationService.Notify(Regalis.Domain.Entities.Finance.Quotation,System.Nullable{System.Int64},Regalis.Domain.Enums.NotificationAudience,System.String,System.String,System.String,System.String)">
             <summary>Notifications are written as rows, the same way the booking and pass
             engines do it — the broadcast service only serves the admin announcement screen.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.DefaultUnitOf(Regalis.Domain.Enums.QuotationServiceType)">
+            <summary>The unit each service is normally sold in (document §2.1).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.QuotationService.QuotationContact">
+            <summary>The customer's live details, used only while a quotation is a draft.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.QuotationContact.#ctor(System.String,System.String,System.String,System.String,System.String,System.String)">
+            <summary>The customer's live details, used only while a quotation is a draft.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.NamesForAsync(Regalis.Domain.Entities.Finance.Quotation,System.Threading.CancellationToken)">
+            <summary>Every display name the projection needs, fetched in one round trip each
+            rather than per row — the old projection issued a query per line and per history
+            entry, which a 20-row page turned into hundreds.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.ActionsFor(Regalis.Domain.Entities.Finance.Quotation,System.Boolean,System.Boolean,System.Boolean)">
+            <summary>The action matrix from document §3.6, crossed with the caller's
+            permissions. The API re-checks each rule regardless; this only decides what the
+            screen offers, so a customer never sees an admin action at all.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Services.ServiceCatalogueService">
             <summary>Services &amp; Coffee catalogue (M22). Customers browse available items;

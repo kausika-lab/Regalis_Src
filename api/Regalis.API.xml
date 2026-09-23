@@ -37,6 +37,25 @@
             attribute (ARCHITECTURE §5). Non-permission policies fall back to the default provider.
             </summary>
         </member>
+        <member name="T:Regalis.API.Authorization.RequireCompleteProfileAttribute">
+             <summary>
+             Refuses an action until the caller has finished onboarding.
+            
+             The SPA redirects an incomplete member to the onboarding form, but a redirect is not
+             a control — anyone can call the API directly. This is the part that holds, and it goes
+             on the endpoints that cannot do their job without the missing data: anything raising
+             an invoice needs a billing address and a GSTIN.
+            
+             An AUTHORIZATION filter, not an action filter, for two reasons. It runs before model
+             binding and validation, so an incomplete member is told to finish their profile rather
+             than being handed a validation error about a payload that was never going to be
+             accepted. And it means a malformed body cannot be used to probe past the gate.
+            
+             Read-only endpoints are deliberately left open, so an incomplete member can still see
+             their account instead of meeting a wall everywhere. Staff and admins are never
+             blocked — <c>User.IsProfileComplete</c> treats them as complete by definition.
+             </summary>
+        </member>
         <member name="T:Regalis.API.Controllers.AccessController">
             <summary>QR and access control (API_PLAN §9).</summary>
         </member>
@@ -105,6 +124,12 @@
         </member>
         <member name="M:Regalis.API.Controllers.AuthController.Login(Regalis.Application.Auth.LoginRequest,System.Threading.CancellationToken)">
             <summary>Customer or admin login. Returns access + refresh token, user, roles, permissions.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AuthController.Google(Regalis.Application.Auth.GoogleLoginRequest,System.Threading.CancellationToken)">
+            <summary>Google sign-in. Exchanges a Google ID token for the same session
+            <c>login</c> returns, creating the member account on first use.</summary>
+            <remarks>Anonymous and rate limited like the rest — an unauthenticated surface
+            that can create accounts.</remarks>
         </member>
         <member name="M:Regalis.API.Controllers.AuthController.Register(Regalis.Application.Auth.RegisterRequest,System.Threading.CancellationToken)">
             <summary>Customer self-registration. Creates a PendingVerification account and sends an OTP.</summary>
@@ -441,6 +466,15 @@
             <summary>Own-record profile (API_PLAN §4). Always the caller's row — there is no
             id parameter to tamper with.</summary>
         </member>
+        <member name="M:Regalis.API.Controllers.ProfileController.OnboardingStatus(System.Threading.CancellationToken)">
+            <summary>What onboarding still needs, plus the profile to pre-fill the form.</summary>
+            <remarks>Deliberately reachable while the profile is incomplete — it is how the
+            SPA finds out that it is.</remarks>
+        </member>
+        <member name="M:Regalis.API.Controllers.ProfileController.CompleteOnboarding(Regalis.Application.Auth.CompleteOnboardingRequest,System.Threading.CancellationToken)">
+            <summary>Finishes onboarding: phone, company, address, date of birth, gender and
+            GSTIN in one submission. Member accounts only.</summary>
+        </member>
         <member name="T:Regalis.API.Controllers.PurchaseOrdersController">
             <summary>Purchase orders (document §4). A PO is editable only while Draft, and
             receiving goods against it writes the incoming inventory rows in the same
@@ -465,20 +499,28 @@
             <summary>Body for the cancel route — a reason is mandatory, as with a booking.</summary>
         </member>
         <member name="T:Regalis.API.Controllers.QuotationsController">
-            <summary>
-            Quotations (document §6–§8). Both portals are served here: the admin routes manage
-            the quotation, the "my" routes are the customer's own view and their approve/reject
-            decision. Customer routes are scoped by ICurrentUser inside the service, so the id
-            in the URL can never reach another customer's quotation.
-            </summary>
+             <summary>
+             Quotations (document §6–§8). Both portals are served here: the admin routes manage
+             the quotation, the "my" routes are the customer's own view and their approve/reject
+             decision. Customer routes are scoped by ICurrentUser inside the service, so the id
+             in the URL can never reach another customer's quotation.
+            
+             Every state rule the screen shows as a greyed-out button is enforced again here:
+             a sent quotation cannot be edited, only the newest revision can be approved, and a
+             quotation converts to an invoice once and only from Approved.
+             </summary>
         </member>
         <member name="M:Regalis.API.Controllers.QuotationsController.#ctor(Regalis.Application.Finance.IQuotationService)">
-            <summary>
-            Quotations (document §6–§8). Both portals are served here: the admin routes manage
-            the quotation, the "my" routes are the customer's own view and their approve/reject
-            decision. Customer routes are scoped by ICurrentUser inside the service, so the id
-            in the URL can never reach another customer's quotation.
-            </summary>
+             <summary>
+             Quotations (document §6–§8). Both portals are served here: the admin routes manage
+             the quotation, the "my" routes are the customer's own view and their approve/reject
+             decision. Customer routes are scoped by ICurrentUser inside the service, so the id
+             in the URL can never reach another customer's quotation.
+            
+             Every state rule the screen shows as a greyed-out button is enforced again here:
+             a sent quotation cannot be edited, only the newest revision can be approved, and a
+             quotation converts to an invoice once and only from Approved.
+             </summary>
         </member>
         <member name="M:Regalis.API.Controllers.QuotationsController.GetMy(Regalis.Application.Finance.QuotationListRequest,System.Threading.CancellationToken)">
             <summary>The caller's own quotations. Drafts are never included.</summary>
@@ -486,21 +528,48 @@
         <member name="M:Regalis.API.Controllers.QuotationsController.GetMyById(System.Int64,System.Threading.CancellationToken)">
             <summary>Opening a sent quotation marks it Viewed.</summary>
         </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.GetSummary(System.Threading.CancellationToken)">
+            <summary>The four summary cards and the status tab counts (document §3.1).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.GetFormOptions(System.Threading.CancellationToken)">
+            <summary>Services, tax options and defaults for the new-quotation form (§3.2).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.Export(Regalis.Application.Finance.QuotationListRequest,System.Threading.CancellationToken)">
+            <summary>The filtered list as a CSV download (document §3.1).</summary>
+        </member>
         <member name="M:Regalis.API.Controllers.QuotationsController.Update(System.Int64,Regalis.Application.Finance.SaveQuotationRequest,System.Threading.CancellationToken)">
             <summary>Draft only — a quotation the customer has seen is frozen.</summary>
         </member>
-        <member name="M:Regalis.API.Controllers.QuotationsController.Send(System.Int64,System.Threading.CancellationToken)">
-            <summary>Snapshots the customer, company and tax details, then makes the
-            quotation visible in the customer portal.</summary>
+        <member name="M:Regalis.API.Controllers.QuotationsController.Delete(System.Int64,System.Threading.CancellationToken)">
+            <summary>Draft only. The number it used is not handed out again (§5.3).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.Send(System.Int64,Regalis.Application.Finance.SendQuotationRequest,System.Threading.CancellationToken)">
+            <summary>Snapshots the customer, company and tax details, freezes the PDF and
+            delivers it by Email and/or WhatsApp (document §3.5).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.Revise(System.Int64,Regalis.Application.Finance.ReviseQuotationRequest,System.Threading.CancellationToken)">
+            <summary>Opens a new draft …-R1 and marks this one Revised (document §1).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.RecordDecision(System.Int64,Regalis.Application.Finance.RecordQuotationDecisionRequest,System.Threading.CancellationToken)">
+            <summary>An admin recording the customer's decision from a call or a visit
+            (document §3.6). The record says it was taken on their behalf.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.SetInternalNote(System.Int64,Regalis.Application.Finance.QuotationNoteRequest,System.Threading.CancellationToken)">
+            <summary>Admin-only note. Never shown to the customer and never printed.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.AddAttachment(System.Int64,Microsoft.AspNetCore.Http.IFormFile,System.Threading.CancellationToken)">
+            <summary>Multipart upload, ≤10 MB, .pdf .jpg .jpeg .png .docx .xlsx, 5 per
+            quotation — content-sniffed, as ticket attachments are.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.UpdateAttachment(System.Int64,System.Int64,Regalis.Application.Finance.UpdateQuotationAttachmentRequest,System.Threading.CancellationToken)">
+            <summary>Toggles the chip's "Send with email" checkbox.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.DownloadAttachment(System.Int64,System.Int64,System.Threading.CancellationToken)">
+            <summary>Scoped inside the service: a customer can only read their own.</summary>
         </member>
         <member name="M:Regalis.API.Controllers.QuotationsController.GetPdf(System.Int64,System.Threading.CancellationToken)">
-            <summary>Scoped inside the service: a customer can only print their own.</summary>
-        </member>
-        <member name="T:Regalis.API.Controllers.CancelQuotationRequest">
-            <summary>Body for the cancel route — a reason is mandatory, as on a purchase order.</summary>
-        </member>
-        <member name="M:Regalis.API.Controllers.CancelQuotationRequest.#ctor(System.String)">
-            <summary>Body for the cancel route — a reason is mandatory, as on a purchase order.</summary>
+            <summary>Scoped inside the service: a customer can only print their own. Once
+            sent, this is the frozen file, not a fresh render (document §3.8).</summary>
         </member>
         <member name="T:Regalis.API.Controllers.ReportsController">
             <summary>Reports &amp; Analysis (API_PLAN §12, M24). One tabular contract drives

@@ -36,11 +36,48 @@
             (Design Invariant 6). Values are configured by the admin, never compiled in.
             </summary>
         </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Quotation.DefaultGstPercent">
+            <summary>Default GST rate for coworking services, 18 (document §2.3).</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Quotation.GstRateOptions">
+            <summary>GST rates the line dropdown offers, e.g. "0,5,12,18,28".</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Quotation.HomeStateCode">
+            <summary>The state Regalis supplies from; a matching place of supply is
+            intra-state (CGST + SGST), anything else inter-state (IGST). "29" is Karnataka.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Quotation.RoundOffEnabled">
+            <summary>Round the total to the nearest rupee; switchable per §2.3.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Quotation.CustomerNotes">
+            <summary>Pre-filled customer notes, printed on the PDF.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Quotation.TdsOptions">
+            <summary>TDS options as "code|label|percent" rows separated by ';', e.g.
+            "194I|194-I Rent 10%|10;194J|194-J Professional 10%|10" (document §2.3).</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Quotation.EmailSubjectTemplate">
+            <summary>Send templates; {customer_name} {quote_number} {total}
+            {valid_until} {portal_link} are substituted (document §3.5).</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Quotation.PortalBaseUrl">
+            <summary>Base URL the customer portal link is built on.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Quotation.ExpiryReminderDays">
+            <summary>Days before expiry the reminder goes out (document §5.3).</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Quotation.AdvanceMonths">
+            <summary>Default months of rent for the advance/security-deposit invoice.</summary>
+        </member>
         <member name="T:Regalis.Shared.Constants.AuditActions">
             <summary>Values written to <c>TRN_AuditLog.Action</c>.</summary>
         </member>
         <member name="T:Regalis.Shared.Constants.ErrorCodes">
             <summary>Machine-readable error codes carried in <c>ApiError.Code</c> (API_PLAN §1).</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.ErrorCodes.ProfileIncomplete">
+            <summary>Authenticated, but onboarding is unfinished. Distinct from a plain 403
+            so the SPA can route to the onboarding form rather than say "not allowed".</summary>
         </member>
         <member name="T:Regalis.Shared.Constants.PermissionCodes">
             <summary>
@@ -62,6 +99,27 @@
         <member name="T:Regalis.Shared.Constants.RoleCodes">
             <summary>Codes of the seeded <c>MST_Role</c> rows (ROLE_PERMISSION_MATRIX §3).
             Roles are data — these constants exist only for seeding and tests.</summary>
+        </member>
+        <member name="T:Regalis.Shared.IndianMoney">
+            <summary>
+            The two Indian conventions every printed money document here needs: the financial
+            year that runs April to March, and an amount spelled out in the lakh/crore system
+            (document §3.8, §5.3). Kept next to <see cref="T:Regalis.Shared.IstClock"/> because both exist for
+            the same reason — the invariant is local, not cultural-neutral.
+            </summary>
+        </member>
+        <member name="M:Regalis.Shared.IndianMoney.FinancialYearOf(System.DateOnly)">
+            <summary>"2026-27" for any date from 1 April 2026 to 31 March 2027.</summary>
+        </member>
+        <member name="M:Regalis.Shared.IndianMoney.FinancialYearStart(System.DateOnly)">
+            <summary>First day of the financial year the date falls in.</summary>
+        </member>
+        <member name="M:Regalis.Shared.IndianMoney.FinancialYearEnd(System.DateOnly)">
+            <summary>Last day of the financial year the date falls in.</summary>
+        </member>
+        <member name="M:Regalis.Shared.IndianMoney.ToWords(System.Decimal)">
+            <summary>"Rupees One Lakh Twenty One Thousand Two Hundred Ninety Two and Fifty
+            Paise Only". Groups by crore/lakh/thousand, not by the western thousands.</summary>
         </member>
         <member name="T:Regalis.Shared.IstClock">
             <summary>India Standard Time conversions (A13): storage is always UTC, business

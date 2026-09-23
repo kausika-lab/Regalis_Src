@@ -160,6 +160,12 @@
             <summary>Set when this invoice was generated from an approved quotation
             (document §9, rule 5). Null for booking, pass and service-order invoices.</summary>
         </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Invoice.TdsLabel">
+            <summary>Carried from the quotation when one is converted (document §4.4), so
+            the bill still adds up: taxable + GST − TDS + adjustment + round off = total.
+            Zero on an invoice raised directly, which is every invoice raised before
+            quotations learned about TDS.</summary>
+        </member>
         <member name="P:Regalis.Domain.Entities.Finance.Invoice.OutstandingAmount">
             <summary>Computed persisted column: TotalAmount − PaidAmount.</summary>
         </member>
@@ -200,31 +206,154 @@
             <summary>Optional link to the stock master; a PO may buy something not stocked.</summary>
         </member>
         <member name="T:Regalis.Domain.Entities.Finance.Quotation">
-            <summary>TRN_Quotation — the priced offer that precedes an invoice (document §6).
-            This is where "Draft" lives: a quotation is freely editable while Draft, and the
-            invoice it becomes is immutable from the moment it is issued. Customer, company and
-            tax details are snapshotted when the quotation is sent, so the customer's copy and
-            the resulting invoice agree even if settings or the profile change afterwards.</summary>
+             <summary>TRN_Quotation — the priced offer that precedes an invoice (document §6).
+             This is where "Draft" lives: a quotation is freely editable while Draft, and the
+             invoice it becomes is immutable from the moment it is issued. Customer, company and
+             tax details are snapshotted when the quotation is sent, so the customer's copy and
+             the resulting invoice agree even if settings or the profile change afterwards.
+            
+             A sent quotation is never edited again. New prices or terms go out as a revision
+             (…-R1), which is a fresh row pointing back through <see cref="P:Regalis.Domain.Entities.Finance.Quotation.RevisionOfQuotationId"/>
+             while the one the customer already holds is marked Revised — so the document they
+             approve is always exactly the document they were sent.</summary>
         </member>
         <member name="P:Regalis.Domain.Entities.Finance.Quotation.QuotationNumber">
-            <summary>REG/QTN/{FY}/{00001} — gap-free, from MST_NumberSequence.</summary>
+            <summary>REG/QTN/{FY}/{00001} — gap-free, from MST_NumberSequence. A revision
+            keeps the original number and appends -R1, -R2 … so the two read as one thread.</summary>
         </member>
         <member name="P:Regalis.Domain.Entities.Finance.Quotation.ValidUntil">
             <summary>Validity date from the document; the expiry sweeper reads this.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.RevisionOfQuotationId">
+            <summary>The quotation this one replaces. Null on an original (document §5.1).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.RevisionNumber">
+            <summary>0 on an original, 1 for -R1, 2 for -R2 …</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.ReferenceNumber">
+            <summary>Customer PO or enquiry number (document §2.2).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.Subject">
+            <summary>Printed at the top of the PDF and used as the email subject (§2.2).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.SalespersonId">
+            <summary>The admin credited in the sales reports; defaults to the creator.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.DiscountType">
+            <summary>Whole-quotation discount as the admin entered it (§2.2); the rupee
+            value it resolves to is <see cref="P:Regalis.Domain.Entities.Finance.Quotation.DiscountAmount"/>.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.TaxMode">
+            <summary>Intra-state splits CGST + SGST, inter-state charges IGST (§2.3).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.TdsCode">
+            <summary>Optional deduction for corporate customers, e.g. 194-I Rent 10%
+            (document §2.3). Computed on the taxable value and shown as a minus.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.AdjustmentLabel">
+            <summary>Free-form correction with its own label, positive or negative (§2.2).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.RoundOffAmount">
+            <summary>Difference to the nearest rupee; can be switched off in settings (§2.3).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.RejectionCode">
+            <summary>Which of the fixed reasons the customer picked (document §3.7).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.DecisionIpAddress">
+            <summary>The caller's address at the moment of the decision — the document asks
+            that an approval be attributable, not merely timestamped (§5.3).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.DecisionOnBehalf">
+            <summary>True when an admin recorded the decision for a customer who confirmed
+            by phone or in person (document §3.6).</summary>
         </member>
         <member name="P:Regalis.Domain.Entities.Finance.Quotation.InvoiceId">
             <summary>Set when the approved quotation is converted; a quotation yields at
             most one invoice today (see the open question on recurring billing).</summary>
         </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.AdvanceInvoiceEnabled">
+            <summary>Raise a security-deposit invoice automatically on approval (§3.4).
+            Off by default; the amount is either N months of the quoted rent or a flat sum.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.PlaceOfSupplyStateCode">
+            <summary>GST state code, "29" for Karnataka. Decides the tax mode (§2.2).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.Remarks">
+            <summary>Customer-facing notes, printed on the PDF.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.InternalNote">
+            <summary>Admin-only; never shown to the customer and never printed (§3.6).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.PdfPath">
+            <summary>Written once on send and never regenerated, so the customer's copy
+            never changes underneath them (document §3.8).</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.QuotationAttachment">
+             <summary>TRN_QuotationAttachment (document §3.4). Allowed: .pdf .jpg .jpeg .png
+             .docx .xlsx — validated server-side by extension and content sniffing, the same
+             way TicketAttachment does it. Max 10 MB per file, 5 per quotation.
+            
+             <see cref="P:Regalis.Domain.Entities.Finance.QuotationAttachment.SendWithEmail"/> is the chip's checkbox on the form: an attachment can
+             live on the quotation for the admin's reference without going out to the customer.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.QuotationEvent">
+            <summary>TRN_QuotationEvent — the activity timeline (document §3.6, §5.1).
+            Append-only and wider than TRN_QuotationStatusHistory, which it sits beside: a send,
+            a download or an internal note is not a status change but still has to be
+            answerable for. Every row records who, when and through which channel.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationEvent.Summary">
+            <summary>Human-readable line for the timeline, already composed.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationEvent.Channel">
+            <summary>Where a send went: the email address or the +91 number.</summary>
+        </member>
         <member name="T:Regalis.Domain.Entities.Finance.QuotationLine">
-            <summary>TRN_QuotationLine. The document's "Service Type" is modelled as a
-            nullable FK to the existing MST_WorkspaceType (DESK / CABIN / MEETING_ROOM) rather
-            than a new enum, with MST_ServiceItem covering "other workspace services if
-            required later" (§6). Quantity and Duration are separate, as the document lists
-            them: 5 desks for 3 months is Quantity 5, Duration 3 Months.</summary>
+             <summary>TRN_QuotationLine. The document's "Service Type" is modelled as a
+             nullable FK to the existing MST_WorkspaceType (DESK / CABIN / MEETING_ROOM) rather
+             than a new enum, with MST_ServiceItem covering "other workspace services if
+             required later" (§6). Quantity and Duration are separate, as the document lists
+             them: 5 desks for 3 months is Quantity 5, Duration 3 Months.
+            
+             One quotation mixes services freely — a cabin for 3 months, 5 desks for 1 month and
+             a meeting room for 4 hours are three lines on one document (§1).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.LineType">
+            <summary>Header lines are text-only grouping rows and carry no money (§3.3).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.ServiceType">
+            <summary>Cabin / Desk / MeetingRoom / Pass / Other — drives the grouped picker
+            and the Service filter on the list screen (§3.1).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.WorkspaceId">
+            <summary>The specific cabin or meeting room quoted, where one was picked.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.PassPlanId">
+            <summary>The pass plan quoted, for a Day Pass / Monthly Pass line.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.LineNotes">
+            <summary>Optional free text under the service name on the PDF (§3.3).</summary>
         </member>
         <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.DurationUnit">
-            <summary>Hour / Day / Month — free text so a new unit needs no migration.</summary>
+            <summary>Hour / Day / Month / One-time — free text so a new unit needs no
+            migration, and so quotations written before the unit enum still read back.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.StandardRate">
+            <summary>The configured price for this service when the line was written. Kept
+            so the form can flag "changed from ₹27,000 (standard price)" (§3.3).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.DiscountAmount">
+            <summary>Per-line discount, kept for the lines that carry their own.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.DiscountShare">
+            <summary>This line's share of the whole-quotation discount, split in proportion
+            to line value, with the last line absorbing the paisa difference (§5.2).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.TaxableAmount">
+            <summary>Line value less both discounts — the base GST is charged on.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.StartUtc">
+            <summary>Optional booking window, where the quotation names actual dates.</summary>
         </member>
         <member name="T:Regalis.Domain.Entities.Finance.QuotationStatusHistory">
             <summary>TRN_QuotationStatusHistory — append-only, mirroring
@@ -311,8 +440,39 @@
         <member name="T:Regalis.Domain.Entities.Identity.User">
             <summary>MST_User — single user table for every principal; UserType separates the portals.</summary>
         </member>
+        <member name="P:Regalis.Domain.Entities.Identity.User.MobileNumber">
+            <summary>Empty on an account created through Google sign-in, which carries no
+            phone number. UX_User_Mobile therefore excludes the empty string.</summary>
+        </member>
         <member name="P:Regalis.Domain.Entities.Identity.User.PasswordHash">
-            <summary>PBKDF2, versioned string. Never returned by any API.</summary>
+            <summary>PBKDF2, versioned string. Never returned by any API. Null on an account
+            that has only ever signed in with Google — there is no password to verify, and a
+            placeholder hash would be indistinguishable from a real one.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.User.GoogleId">
+            <summary>Google's `sub` claim: stable for the life of the Google account and
+            never reused. Null on an account that has never signed in with Google.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.User.Address">
+            <summary>Legacy single-line address. Kept and kept populated: TRN_Invoice
+            snapshots it, and several DTOs still expose it. The structured parts below are
+            the source of truth and this is composed from them on save.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.User.Gstin">
+            <summary>15-character GSTIN, upper-cased on save. Feeds TRN_Invoice.CustomerGstin,
+            which until now had no customer-level source.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.User.IsProfileComplete">
+             <summary>
+             Whether this member has finished onboarding. One definition, here, so the flag the
+             SPA redirects on and the check that guards booking and purchase can never drift
+             apart and let someone through one but not the other.
+            
+             Only customers are ever asked: staff and admins are created by an administrator,
+             not through a signup form, and have no reason to hold a GSTIN or a date of birth.
+            
+             Not mapped — it is derived, and the EF configuration ignores it.
+             </summary>
         </member>
         <member name="T:Regalis.Domain.Entities.Identity.UserRole">
             <summary>MAP_UserRole.</summary>
@@ -369,6 +529,11 @@
         </member>
         <member name="P:Regalis.Domain.Entities.Masters.Workspace.WorkspaceCode">
             <summary>D-001, C-001, MR-001 — unique per location.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Masters.Workspace.PricePerMonth">
+            <summary>Monthly rate for a cabin or dedicated desk. Quotations price cabins and
+            desks by the month (document §2.1), which hourly and daily rates cannot express;
+            null means no standard monthly price is configured and the admin types one.</summary>
         </member>
         <member name="P:Regalis.Domain.Entities.Masters.Workspace.Equipment">
             <summary>Comma list, e.g. "Projector,Whiteboard,VC".</summary>
@@ -451,6 +616,53 @@
             <summary>The quotation lifecycle from document §6/§20. Draft lives here, not on
             the invoice: an invoice exists only once issued, and is immutable from that moment.</summary>
         </member>
+        <member name="F:Regalis.Domain.Enums.QuotationStatus.Revised">
+            <summary>Superseded by a newer revision (…-R1). A final state: the customer
+            sees it as "Replaced", and only the newest revision can still be approved.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.QuotationDiscountType">
+            <summary>Whether the whole-quotation discount is a percentage of the sub total or
+            a flat rupee amount (document §2.2). The percentage is stored as typed so a later
+            price change never silently rewrites what the customer was offered.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.QuotationTaxMode">
+            <summary>GST split for a quotation. Karnataka (state code 29) is intra-state and
+            splits CGST + SGST; every other place of supply is inter-state and charges IGST
+            (document §2.3).</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.QuotationLineType">
+            <summary>What a quotation line represents. Header is a text-only grouping row: it
+            carries no money and is skipped by every total (document §3.3).</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.QuotationServiceType">
+            <summary>The workspace service a line quotes (document §2.1). Kept alongside the
+            existing WorkspaceTypeId so the grouped picker can offer passes and free-text
+            lines, which have no MST_WorkspaceType row.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.QuotationDurationUnit">
+            <summary>How a quotation line's duration is counted (document §2.1). OneTime is a
+            flat charge — a pass or a setup fee — and never multiplies the rate.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.QuotationDecisionMode">
+            <summary>How the approve/reject decision reached Regalis. Portal is the customer's
+            own click; the rest are an admin recording a decision on their behalf (§3.6).</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.QuotationAdvanceType">
+            <summary>The security-deposit advance invoice raised on approval (document §3.4):
+            either a number of months of the quoted rent, or a flat amount.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.QuotationEventType">
+            <summary>Audit trail for a quotation (document §5.1). Wider than the status
+            history it sits beside: it records sends, downloads and notes, which are not
+            status changes but still have to be answerable for.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.QuotationActorType">
+            <summary>Who caused a quotation event, for the activity timeline (§3.6).</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.QuotationDeliveryStatus">
+            <summary>Delivery outcome of one send attempt, shown per channel on the activity
+            timeline with a Retry when it failed (§3.6).</summary>
+        </member>
         <member name="T:Regalis.Domain.Enums.PurchaseOrderStatus">
             <summary>Purchase order lifecycle from document §4/§20. PartiallyReceived and
             Received are derived from the lines' ReceivedQuantity, never set by hand.</summary>
@@ -462,6 +674,11 @@
         <member name="T:Regalis.Domain.Enums.ReconciliationStatus">
             <summary>Reconciliation lifecycle from document §14. Matched means a candidate
             system record is linked; Reconciled means a human confirmed it.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.Gender">
+            <summary>Self-declared, and never used to decide anything — it is collected for
+            records only. "PreferNotToSay" is a real answer, not the absence of one; a member who
+            has not reached that question yet has no Gender at all.</summary>
         </member>
         <member name="T:Regalis.Domain.Enums.PortalType">
             <summary>Which portal a role or menu belongs to.</summary>

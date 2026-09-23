@@ -279,3 +279,170 @@ a.rep-card__title:hover{color:var(--regalis-gold-dark)}
 .inv-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-4)}
 .inv-kv__k{font-size:var(--font-size-xs);color:var(--text-muted)}
 .inv-kv__v{font-weight:600;color:var(--text-primary)}
+
+/* ── Quotations (specification SS3.1–SS3.7) ──────────────────────────────── */
+.qtn-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:var(--space-4);margin-bottom:var(--space-4)}
+.qtn-stat{display:flex;flex-direction:column;gap:var(--space-1);text-align:left;padding:var(--space-4) var(--space-5);background:var(--surface-card);background-image:var(--card-sheen);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);cursor:pointer;font:inherit;color:inherit;transition:border-color .15s ease,box-shadow .15s ease}
+.qtn-stat:hover{border-color:var(--regalis-gold)}
+.qtn-stat--active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.qtn-stat__l{font-size:var(--font-size-xs);color:var(--text-muted)}
+.qtn-stat__v{font-size:var(--font-size-xl);font-weight:700;line-height:1.15;color:var(--text-primary)}
+.qtn-stat__h{font-size:var(--font-size-xs);color:var(--regalis-gold-dark)}
+
+.qtn-tabs{display:flex;flex-wrap:wrap;gap:var(--space-4);border-bottom:1px solid var(--border-subtle);margin-bottom:var(--space-4)}
+.qtn-tab{display:inline-flex;align-items:center;gap:var(--space-2);padding:var(--space-2) 0;background:none;border:0;border-bottom:2px solid transparent;font:inherit;font-size:var(--font-size-sm);color:var(--text-muted);cursor:pointer}
+.qtn-tab:hover{color:var(--text-primary)}
+.qtn-tab--active{color:var(--regalis-gold-dark);border-bottom-color:var(--accent);font-weight:600}
+.qtn-tab__count{display:inline-block;min-width:1.4rem;padding:0 .35rem;border-radius:var(--radius-full);background:var(--surface-inset);font-size:var(--font-size-xs);text-align:center}
+.qtn-tab--active .qtn-tab__count{background:rgb(var(--accent-rgb) / 16%);color:var(--regalis-gold-dark)}
+
+/* Status pill colours are fixed by the specification, not by the theme. */
+.qtn-pill{display:inline-block;padding:.2rem .6rem;border-radius:var(--radius-full);font-size:var(--font-size-xs);font-weight:600;white-space:nowrap}
+.qtn-pill--draft{background:#EEEAE3;color:#5B554C}
+.qtn-pill--sent{background:#F5EBD0;color:#9A7A1C}
+.qtn-pill--viewed{background:#E4ECF7;color:#2E5A99}
+.qtn-pill--approved{background:#E3F3EA;color:#1E7B4F}
+.qtn-pill--rejected{background:#FBE7E5;color:#B42318}
+.qtn-pill--expired{background:#F1E9DF;color:#8A6A4A}
+.qtn-pill--revised{background:#ECE7F5;color:#5B4A91}
+.qtn-pill--cancelled{background:#FBE7E5;color:#B42318}
+
+.qtn-due{font-size:var(--font-size-xs);color:var(--text-muted)}
+.qtn-due--soon{color:#9A7A1C;font-weight:600}
+.qtn-cell__strong{font-weight:600}
+.qtn-cell__muted{font-size:var(--font-size-xs);color:var(--text-muted)}
+.qtn-link{background:none;border:0;padding:0;font:inherit;color:var(--regalis-gold-dark);text-decoration:underline;cursor:pointer}
+.qtn-filternote{margin-bottom:var(--space-3);font-size:var(--font-size-sm);color:var(--text-muted)}
+.data-table__row--clickable{cursor:pointer}
+.data-table__row--clickable:hover{background:var(--surface-hover)}
+
+/* Row "more actions" menu */
+.qtn-menu{position:relative;display:inline-block}
+.qtn-menu__trigger{width:2rem;height:2rem;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-card);color:var(--text-secondary);font-size:1rem;line-height:1;cursor:pointer}
+.qtn-menu__trigger:hover{border-color:var(--regalis-gold);color:var(--text-primary)}
+.qtn-menu__list{position:absolute;right:0;top:calc(100% + 4px);z-index:30;min-width:190px;padding:var(--space-1);background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);box-shadow:var(--shadow-lg)}
+.qtn-menu__item{display:block;width:100%;padding:var(--space-2) var(--space-3);background:none;border:0;border-radius:var(--radius-sm);font:inherit;font-size:var(--font-size-sm);text-align:left;color:var(--text-primary);cursor:pointer}
+.qtn-menu__item:hover{background:var(--surface-hover)}
+.qtn-menu__item--danger{color:var(--color-danger)}
+
+/* Create / edit form */
+.qtn-form{padding-bottom:5.5rem}
+.qtn-band{padding:var(--space-4) var(--space-5);margin-bottom:var(--space-4);background:rgb(var(--accent-rgb) / 8%);border:1px solid var(--border-subtle);border-radius:var(--radius-lg)}
+.qtn-lines{display:flex;flex-direction:column;gap:var(--space-4)}
+.qtn-line{padding:var(--space-3) var(--space-4);border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--surface-card)}
+.qtn-line--header{background:var(--surface-inset)}
+.qtn-line__bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-2)}
+.qtn-line__no{font-size:var(--font-size-xs);color:var(--text-muted);font-weight:600}
+.qtn-line__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--space-3)}
+.qtn-line__service{grid-column:span 2}
+.qtn-line__amount{display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;gap:var(--space-1)}
+.qtn-iconbtn{width:1.9rem;height:1.9rem;border:1px solid var(--border-subtle);border-radius:var(--radius-sm);background:var(--surface-card);color:var(--text-secondary);line-height:1;cursor:pointer}
+.qtn-iconbtn:hover{border-color:var(--regalis-gold);color:var(--text-primary)}
+.qtn-iconbtn--danger:hover{border-color:var(--color-danger);color:var(--color-danger)}
+
+.qtn-closing{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);align-items:start}
+.qtn-totals__row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-2) 0;font-size:var(--font-size-sm)}
+.qtn-totals__row--input{gap:var(--space-2)}
+.qtn-totals__row--grand{border-top:1px solid var(--border-subtle);margin-top:var(--space-2);padding-top:var(--space-3);font-size:var(--font-size-lg);font-weight:700}
+.qtn-totals__control{display:flex;gap:var(--space-2)}
+.qtn-totals__num{width:7rem;text-align:right}
+.qtn-totals__unit{width:5rem}
+.qtn-totals__tds{width:auto;max-width:14rem}
+.qtn-totals__label{max-width:11rem}
+.qtn-totals--read{border-top:1px solid var(--border-subtle);margin-top:var(--space-4);padding-top:var(--space-2)}
+.qtn-terms{min-height:11rem;font-family:var(--font-sans)}
+.qtn-advance{margin:var(--space-3) 0}
+
+.qtn-files{display:flex;flex-direction:column;gap:var(--space-2)}
+.qtn-chips{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+.qtn-chip{display:inline-flex;align-items:center;gap:var(--space-2);padding:var(--space-1) var(--space-3);background:var(--surface-inset);border:1px solid var(--border-subtle);border-radius:var(--radius-full);font-size:var(--font-size-xs);color:var(--text-primary);text-decoration:none}
+.qtn-chip__name{font-weight:600}
+.qtn-chip__size{color:var(--text-muted)}
+
+.qtn-actionbar{position:sticky;bottom:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);flex-wrap:wrap;margin-top:var(--space-4);padding:var(--space-3) var(--space-5);background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);box-shadow:var(--shadow-float)}
+.qtn-actionbar__meta{font-size:var(--font-size-xs);color:var(--text-muted)}
+
+/* Detail */
+.qtn-banner{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);margin-bottom:var(--space-4);border-radius:var(--radius-md);font-size:var(--font-size-sm);border:1px solid transparent}
+.qtn-banner--approved{background:#E3F3EA;color:#1E7B4F;border-color:#C6E5D3}
+.qtn-banner--rejected{background:#FBE7E5;color:#B42318;border-color:#F3CFCB}
+.qtn-banner--expired{background:#F1E9DF;color:#8A6A4A;border-color:#E2D5C4}
+.qtn-banner--revised{background:#ECE7F5;color:#5B4A91;border-color:#D8CFEA}
+.qtn-banner--draft{background:#EEEAE3;color:#5B554C;border-color:#DED8CE}
+.qtn-banner--sent{background:#F5EBD0;color:#9A7A1C;border-color:#E9DAB4}
+.qtn-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-4);margin-bottom:var(--space-3)}
+.qtn-detail__label{font-size:var(--font-size-xs);color:var(--text-muted)}
+.qtn-detail-layout{display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:var(--space-4);align-items:start}
+.qtn-row-header{font-weight:700;color:var(--regalis-gold-dark);background:var(--surface-inset)}
+
+.qtn-timeline{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3)}
+.qtn-timeline__item{padding-left:var(--space-4);border-left:2px solid var(--border-subtle)}
+.qtn-timeline__item--failed{border-left-color:var(--color-danger)}
+.qtn-timeline__text{font-size:var(--font-size-sm);word-break:break-word}
+.qtn-timeline__meta{font-size:var(--font-size-xs);color:var(--text-muted)}
+
+/* Customer portal */
+.qtn-portal__status{margin-bottom:var(--space-3)}
+.qtn-portal--decidable{padding-bottom:5rem}
+.qtn-decisionbar{position:fixed;left:0;right:0;bottom:0;z-index:25;display:flex;gap:var(--space-3);justify-content:flex-end;padding:var(--space-3) var(--space-5);background:var(--surface-card);border-top:1px solid var(--border-subtle);box-shadow:var(--shadow-float)}
+.qtn-decisionbar .btn{flex:1 1 auto;justify-content:center}
+.qtn-thanks{display:flex;flex-direction:column;align-items:center;gap:var(--space-3);text-align:center;padding:var(--space-8) var(--space-4)}
+.qtn-thanks__mark{display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:var(--radius-full);background:#E3F3EA;color:#1E7B4F;font-size:1.8rem}
+
+@media (max-width:900px){
+  .qtn-closing{grid-template-columns:1fr}
+  .qtn-detail-layout{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .qtn-line__service{grid-column:auto}
+  .qtn-line__grid{grid-template-columns:1fr}
+  .qtn-line__amount{align-items:flex-start}
+  .qtn-actionbar{flex-direction:column;align-items:stretch}
+  .qtn-tabs{gap:var(--space-3);overflow-x:auto;flex-wrap:nowrap}
+  .qtn-tab{white-space:nowrap}
+  .qtn-totals__label{max-width:none}
+  .qtn-decisionbar{justify-content:stretch}
+}
+
+/* ── Text contrast ──────────────────────────────────────────────────────────
+   Audited against WCAG AA on the live pages. The light theme failed in four
+   places; the dark theme already passed, so it is deliberately left alone. That
+   is why these are token overrides in a bare :root rather than per-page fixes —
+   :root[data-theme=dark] outranks :root, so dark keeps its own values and the
+   palette stays theme-adaptive by construction.
+
+   Measured on --surface-card #fffdf8 / --surface-page #f6f1e7:
+     --text-muted    #8b8270  3.74:1  ->  #6f6654  5.58:1 card, 5.03:1 page
+     --accent-strong #a2831c  3.22:1  ->  #85691a  5.13:1 card, 4.62:1 page
+   --text-muted carries nearly every small label on the Passes page (plan
+   descriptions, pass numbers, "Purchased … valid until", per-day prices), which
+   is what made that screen look washed out. */
+:root{
+  --text-muted: #6f6654;
+  --accent-strong: #85691a;
+}
+
+/* Status badges print their status colour on a ~12%-opacity wash of itself, so
+   on a cream card the text lands at 3.1-3.2:1. Restated for the light theme
+   only — on the dark card the same colours already clear AA. */
+:root:not([data-theme=dark]) .badge--success{color:#166534}
+:root:not([data-theme=dark]) .badge--warning{color:#92400e}
+:root:not([data-theme=dark]) .badge--danger{color:#991b1b}
+:root:not([data-theme=dark]) .badge--info{color:#1e40af}
+
+/* Dark theme: the danger badge is the one status colour that does not clear AA
+   on its own dark wash (#dc2626 lands at 3.70:1). The other three do, and are
+   left as they are. */
+:root[data-theme=dark] .badge--danger{color:#fca5a5}
+
+/* ── Membership hero ────────────────────────────────────────────────────────
+   The hero paints its own near-black gradient, so shared components on it
+   inherit light-theme colours and vanish. Fixed values, not tokens: the hero is
+   dark in BOTH themes, so a token that flips would break one of them.
+
+   These must come after the badge rules above and match their specificity, or
+   the light-theme badge colour would repaint this badge dark-on-dark. */
+:root .mem-hero .badge--success{background:#22c55e38;color:#86efac}
+:root .mem-hero .btn--outline{background:#ffffff14;border-color:#ffffff8c;color:var(--regalis-white)}
+:root .mem-hero .btn--outline:hover:not(:disabled){background:#ffffff26;border-color:var(--accent-bright);color:var(--accent-bright)}
+:root .mem-hero .btn--outline:focus-visible{outline:2px solid var(--accent-bright);outline-offset:2px}

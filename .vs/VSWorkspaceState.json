@@ -1,8 +1,11 @@
 {
   "ExpandedNodes": [
     "",
-    "\\frontend",
-    "\\frontend\\assets"
+    "\\api",
+    "\\api\\LatoFont",
+    "\\docs\\google-login",
+    "\\frontend"
   ],
+  "SelectedNode": "\\api\\LatoFont\\Lato-BlackItalic.ttf",
   "PreviewInSolutionExplorer": false
 }

@@ -15,6 +15,17 @@ public enum UserStatus : byte
     PendingVerification = 4
 }
 
+/// <summary>Self-declared, and never used to decide anything — it is collected for
+/// records only. "PreferNotToSay" is a real answer, not the absence of one; a member who
+/// has not reached that question yet has no Gender at all.</summary>
+public enum Gender : byte
+{
+    Male = 1,
+    Female = 2,
+    Other = 3,
+    PreferNotToSay = 4
+}
+
 /// <summary>Which portal a role or menu belongs to.</summary>
 public enum PortalType : byte
 {

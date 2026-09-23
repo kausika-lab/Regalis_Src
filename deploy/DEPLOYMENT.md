@@ -9,7 +9,8 @@ the same steps with production values and `ASPNETCORE_ENVIRONMENT=Production`
 
 | Item | Requirement |
 |------|-------------|
-| .NET | ASP.NET Core Runtime 8.0.x (or self-contained publish) |
+| .NET (Linux) | ASP.NET Core Runtime 8.0.x, or a self-contained publish |
+| .NET (Windows + IIS) | **ASP.NET Core 8.0.x Hosting Bundle** — the downloaded file must be named `dotnet-hosting-8.0.xx-win.exe`. The plain runtime and the SDK do *not* work; see §5.1 |
 | Database | SQL Server 2019+ (any edition), a `RegalisWorkSpace_UAT` database and a login with `db_owner` on it during deployment, `db_datareader`/`db_datawriter` + `EXECUTE` at runtime |
 | Web server | Anything that can reverse-proxy: IIS (ANCM), Nginx or YARP. The SPA and the API **should share one origin** — the frontend calls the relative path `/api` and the PWA service worker caches only same-origin API calls |
 | TLS | A certificate for the UAT hostname; HTTPS end-to-end |
@@ -86,8 +87,99 @@ server {
 }
 ```
 
-IIS equivalent: site → `dist/`, ARR/ANCM reverse-proxy rule for `/api`,
-URL-rewrite SPA fallback to `/index.html`.
+### IIS (same origin)
+
+Same shape as the Nginx sketch — a static site for `dist/`, a loopback site for
+the API, and a rewrite rule joining them.
+
+#### 5.1 The Hosting Bundle — the one download that matters
+
+On <https://dotnet.microsoft.com/download/dotnet/8.0>, in the **Windows**
+column, take **Hosting Bundle**. The file that lands must be named
+`dotnet-hosting-8.0.xx-win.exe` — the word *hosting* in the filename is the
+check.
+
+`aspnetcore-runtime-…`, `dotnet-runtime-…` and `dotnet-sdk-…` are the wrong
+file. They install the runtime but not the ASP.NET Core Module, and the module
+is what the published `web.config` binds to
+(`modules="AspNetCoreModuleV2"`, `hostingModel="inprocess"`), so IIS answers
+every request with **HTTP 500.19 — module not recognised**.
+
+Order matters: enable the IIS role **first**, then run the bundle. If IIS is
+added afterwards the module is never registered — re-run the installer and
+choose *Repair*. Finish with `iisreset`.
+
+Verify all three before going further:
+
+```powershell
+Test-Path "$env:ProgramFiles\IIS\Asp.Net Core Module\V2\aspnetcorev2.dll"   # True
+& "$env:SystemRoot\System32\inetsrv\appcmd.exe" list module /name:AspNetCoreModuleV2
+dotnet --list-runtimes | Select-String 'Microsoft.AspNetCore.App 8\.'
+```
+
+Two further downloads are needed for the rules in §5.3 and are **not** in the
+bundle: **URL Rewrite 2.1** and **Application Request Routing 3.0**. After
+installing ARR, enable the proxy once at server level: IIS Manager → server
+node → *Application Request Routing Cache* → *Server Proxy Settings* → tick
+**Enable proxy**.
+
+#### 5.2 Sites
+
+| Site | Binding | Physical path | App pool |
+|------|---------|---------------|----------|
+| `regalis-api` | `http://127.0.0.1:5000` | published API (`artifacts/api`) | `regalis-api` — **No Managed Code** |
+| `regalis` | `https://uat.regalis.example:443` | `frontend/dist` | `regalis-static` — **No Managed Code** |
+
+Both pools are *No Managed Code*: ANCM hosts the app, the .NET Framework
+pipeline is not involved.
+
+Do **not** shortcut this by hosting the API as an IIS application at the `/api`
+virtual path. ANCM makes that path the app's `PathBase` and strips it, so
+`/api/auth/login` arrives as `/auth/login` and matches no controller — the
+controllers already carry the `api/` prefix themselves.
+
+`dotnet publish` regenerates the API's `web.config` on every deploy, so keep
+the §4 environment variables out of it — set them on the app pool or as
+machine-level variables, or re-apply them as a deploy step.
+
+The app-pool identity needs read on both folders, and write on
+`Storage__UploadRoot` and on the ANCM `logs\` folder if `stdoutLogEnabled` is
+ever turned on.
+
+#### 5.3 `web.config` for the static site
+
+The rules live in **`frontend/public/web.config`**, not in `dist/` — `vite build`
+copies `public/` into `dist/`, so every rebuild carries them and a redeploy of
+`dist/` cannot silently lose them. They do three things:
+
+- rewrite `^(api/.*|health.*|swagger.*)$` to the API site (ARR proxy). The port
+  in that rule must match the API site's binding;
+- SPA fallback: anything that is not an existing file or directory → `/index.html`;
+- serve `.webmanifest` as `application/manifest+json` (IIS has no such mapping
+  out of the box, so the PWA manifest would otherwise 404), cache `assets/`
+  for a year (hashed filenames) and never cache `sw.js`.
+
+`swagger` is UAT only — drop it from the alternation in Production.
+
+#### 5.4 As deployed on the UAT box (2026-09-01)
+
+| | |
+|---|---|
+| Hosting Bundle | 8.0.30 (`dotnet-hosting-8.0.30-win.exe`), ANCM V2 registered |
+| IIS modules | URL Rewrite 2.1, ARR 3.0, server proxy `enabled="true"` |
+| API site | `regalis-api`, `http://*:81`, `C:\inetpub\wwwroot\Regalis_Src\api` |
+| SPA site | `regalis-ui`, `http://*:8080`, `C:\inetpub\wwwroot\Regalis_Src\frontend` |
+| Database | `RegalisWorkSpace_UAT` on `localhost` (SQL Server 2025), 46 tables, 3 migrations |
+| DB access | `IIS APPPOOL\regalis-api` — `db_datareader`, `db_datawriter`, `EXECUTE` on `dbo` |
+| Uploads | `C:\ProgramData\Regalis\uploads` (Modify for the app-pool identity) |
+| Node | 24.20.0 LTS / npm 11.19.0 (frontend build toolchain) |
+
+Environment variables are set in the deployed API's `web.config`
+`<environmentVariables>` — remember §5.2: `dotnet publish` overwrites that file,
+so re-apply them after each deploy.
+
+**Still open:** TLS. The SPA site is HTTP on `:8080` — bind 443 with a real
+certificate for the UAT hostname before this is exposed beyond the host.
 
 ## 6. Smoke checklist (10 minutes, in order)
 

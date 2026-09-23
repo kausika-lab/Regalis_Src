@@ -13,6 +13,7 @@ interface AuthState {
   isAuthenticated: () => boolean;
   hasPermission: (code: string) => boolean;
   setSession: (login: LoginResponse) => void;
+  updateUser: (patch: Partial<AuthUser>) => void;
   setTokens: (accessToken: string, refreshToken: string) => void;
   setMenus: (menus: MenuItem[]) => void;
   clearSession: () => void;
@@ -46,6 +47,12 @@ export const useAuthStore = create<AuthState>()(
           roles: login.roles,
           permissions: login.permissions,
         }),
+
+      /** Keeps the session's copy of the identity in step when the user edits
+       *  their own profile — the topbar and dashboard greeting read from here,
+       *  and previously only a fresh sign-in refreshed them. */
+      updateUser: (patch) =>
+        set((state) => (state.user ? { user: { ...state.user, ...patch } } : {})),
 
       setTokens: (accessToken, refreshToken) => set({ accessToken, refreshToken }),
 

@@ -59,6 +59,12 @@ public record InventoryTransactionDto(
     DateOnly TransactionDate,
     string? SourceOrDestination,
     string? ReferenceNumber,
+    int? SupplierId,
+    string? SupplierName,
+    long? PurchaseOrderId,
+    string? PoNumber,
+    string? PurchaseInvoiceNumber,
+    string? AttachmentPath,
     decimal? UnitCost,
     string? DamageDescription,
     string? DamageCause,
@@ -78,7 +84,12 @@ public record CreateInventoryTransactionRequest(
     decimal? UnitCost,
     string? DamageDescription,
     string? DamageCause,
-    string? Notes);
+    string? Notes,
+    // Appended with defaults so existing positional call sites keep compiling.
+    int? SupplierId = null,
+    long? PurchaseOrderId = null,
+    string? PurchaseInvoiceNumber = null,
+    string? AttachmentPath = null);
 
 public class InventoryItemListRequest : PagedRequest
 {
@@ -91,6 +102,8 @@ public class InventoryItemListRequest : PagedRequest
 public class InventoryTransactionListRequest : PagedRequest
 {
     public int? InventoryItemId { get; set; }
+    public int? SupplierId { get; set; }
+    public long? PurchaseOrderId { get; set; }
     public byte? TransactionType { get; set; }
     public DateOnly? From { get; set; }
     public DateOnly? To { get; set; }
@@ -137,6 +150,14 @@ public class CreateInventoryTransactionRequestValidator : AbstractValidator<Crea
         RuleFor(x => x.DamageDescription).NotEmpty()
             .When(x => x.TransactionType == 3)
             .WithMessage("Describe the damage — the ledger is the audit history.");
+        RuleFor(x => x.SupplierId).GreaterThan(0).When(x => x.SupplierId is not null);
+        RuleFor(x => x.PurchaseOrderId).GreaterThan(0).When(x => x.PurchaseOrderId is not null);
+        RuleFor(x => x.PurchaseInvoiceNumber).MaximumLength(80);
+        RuleFor(x => x.AttachmentPath).MaximumLength(500);
+        // Supplier provenance belongs to goods coming in, not going out.
+        RuleFor(x => x.SupplierId).Null()
+            .When(x => x.TransactionType is 2 or 3)
+            .WithMessage("A supplier applies to incoming goods, not to an issue or damage row.");
     }
 }
 

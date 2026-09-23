@@ -18,7 +18,11 @@ public record AuthUserDto(
     string Email,
     byte UserType,
     string? PhotoPath,
-    int? DefaultLocationId);
+    int? DefaultLocationId,
+    // False when the member still owes us onboarding details. The SPA routes on this;
+    // the API independently blocks booking and purchase, so a client that ignores it
+    // gets no further.
+    bool IsProfileComplete = true);
 
 public record LoginResponse(
     string AccessToken,
@@ -28,13 +32,33 @@ public record LoginResponse(
     IReadOnlyList<string> Roles,
     IReadOnlyList<string> Permissions);
 
+/// <summary>The ID token the browser received from Google Identity Services. The SPA
+/// posts it unchanged; the API verifies it against Google rather than trusting anything
+/// the SPA claims about who the user is.</summary>
+public record GoogleLoginRequest(string IdToken);
+
+/// <summary>
+/// Self-registration. The profile fields are optional on the wire so an older client
+/// keeps working, but the SPA sends them all and whatever arrives is stored — until now
+/// they were accepted and silently dropped, which left every account incomplete.
+/// Anyone who registers without them is sent to onboarding at first sign-in.
+/// </summary>
 public record RegisterRequest(
     string FullName,
     string Email,
     string MobileNumber,
     string Password,
     string ConfirmPassword,
-    string? CompanyName);
+    string? CompanyName,
+    string? AddressLine1 = null,
+    string? AddressLine2 = null,
+    string? City = null,
+    string? State = null,
+    string? Country = null,
+    string? PostalCode = null,
+    DateOnly? DateOfBirth = null,
+    byte? Gender = null,
+    string? Gstin = null);
 
 public record RegisterResponse(string Destination, int OtpTtlMinutes);
 

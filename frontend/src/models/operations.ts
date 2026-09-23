@@ -109,6 +109,12 @@ export interface InventoryTransaction {
   transactionDate: string;
   sourceOrDestination: string | null;
   referenceNumber: string | null;
+  supplierId: number | null;
+  supplierName: string | null;
+  purchaseOrderId: number | null;
+  poNumber: string | null;
+  purchaseInvoiceNumber: string | null;
+  attachmentPath: string | null;
   unitCost: number | null;
   damageDescription: string | null;
   damageCause: string | null;
@@ -130,6 +136,10 @@ export interface CreateInventoryTransactionPayload {
   damageDescription?: string | null;
   damageCause?: string | null;
   notes?: string | null;
+  supplierId?: number | null;
+  purchaseOrderId?: number | null;
+  purchaseInvoiceNumber?: string | null;
+  attachmentPath?: string | null;
 }
 
 export const INVENTORY_TXN_LABELS: Record<number, string> = {

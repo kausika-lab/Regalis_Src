@@ -31,6 +31,11 @@ internal static class SeedCatalogue
         ("ATTENDANCE", ["VIEW", "CREATE", "EDIT", "APPROVE", "EXPORT"]),
         ("PAYROLL", ["VIEW", "EXPORT"]),
         ("INVENTORY", ["VIEW", "CREATE", "EDIT", "DELETE", "EXPORT"]),
+        ("SUPPLIER", ["VIEW", "CREATE", "EDIT", "DELETE"]),
+        ("PURCHASE", ["VIEW", "CREATE", "EDIT", "DELETE", "APPROVE", "EXPORT"]),
+        ("EXPENSE", ["VIEW", "CREATE", "EDIT", "DELETE", "EXPORT"]),
+        ("QUOTATION", ["VIEW", "CREATE", "EDIT", "DELETE", "APPROVE", "EXPORT", "PRINT"]),
+        ("BANK", ["VIEW", "CREATE", "EDIT", "DELETE", "RECONCILE", "EXPORT"]),
         ("HOUSEKEEPING", ["VIEW", "CREATE", "EDIT", "DELETE", "APPROVE"]),
         ("SERVICE", ["VIEW", "CREATE", "EDIT", "DELETE"]),
         ("BANNER", ["VIEW", "CREATE", "EDIT", "DELETE"]),
@@ -63,6 +68,7 @@ internal static class SeedCatalogue
             ("CALENDAR", ["VIEW"]), ("BOOKING", ["VIEW", "CREATE", "EDIT"]),
             ("PAYMENT", ["VIEW", "CREATE"]), ("WALLET", ["VIEW", "CREATE"]),
             ("INVOICE", ["VIEW", "PRINT"]), ("PASS", ["VIEW", "CREATE"]),
+            ("QUOTATION", ["VIEW", "APPROVE", "PRINT"]),
             ("ACCESS", ["VIEW"]), ("ATTENDANCE", ["VIEW"]), ("SERVICE", ["VIEW", "CREATE"]),
             ("BANNER", ["VIEW"]), ("NOTIFICATION", ["VIEW", "EDIT"]),
             ("TICKET", ["VIEW", "CREATE", "EDIT"])
@@ -76,6 +82,9 @@ internal static class SeedCatalogue
             ("INVOICE", ["VIEW", "PRINT"]), ("PASS", ["*"]),
             ("ACCESS", ["VIEW", "CREATE", "EDIT", "OVERRIDE"]), ("ATTENDANCE", ["*"]),
             ("INVENTORY", ["*"]), ("HOUSEKEEPING", ["*"]), ("SERVICE", ["*"]),
+            ("SUPPLIER", ["*"]), ("PURCHASE", ["*"]), ("EXPENSE", ["VIEW", "CREATE", "EXPORT"]),
+            ("QUOTATION", ["VIEW", "CREATE", "EDIT", "DELETE", "EXPORT", "PRINT"]),
+            ("BANK", ["VIEW", "EXPORT"]),
             ("BANNER", ["*"]), ("NOTIFICATION", ["VIEW", "CREATE"]), ("TICKET", ["*"]),
             ("REPORT", ["VIEW", "EXPORT", "PRINT"])
         ],
@@ -86,13 +95,17 @@ internal static class SeedCatalogue
             ("PAYMENT", ["*"]), ("WALLET", ["*"]), ("INVOICE", ["*"]),
             ("PASS", ["VIEW", "EXPORT"]), ("ACCESS", ["VIEW"]),
             ("ATTENDANCE", ["VIEW", "EXPORT"]), ("PAYROLL", ["*"]),
-            ("INVENTORY", ["VIEW", "EXPORT"]), ("REPORT", ["*"]), ("AUDIT", ["VIEW", "EXPORT"])
+            ("INVENTORY", ["VIEW", "EXPORT"]), ("REPORT", ["*"]), ("AUDIT", ["VIEW", "EXPORT"]),
+            ("SUPPLIER", ["*"]), ("PURCHASE", ["*"]), ("EXPENSE", ["*"]),
+            ("QUOTATION", ["VIEW", "CREATE", "EDIT", "DELETE", "EXPORT", "PRINT"]),
+            ("BANK", ["*"])
         ],
         [RoleCodes.Support] =
         [
             ("DASHBOARD", ["VIEW"]), ("CUSTOMER", ["VIEW", "EDIT"]), ("LOCATION", ["VIEW"]),
             ("WORKSPACE", ["VIEW"]), ("CALENDAR", ["VIEW"]), ("BOOKING", ["VIEW", "EDIT"]),
             ("PAYMENT", ["VIEW"]), ("WALLET", ["VIEW"]), ("INVOICE", ["VIEW"]),
+            ("QUOTATION", ["VIEW"]),
             ("PASS", ["VIEW"]), ("ACCESS", ["VIEW"]), ("HOUSEKEEPING", ["VIEW"]),
             ("SERVICE", ["VIEW"]), ("NOTIFICATION", ["VIEW", "CREATE"]), ("TICKET", ["*"]),
             ("REPORT", ["VIEW", "EXPORT"])
@@ -134,18 +147,22 @@ internal static class SeedCatalogue
         new("CUST_DASHBOARD", null, "Dashboard", "/", "LayoutDashboard", "DASHBOARD.VIEW", PortalType.Customer, CustomerOnly),
         new("CUST_BOOK", null, "Book Workspace", "/book", "CalendarDays", "BOOKING.CREATE", PortalType.Customer, CustomerOnly),
         new("CUST_BOOKINGS", null, "My Bookings", "/bookings", "ClipboardList", "BOOKING.VIEW", PortalType.Customer, CustomerOnly),
-        new("CUST_DAYPASS", null, "Day Pass", "/day-pass", "Ticket", "PASS.VIEW", PortalType.Customer, CustomerOnly),
-        new("CUST_MONTHLYPASS", null, "Monthly Pass", "/monthly-pass", "CalendarRange", "PASS.VIEW", PortalType.Customer, CustomerOnly),
+        new("CUST_PASSES", null, "Passes", "/passes", "Ticket", "PASS.VIEW", PortalType.Customer, CustomerOnly),
         new("CUST_WALLET", null, "Wallet", "/wallet", "Wallet", "WALLET.VIEW", PortalType.Customer, CustomerOnly),
         new("CUST_INVOICES", null, "Invoices", "/invoices", "ReceiptText", "INVOICE.VIEW", PortalType.Customer, CustomerOnly),
         new("CUST_QR", null, "My QR / Access", "/qr", "QrCode", "ACCESS.VIEW", PortalType.Customer, CustomerOnly),
-        new("CUST_WORKSTATUS", null, "My Work Status", "/work-status", "Clock", "ATTENDANCE.VIEW", PortalType.Customer, CustomerOnly),
-        new("CUST_SERVICES", null, "Services", "/services", "Coffee", "SERVICE.VIEW", PortalType.Customer, CustomerOnly),
+        // "My Work Status" was withdrawn from the customer portal on 2026-09-22. Left
+        // commented rather than deleted so its shape is here if it comes back. The live
+        // row is hidden by 20260922030000_HideCustomerWorkStatusMenu.sql and the SPA
+        // route is commented out in index-DI5X4c9f.js; seeding it again would restore a
+        // sidebar link pointing at a route that no longer exists.
+        // Attendance itself is untouched: TRN_Attendance still accrues and the admin
+        // screens under /admin/attendance still report on it.
+        // new("CUST_WORKSTATUS", null, "My Work Status", "/work-status", "Clock", "ATTENDANCE.VIEW", PortalType.Customer, CustomerOnly),
         new("CUST_NOTIFICATIONS", null, "Notifications", "/notifications", "Bell", "NOTIFICATION.VIEW", PortalType.Customer, CustomerOnly),
-        new("CUST_SUPPORT", null, "Support", "/support", "LifeBuoy", "TICKET.VIEW", PortalType.Customer, CustomerOnly),
+        new("CUST_SUPPORT", null, "Support & Contact", "/support", "LifeBuoy", "TICKET.VIEW", PortalType.Customer, CustomerOnly),
         new("CUST_SUPPORT_RAISE", "CUST_SUPPORT", "Raise Ticket", "/support/raise", "MessageSquarePlus", "TICKET.CREATE", PortalType.Customer, CustomerOnly),
         new("CUST_SUPPORT_ALL", "CUST_SUPPORT", "All Tickets", "/support/tickets", "Tickets", "TICKET.VIEW", PortalType.Customer, CustomerOnly),
-        new("CUST_CONTACT", null, "Contact Us", "/contact", "Phone", null, PortalType.Customer, CustomerOnly),
         new("CUST_PROFILE", null, "Profile", "/profile", "UserRound", null, PortalType.Customer, CustomerOnly),
 
         // Admin portal
@@ -162,14 +179,26 @@ internal static class SeedCatalogue
         new("ADM_ACCESS_LOGS", "ADM_ACCESS", "Access Logs", "/admin/access/logs", "ListChecks", "ACCESS.VIEW", PortalType.Admin, AdminManager),
         new("ADM_ATTENDANCE", null, "Attendance", "/admin/attendance", "Clock", "ATTENDANCE.VIEW", PortalType.Admin, AdminManagerFinance),
         new("ADM_ATTENDANCE_PAYROLL", "ADM_ATTENDANCE", "Payroll Export", "/admin/attendance/payroll", "FileSpreadsheet", "PAYROLL.EXPORT", PortalType.Admin, AdminFinance),
-        new("ADM_FINANCE", null, "Billing & Finance", null, "IndianRupee", "PAYMENT.VIEW", PortalType.Admin, AdminFinance),
+        new("ADM_FINANCE", null, "Billing & Finance", null, "IndianRupee", "PAYMENT.VIEW", PortalType.Admin, AdminManagerFinance),
+        new("ADM_FINANCE_DASHBOARD", "ADM_FINANCE", "Dashboard", "/admin/finance", "LayoutDashboard", "PAYMENT.VIEW", PortalType.Admin, AdminManagerFinance),
         new("ADM_FINANCE_PAYMENTS", "ADM_FINANCE", "Payments", "/admin/payments", "CreditCard", "PAYMENT.VIEW", PortalType.Admin, AdminFinance),
+        new("ADM_FINANCE_QUOTATIONS", "ADM_FINANCE", "Quotations", "/admin/quotations", "FileSignature", "QUOTATION.VIEW", PortalType.Admin, AdminManagerFinance),
         new("ADM_FINANCE_INVOICES", "ADM_FINANCE", "Invoices", "/admin/invoices", "ReceiptText", "INVOICE.VIEW", PortalType.Admin, AdminFinance),
         new("ADM_FINANCE_WALLET", "ADM_FINANCE", "Wallet", "/admin/wallet", "Wallet", "WALLET.VIEW", PortalType.Admin, AdminFinance),
+        new("ADM_FINANCE_EXPENSES", "ADM_FINANCE", "Expenses", "/admin/expenses", "Banknote", "EXPENSE.VIEW", PortalType.Admin, AdminManagerFinance),
+        new("ADM_FINANCE_PO", "ADM_FINANCE", "Purchase Orders", "/admin/purchase-orders", "FileText", "PURCHASE.VIEW", PortalType.Admin, AdminManagerFinance),
+        new("ADM_FINANCE_SUPPLIERS", "ADM_FINANCE", "Suppliers", "/admin/suppliers", "Factory", "SUPPLIER.VIEW", PortalType.Admin, AdminManagerFinance),
+        new("ADM_FINANCE_BANK", "ADM_FINANCE", "Bank Statement", null, "Landmark", "BANK.VIEW", PortalType.Admin, AdminFinance),
+        new("ADM_FINANCE_BANK_ACCOUNTS", "ADM_FINANCE_BANK", "Bank Accounts", "/admin/bank/accounts", "Landmark", "BANK.VIEW", PortalType.Admin, AdminFinance),
+        new("ADM_FINANCE_BANK_TXNS", "ADM_FINANCE_BANK", "Transactions", "/admin/bank/transactions", "ArrowLeftRight", "BANK.VIEW", PortalType.Admin, AdminFinance),
+        new("ADM_FINANCE_BANK_RECON", "ADM_FINANCE_BANK", "Reconciliation", "/admin/bank/reconciliation", "ListChecks", "BANK.VIEW", PortalType.Admin, AdminFinance),
         new("ADM_PASS_DAY", null, "Day Pass", "/admin/passes/day", "Ticket", "PASS.VIEW", PortalType.Admin, AdminManager),
         new("ADM_PASS_MONTHLY", null, "Monthly Pass", "/admin/passes/monthly", "CalendarRange", "PASS.VIEW", PortalType.Admin, AdminManager),
         new("ADM_INVENTORY", null, "Inventory", null, "Package", "INVENTORY.VIEW", PortalType.Admin, AdminManager),
         new("ADM_INVENTORY_ITEMS", "ADM_INVENTORY", "Items", "/admin/inventory/items", "Boxes", "INVENTORY.VIEW", PortalType.Admin, AdminManager),
+        new("ADM_INVENTORY_INCOMING", "ADM_INVENTORY", "Incoming Goods", "/admin/inventory/incoming", "ArrowDownToLine", "INVENTORY.VIEW", PortalType.Admin, AdminManager),
+        new("ADM_INVENTORY_OUTGOING", "ADM_INVENTORY", "Outgoing Goods", "/admin/inventory/outgoing", "ArrowUpFromLine", "INVENTORY.VIEW", PortalType.Admin, AdminManager),
+        new("ADM_INVENTORY_STOCK", "ADM_INVENTORY", "Current Stock", "/admin/inventory/stock", "Layers", "INVENTORY.VIEW", PortalType.Admin, AdminManager),
         new("ADM_INVENTORY_TXNS", "ADM_INVENTORY", "Transactions", "/admin/inventory/transactions", "ArrowLeftRight", "INVENTORY.VIEW", PortalType.Admin, AdminManager),
         // Housekeeping staff get this menu too — the grid scopes them to their own rows.
         new("ADM_HOUSEKEEPING", null, "Housekeeping", "/admin/housekeeping", "Sparkles", "HOUSEKEEPING.VIEW", PortalType.Admin, AdminManagerHousekeeping),
@@ -203,9 +232,21 @@ internal static class SeedCatalogue
             (AppSettingKeys.Tax.SgstPercent, "9", "Tax", "decimal", "SGST percentage"),
             (AppSettingKeys.Tax.IgstPercent, "18", "Tax", "decimal", "IGST percentage (inter-state)"),
             (AppSettingKeys.Tax.PlaceOfSupply, "", "Tax", "string", "Place of supply shown on invoices"),
-            (AppSettingKeys.Invoice.NumberPrefix, "REG/INV", "Invoice", "string", "Invoice number prefix"),
             (AppSettingKeys.Invoice.DueDays, "7", "Invoice", "int", "Days until an invoice is due"),
-            (AppSettingKeys.Booking.NumberPrefix, "REG-", "Booking", "string", "Booking number prefix"),
+            (AppSettingKeys.Quotation.ValidityDays, "15", "Quotation", "int", "Days a quotation stays valid before it expires"),
+            (AppSettingKeys.Quotation.TermsAndConditions, "", "Quotation", "string", "Default terms printed on a quotation"),
+            (AppSettingKeys.Quotation.DefaultGstPercent, "18", "Quotation", "decimal", "Default GST rate on a quotation line"),
+            (AppSettingKeys.Quotation.GstRateOptions, "0,5,12,18,28", "Quotation", "string", "GST rates the line dropdown offers"),
+            (AppSettingKeys.Quotation.HomeStateCode, "29", "Quotation", "string", "GST state Regalis supplies from; a match is intra-state (CGST+SGST)"),
+            (AppSettingKeys.Quotation.RoundOffEnabled, "true", "Quotation", "bool", "Round the quotation total to the nearest rupee"),
+            (AppSettingKeys.Quotation.CustomerNotes, "Thank you for considering Regalis WorkSpace.", "Quotation", "string", "Default customer notes printed on a quotation"),
+            (AppSettingKeys.Quotation.TdsOptions, "194I|194-I Rent 10%|10;194J|194-J Professional 10%|10", "Quotation", "string", "TDS sections offered, as code|label|percent rows"),
+            (AppSettingKeys.Quotation.EmailSubjectTemplate, "Quotation {quote_number} from Regalis WorkSpace", "Quotation", "string", "Subject of the quotation email"),
+            (AppSettingKeys.Quotation.EmailBodyTemplate, "", "Quotation", "string", "Body of the quotation email; {customer_name} {quote_number} {total} {valid_until} {portal_link}"),
+            (AppSettingKeys.Quotation.WhatsAppTemplate, "", "Quotation", "string", "WhatsApp message for a quotation; same placeholders as the email"),
+            (AppSettingKeys.Quotation.PortalBaseUrl, "", "Quotation", "string", "Base URL the customer portal approval link is built on"),
+            (AppSettingKeys.Quotation.ExpiryReminderDays, "2", "Quotation", "int", "Days before expiry the reminder goes out"),
+            (AppSettingKeys.Quotation.AdvanceMonths, "1", "Quotation", "decimal", "Default months of rent for the advance (security deposit) invoice"),
             (AppSettingKeys.Booking.SlotGranularityMinutes, "30", "Booking", "int", "Calendar slot granularity"),
             (AppSettingKeys.Booking.MinMinutes, "30", "Booking", "int", "Minimum booking duration"),
             (AppSettingKeys.Booking.MaxMinutes, "480", "Booking", "int", "Maximum booking duration"),
@@ -237,7 +278,8 @@ internal static class SeedCatalogue
         [
             ("DESK", "Desk", "Armchair", 1, false),
             ("CABIN", "Cabin", "DoorClosed", 2, true),
-            ("MEETING_ROOM", "Meeting Room", "Presentation", 3, true)
+            ("MEETING_ROOM", "Meeting Room", "Presentation", 3, true),
+            ("VIRTUAL_WORKSPACE", "Virtual Workspace", "Globe", 4, false)
         ];
 
     /// <summary>Ticket categories per DATABASE_DESIGN. Doc-1 lists concrete issue
@@ -275,6 +317,9 @@ internal static class SeedCatalogue
         ("ServiceOrder", "ORD-", null),
         ("Ticket", "TKT-", null),
         ("HousekeepingSchedule", "HKS-", null),
-        ("InventoryTransaction", "ITX-", null)
+        ("InventoryTransaction", "ITX-", null),
+        ("PurchaseOrder", "REG/PO", "FY"),
+        ("Expense", "REG/EXP", "FY"),
+        ("Quotation", "REG/QTN", "FY")
     ];
 }

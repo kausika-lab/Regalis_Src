@@ -36,7 +36,16 @@ public class ReportService(RegalisDbContext db, IDateTimeProvider clock) : IRepo
         ("coffee", "Services & Coffee Report", "Service orders in the window.", true),
         ("ticket", "Support Ticket Report", "Tickets by category, status and response time.", true),
         ("check-in-out", "Check-in/out Report", "Attendance sessions in the window.", true),
-        ("qr-access", "QR Access Report", "Every gate decision, granted or denied.", true)
+        ("qr-access", "QR Access Report", "Every gate decision, granted or denied.", true),
+        ("quotation", "Quotation Report", "Quotations raised, approved, rejected and converted.", true),
+        ("outstanding", "Outstanding Payment Report", "Invoices still owing, with ageing.", true),
+        ("expense", "Expense Report", "Daily company expenses by category and payment mode.", true),
+        ("purchase-order", "Purchase Order Report", "Purchase orders with delivery status and value.", true),
+        ("inventory", "Inventory Report", "Derived stock per item with value and reorder flags.", true),
+        ("incoming-goods", "Incoming Goods Report", "Goods received, with supplier and purchase order.", true),
+        ("outgoing-goods", "Outgoing Goods Report", "Goods issued out of stock, with purpose.", true),
+        ("bank-statement", "Bank Statement Report", "Bank lines with reconciliation status.", true),
+        ("finance-summary", "Financial Summary", "Quotations, invoices, payments, expenses and bank in one view.", true)
     ];
 
     public List<ReportInfo> GetCatalogue() =>
@@ -102,6 +111,17 @@ public class ReportService(RegalisDbContext db, IDateTimeProvider clock) : IRepo
             "ticket" => await BuildTicketAsync(filters, from, to, rowCap, ct),
             "check-in-out" => await BuildAttendanceAsync(filters, from, to, rowCap, ct),
             "qr-access" => await BuildAccessAsync(filters, from, to, rowCap, ct),
+            "quotation" => await BuildQuotationAsync(filters, from, to, rowCap, ct),
+            "outstanding" => await BuildOutstandingAsync(filters, from, to, rowCap, ct),
+            "expense" => await BuildExpenseAsync(filters, from, to, rowCap, ct),
+            "purchase-order" => await BuildPurchaseOrderAsync(filters, from, to, rowCap, ct),
+            "inventory" => await BuildInventoryAsync(filters, ct),
+            "incoming-goods" => await BuildGoodsMovementAsync(filters, from, to, rowCap,
+                InventoryTransactionType.In, ct),
+            "outgoing-goods" => await BuildGoodsMovementAsync(filters, from, to, rowCap,
+                InventoryTransactionType.Out, ct),
+            "bank-statement" => await BuildBankStatementAsync(filters, from, to, rowCap, ct),
+            "finance-summary" => await BuildFinanceSummaryAsync(filters, from, to, ct),
             _ => throw new NotFoundException("Report", key)
         };
 
@@ -974,4 +994,616 @@ public class ReportService(RegalisDbContext db, IDateTimeProvider clock) : IRepo
 
     private static Dictionary<string, object?> Row(params (string Key, object? Value)[] cells) =>
         cells.ToDictionary(c => c.Key, c => c.Value);
+
+    // ── 17 · Quotation report ───────────────────────────────────────────────
+
+    private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
+        BuildQuotationAsync(ReportFilterRequest filters, DateOnly from, DateOnly to, int rowCap,
+            CancellationToken ct)
+    {
+        var query = db.Quotations.AsNoTracking()
+            .Where(q => q.QuotationDate >= from && q.QuotationDate <= to);
+        if (filters.CustomerId is not null)
+        {
+            query = query.Where(q => q.CustomerId == filters.CustomerId);
+        }
+        if (filters.LocationId is not null)
+        {
+            query = query.Where(q => q.LocationId == filters.LocationId);
+        }
+        if (filters.WorkspaceTypeId is not null)
+        {
+            // "Service" in the document's filter list: a quotation matches if any of
+            // its lines is for that workspace type.
+            query = query.Where(q => q.Lines.Any(l => l.WorkspaceTypeId == filters.WorkspaceTypeId));
+        }
+
+        var totalRows = await query.CountAsync(ct);
+        var data = await query
+            .OrderBy(q => q.QuotationId)
+            .Take(rowCap)
+            .Select(q => new
+            {
+                q.QuotationNumber, q.CustomerName, q.QuotationDate, q.ValidUntil,
+                q.TaxableAmount, q.TotalAmount, q.Status,
+                InvoiceNumber = db.Invoices.Where(i => i.InvoiceId == q.InvoiceId)
+                    .Select(i => i.InvoiceNumber).FirstOrDefault()
+            })
+            .ToListAsync(ct);
+
+        var columns = new List<ReportColumn>
+        {
+            new("number", "Quotation", "string"),
+            new("customer", "Customer", "string"),
+            new("date", "Date", "date"),
+            new("validUntil", "Valid until", "date"),
+            new("taxable", "Taxable", "money"),
+            new("total", "Total", "money"),
+            new("status", "Status", "string"),
+            new("invoice", "Invoice", "string")
+        };
+        var rows = data.Select(q => Row(
+            ("number", q.QuotationNumber),
+            ("customer", q.CustomerName),
+            ("date", q.QuotationDate),
+            ("validUntil", q.ValidUntil),
+            ("taxable", q.TaxableAmount),
+            ("total", q.TotalAmount),
+            ("status", q.Status.ToString()),
+            ("invoice", q.InvoiceNumber)))
+            .ToList();
+        var summary = new List<ReportSummaryItem>
+        {
+            new("Quotations", totalRows.ToString()),
+            new("Quoted", $"₹ {data.Sum(q => q.TotalAmount):N2}"),
+            new("Approved", data.Count(q => q.Status == QuotationStatus.Approved).ToString()),
+            new("Rejected", data.Count(q => q.Status == QuotationStatus.Rejected).ToString()),
+            new("Converted", $"₹ {data.Where(q => q.InvoiceNumber != null).Sum(q => q.TotalAmount):N2}")
+        };
+        return (columns, rows, summary, totalRows);
+    }
+
+    // ── 18 · Outstanding payment report ─────────────────────────────────────
+
+    private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
+        BuildOutstandingAsync(ReportFilterRequest filters, DateOnly from, DateOnly to, int rowCap,
+            CancellationToken ct)
+    {
+        var todayIst = IstClock.IstDateOf(clock.UtcNow);
+
+        // Money still owed: the same predicate InvoiceDto.IsOverdue uses, minus the
+        // due-date test, because this report covers everything unpaid, overdue or not.
+        var query = db.Invoices.AsNoTracking()
+            .Where(i => i.InvoiceDate >= from && i.InvoiceDate <= to
+                        && i.OutstandingAmount > 0
+                        && i.Status != InvoiceStatus.Cancelled
+                        && i.Status != InvoiceStatus.Refunded);
+        if (filters.CustomerId is not null)
+        {
+            query = query.Where(i => i.CustomerId == filters.CustomerId);
+        }
+        if (filters.LocationId is not null)
+        {
+            query = query.Where(i => i.LocationId == filters.LocationId);
+        }
+
+        var totalRows = await query.CountAsync(ct);
+        var data = await query
+            .OrderBy(i => i.DueDate)
+            .Take(rowCap)
+            .Select(i => new
+            {
+                i.InvoiceNumber, i.CustomerName, i.CustomerEmail, i.InvoiceDate, i.DueDate,
+                i.TotalAmount, i.PaidAmount, i.OutstandingAmount, i.Status
+            })
+            .ToListAsync(ct);
+
+        var columns = new List<ReportColumn>
+        {
+            new("number", "Invoice", "string"),
+            new("customer", "Customer", "string"),
+            new("email", "Email", "string"),
+            new("date", "Invoice date", "date"),
+            new("due", "Due date", "date"),
+            new("ageing", "Days overdue", "number"),
+            new("total", "Total", "money"),
+            new("paid", "Paid", "money"),
+            new("outstanding", "Outstanding", "money"),
+            new("status", "Status", "string")
+        };
+        var rows = data.Select(i => Row(
+            ("number", i.InvoiceNumber),
+            ("customer", i.CustomerName),
+            ("email", i.CustomerEmail),
+            ("date", i.InvoiceDate),
+            ("due", i.DueDate),
+            ("ageing", Math.Max(0, i.DueDate.DayNumber < todayIst.DayNumber
+                ? todayIst.DayNumber - i.DueDate.DayNumber : 0)),
+            ("total", i.TotalAmount),
+            ("paid", i.PaidAmount),
+            ("outstanding", i.OutstandingAmount),
+            ("status", i.Status.ToString())))
+            .ToList();
+        var overdue = data.Where(i => i.DueDate < todayIst).ToList();
+        var summary = new List<ReportSummaryItem>
+        {
+            new("Invoices owing", totalRows.ToString()),
+            new("Total outstanding", $"₹ {data.Sum(i => i.OutstandingAmount):N2}"),
+            new("Overdue invoices", overdue.Count.ToString()),
+            new("Overdue value", $"₹ {overdue.Sum(i => i.OutstandingAmount):N2}")
+        };
+        return (columns, rows, summary, totalRows);
+    }
+
+    // ── 19 · Expense report ─────────────────────────────────────────────────
+
+    private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
+        BuildExpenseAsync(ReportFilterRequest filters, DateOnly from, DateOnly to, int rowCap,
+            CancellationToken ct)
+    {
+        var query = db.Expenses.AsNoTracking()
+            .Where(e => e.ExpenseDate >= from && e.ExpenseDate <= to);
+        if (filters.LocationId is not null)
+        {
+            query = query.Where(e => e.LocationId == filters.LocationId);
+        }
+        if (!string.IsNullOrWhiteSpace(filters.Category))
+        {
+            query = query.Where(e => e.Category == filters.Category);
+        }
+        if (filters.PaymentMethod is not null)
+        {
+            query = query.Where(e => (byte)e.PaymentMethod == filters.PaymentMethod);
+        }
+
+        var totalRows = await query.CountAsync(ct);
+        var data = await query
+            .OrderBy(e => e.ExpenseDate).ThenBy(e => e.ExpenseId)
+            .Take(rowCap)
+            .Select(e => new
+            {
+                e.ExpenseNumber, e.ExpenseDate, e.Category, e.Description, e.Amount,
+                e.PaymentMethod, e.Remarks,
+                EnteredBy = db.Users.Where(u => u.UserId == e.EnteredByUserId)
+                    .Select(u => u.FullName).FirstOrDefault(),
+                Reconciled = db.BankTransactions.Any(b => b.MatchedExpenseId == e.ExpenseId)
+            })
+            .ToListAsync(ct);
+
+        var columns = new List<ReportColumn>
+        {
+            new("number", "Voucher", "string"),
+            new("date", "Date", "date"),
+            new("category", "Category", "string"),
+            new("description", "Description", "string"),
+            new("amount", "Amount", "money"),
+            new("mode", "Payment mode", "string"),
+            new("enteredBy", "Entered by", "string"),
+            new("reconciled", "Bank matched", "string"),
+            new("remarks", "Remarks", "string")
+        };
+        var rows = data.Select(e => Row(
+            ("number", e.ExpenseNumber),
+            ("date", e.ExpenseDate),
+            ("category", e.Category),
+            ("description", e.Description),
+            ("amount", e.Amount),
+            ("mode", e.PaymentMethod.ToString()),
+            ("enteredBy", e.EnteredBy),
+            ("reconciled", e.Reconciled ? "Yes" : "No"),
+            ("remarks", e.Remarks)))
+            .ToList();
+        var summary = new List<ReportSummaryItem>
+        {
+            new("Entries", totalRows.ToString()),
+            new("Total spend", $"₹ {data.Sum(e => e.Amount):N2}"),
+            new("Categories", data.Select(e => e.Category).Distinct().Count().ToString()),
+            new("Unmatched", data.Count(e => !e.Reconciled).ToString())
+        };
+        return (columns, rows, summary, totalRows);
+    }
+
+    // ── 20 · Purchase order report ──────────────────────────────────────────
+
+    private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
+        BuildPurchaseOrderAsync(ReportFilterRequest filters, DateOnly from, DateOnly to, int rowCap,
+            CancellationToken ct)
+    {
+        var query = db.PurchaseOrders.AsNoTracking()
+            .Where(p => p.PoDate >= from && p.PoDate <= to);
+        if (filters.LocationId is not null)
+        {
+            query = query.Where(p => p.LocationId == filters.LocationId);
+        }
+
+        var totalRows = await query.CountAsync(ct);
+        var data = await query
+            .OrderBy(p => p.PurchaseOrderId)
+            .Take(rowCap)
+            .Select(p => new
+            {
+                p.PoNumber, p.PoDate, p.ExpectedDeliveryDate, p.TaxableAmount, p.TaxAmount,
+                p.TotalAmount, p.Status,
+                SupplierName = db.Suppliers.Where(s => s.SupplierId == p.SupplierId)
+                    .Select(s => s.SupplierName).FirstOrDefault(),
+                LineCount = p.Lines.Count,
+                Pending = p.Lines.Sum(l => l.Quantity - l.ReceivedQuantity)
+            })
+            .ToListAsync(ct);
+
+        var columns = new List<ReportColumn>
+        {
+            new("number", "PO", "string"),
+            new("supplier", "Supplier", "string"),
+            new("date", "PO date", "date"),
+            new("expected", "Expected", "date"),
+            new("lines", "Lines", "number"),
+            new("pending", "Pending qty", "number"),
+            new("taxable", "Taxable", "money"),
+            new("tax", "Tax", "money"),
+            new("total", "Total", "money"),
+            new("status", "Status", "string")
+        };
+        var rows = data.Select(p => Row(
+            ("number", p.PoNumber),
+            ("supplier", p.SupplierName),
+            ("date", p.PoDate),
+            ("expected", p.ExpectedDeliveryDate),
+            ("lines", p.LineCount),
+            ("pending", p.Pending),
+            ("taxable", p.TaxableAmount),
+            ("tax", p.TaxAmount),
+            ("total", p.TotalAmount),
+            ("status", p.Status.ToString())))
+            .ToList();
+        var summary = new List<ReportSummaryItem>
+        {
+            new("Purchase orders", totalRows.ToString()),
+            new("PO value", $"₹ {data.Sum(p => p.TotalAmount):N2}"),
+            new("Awaiting delivery",
+                data.Count(p => p.Status is PurchaseOrderStatus.Sent
+                    or PurchaseOrderStatus.PartiallyReceived).ToString()),
+            new("Cancelled", data.Count(p => p.Status == PurchaseOrderStatus.Cancelled).ToString())
+        };
+        return (columns, rows, summary, totalRows);
+    }
+
+    // ── 21 · Inventory report (derived stock) ───────────────────────────────
+
+    private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
+        BuildInventoryAsync(ReportFilterRequest filters, CancellationToken ct)
+    {
+        var itemsQuery = db.InventoryItems.AsNoTracking();
+        if (filters.LocationId is not null)
+        {
+            itemsQuery = itemsQuery.Where(i => i.LocationId == filters.LocationId);
+        }
+        if (!string.IsNullOrWhiteSpace(filters.Category))
+        {
+            itemsQuery = itemsQuery.Where(i => i.Category == filters.Category);
+        }
+        var items = await itemsQuery.OrderBy(i => i.ItemName).ToListAsync(ct);
+
+        // Stock is derived from the ledger (Invariant 11) — the report reads it the
+        // same way the stock screen does, so the two can never disagree.
+        var itemIds = items.Select(i => i.InventoryItemId).ToList();
+        var sums = await db.InventoryTransactions.AsNoTracking()
+            .Where(t => itemIds.Contains(t.InventoryItemId))
+            .GroupBy(t => new { t.InventoryItemId, t.TransactionType })
+            .Select(g => new { g.Key.InventoryItemId, g.Key.TransactionType, Total = g.Sum(t => t.Quantity) })
+            .ToListAsync(ct);
+
+        decimal SumOf(int itemId, InventoryTransactionType type) =>
+            sums.Where(s => s.InventoryItemId == itemId && s.TransactionType == type).Sum(s => s.Total);
+
+        var rowsData = items.Select(i =>
+        {
+            var totalIn = SumOf(i.InventoryItemId, InventoryTransactionType.In)
+                          + SumOf(i.InventoryItemId, InventoryTransactionType.OpeningBalance);
+            var totalOut = SumOf(i.InventoryItemId, InventoryTransactionType.Out);
+            var damage = SumOf(i.InventoryItemId, InventoryTransactionType.Damage);
+            var adjustment = SumOf(i.InventoryItemId, InventoryTransactionType.Adjustment);
+            var current = i.OpeningQuantity + totalIn + adjustment - totalOut - damage;
+            return new
+            {
+                i.ItemCode, i.ItemName, i.Category, i.Unit, i.OpeningQuantity,
+                TotalIn = totalIn, TotalOut = totalOut, Damage = damage, Adjustment = adjustment,
+                Current = current, i.ReorderLevel, i.UnitCost,
+                Value = current * (i.UnitCost ?? 0m)
+            };
+        }).ToList();
+
+        var columns = new List<ReportColumn>
+        {
+            new("code", "Code", "string"),
+            new("item", "Item", "string"),
+            new("category", "Category", "string"),
+            new("unit", "Unit", "string"),
+            new("opening", "Opening", "number"),
+            new("in", "In", "number"),
+            new("out", "Out", "number"),
+            new("damage", "Damage", "number"),
+            new("adjustment", "Adjustment", "number"),
+            new("current", "Current stock", "number"),
+            new("reorder", "Reorder level", "number"),
+            new("value", "Stock value", "money")
+        };
+        var rows = rowsData.Select(r => Row(
+            ("code", r.ItemCode),
+            ("item", r.ItemName),
+            ("category", r.Category),
+            ("unit", r.Unit),
+            ("opening", r.OpeningQuantity),
+            ("in", r.TotalIn),
+            ("out", r.TotalOut),
+            ("damage", r.Damage),
+            ("adjustment", r.Adjustment),
+            ("current", r.Current),
+            ("reorder", r.ReorderLevel),
+            ("value", r.Value)))
+            .ToList();
+        var summary = new List<ReportSummaryItem>
+        {
+            new("Items", rowsData.Count.ToString()),
+            new("Stock value", $"₹ {rowsData.Sum(r => r.Value):N2}"),
+            new("Below reorder", rowsData.Count(r => r.Current <= r.ReorderLevel).ToString())
+        };
+        return (columns, rows, summary, rowsData.Count);
+    }
+
+    // ── 22, 23 · Incoming and outgoing goods ────────────────────────────────
+
+    private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
+        BuildGoodsMovementAsync(ReportFilterRequest filters, DateOnly from, DateOnly to, int rowCap,
+            InventoryTransactionType type, CancellationToken ct)
+    {
+        var query = db.InventoryTransactions.AsNoTracking()
+            .Where(t => t.TransactionDate >= from && t.TransactionDate <= to
+                        && t.TransactionType == type);
+        if (filters.LocationId is not null)
+        {
+            query = query.Where(t => t.LocationId == filters.LocationId);
+        }
+
+        var totalRows = await query.CountAsync(ct);
+        var data = await query
+            .OrderBy(t => t.TransactionDate).ThenBy(t => t.InventoryTransactionId)
+            .Take(rowCap)
+            .Select(t => new
+            {
+                t.TransactionNumber, t.TransactionDate, t.Quantity, t.UnitCost,
+                t.SourceOrDestination, t.ReferenceNumber, t.PurchaseInvoiceNumber, t.Notes,
+                ItemCode = db.InventoryItems.Where(i => i.InventoryItemId == t.InventoryItemId)
+                    .Select(i => i.ItemCode).FirstOrDefault(),
+                ItemName = db.InventoryItems.Where(i => i.InventoryItemId == t.InventoryItemId)
+                    .Select(i => i.ItemName).FirstOrDefault(),
+                Unit = db.InventoryItems.Where(i => i.InventoryItemId == t.InventoryItemId)
+                    .Select(i => i.Unit).FirstOrDefault(),
+                SupplierName = db.Suppliers.Where(s => s.SupplierId == t.SupplierId)
+                    .Select(s => s.SupplierName).FirstOrDefault(),
+                PoNumber = db.PurchaseOrders.Where(p => p.PurchaseOrderId == t.PurchaseOrderId)
+                    .Select(p => p.PoNumber).FirstOrDefault(),
+                EnteredBy = db.Users.Where(u => u.UserId == t.EnteredByUserId)
+                    .Select(u => u.FullName).FirstOrDefault()
+            })
+            .ToListAsync(ct);
+
+        var incoming = type == InventoryTransactionType.In;
+        var columns = new List<ReportColumn>
+        {
+            new("number", "Reference", "string"),
+            new("date", "Date", "date"),
+            new("code", "Code", "string"),
+            new("item", "Item", "string"),
+            new("quantity", "Quantity", "number"),
+            new("unit", "Unit", "string"),
+            new("party", incoming ? "Supplier" : "Issued to", "string"),
+            new("doc", incoming ? "PO / invoice" : "Reference", "string"),
+            new("value", "Value", "money"),
+            new("enteredBy", "Entered by", "string"),
+            new("notes", incoming ? "Remarks" : "Purpose", "string")
+        };
+        var rows = data.Select(t => Row(
+            ("number", t.TransactionNumber),
+            ("date", t.TransactionDate),
+            ("code", t.ItemCode),
+            ("item", t.ItemName),
+            ("quantity", t.Quantity),
+            ("unit", t.Unit),
+            ("party", t.SupplierName ?? t.SourceOrDestination),
+            ("doc", incoming
+                ? string.Join(" · ", new[] { t.PoNumber, t.PurchaseInvoiceNumber }
+                    .Where(s => !string.IsNullOrWhiteSpace(s)))
+                : t.ReferenceNumber),
+            ("value", t.Quantity * (t.UnitCost ?? 0m)),
+            ("enteredBy", t.EnteredBy),
+            ("notes", t.Notes)))
+            .ToList();
+        var summary = new List<ReportSummaryItem>
+        {
+            new(incoming ? "Receipts" : "Issues", totalRows.ToString()),
+            new("Total quantity", $"{data.Sum(t => t.Quantity):N3}"),
+            new("Total value", $"₹ {data.Sum(t => t.Quantity * (t.UnitCost ?? 0m)):N2}")
+        };
+        return (columns, rows, summary, totalRows);
+    }
+
+    // ── 24 · Bank statement report ──────────────────────────────────────────
+
+    private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
+        BuildBankStatementAsync(ReportFilterRequest filters, DateOnly from, DateOnly to, int rowCap,
+            CancellationToken ct)
+    {
+        var query = db.BankTransactions.AsNoTracking()
+            .Where(t => t.TransactionDate >= from && t.TransactionDate <= to);
+        if (filters.LocationId is not null)
+        {
+            query = query.Where(t => t.LocationId == filters.LocationId);
+        }
+        if (!string.IsNullOrWhiteSpace(filters.Category))
+        {
+            query = query.Where(t => t.Category == filters.Category);
+        }
+
+        var totalRows = await query.CountAsync(ct);
+        var data = await query
+            .OrderBy(t => t.TransactionDate).ThenBy(t => t.BankTransactionId)
+            .Take(rowCap)
+            .Select(t => new
+            {
+                t.TransactionDate, t.Direction, t.Amount, t.Narration, t.ReferenceNumber,
+                t.Category, t.ReconciliationStatus,
+                BankName = db.BankAccounts.Where(a => a.BankAccountId == t.BankAccountId)
+                    .Select(a => a.BankName).FirstOrDefault(),
+                AccountCode = db.BankAccounts.Where(a => a.BankAccountId == t.BankAccountId)
+                    .Select(a => a.AccountCode).FirstOrDefault(),
+                MatchedTo = db.Payments.Where(p => p.PaymentId == t.MatchedPaymentId)
+                    .Select(p => p.PaymentNumber).FirstOrDefault()
+                    ?? db.Expenses.Where(e => e.ExpenseId == t.MatchedExpenseId)
+                        .Select(e => e.ExpenseNumber).FirstOrDefault()
+            })
+            .ToListAsync(ct);
+
+        var columns = new List<ReportColumn>
+        {
+            new("date", "Date", "date"),
+            new("bank", "Bank", "string"),
+            new("account", "Account", "string"),
+            new("type", "Type", "string"),
+            new("credit", "Credit", "money"),
+            new("debit", "Debit", "money"),
+            new("narration", "Narration", "string"),
+            new("reference", "Reference", "string"),
+            new("category", "Category", "string"),
+            new("status", "Reconciliation", "string"),
+            new("matched", "Matched to", "string")
+        };
+        var rows = data.Select(t => Row(
+            ("date", t.TransactionDate),
+            ("bank", t.BankName),
+            ("account", t.AccountCode),
+            ("type", t.Direction.ToString()),
+            ("credit", t.Direction == BankTransactionDirection.Credit ? t.Amount : 0m),
+            ("debit", t.Direction == BankTransactionDirection.Debit ? t.Amount : 0m),
+            ("narration", t.Narration),
+            ("reference", t.ReferenceNumber),
+            ("category", t.Category),
+            ("status", t.ReconciliationStatus.ToString()),
+            ("matched", t.MatchedTo)))
+            .ToList();
+        var credits = data.Where(t => t.Direction == BankTransactionDirection.Credit).Sum(t => t.Amount);
+        var debits = data.Where(t => t.Direction == BankTransactionDirection.Debit).Sum(t => t.Amount);
+        var summary = new List<ReportSummaryItem>
+        {
+            new("Lines", totalRows.ToString()),
+            new("Total credit", $"₹ {credits:N2}"),
+            new("Total debit", $"₹ {debits:N2}"),
+            new("Net movement", $"₹ {credits - debits:N2}"),
+            new("Reconciled",
+                data.Count(t => t.ReconciliationStatus == ReconciliationStatus.Reconciled).ToString()),
+            new("Unreconciled",
+                data.Count(t => t.ReconciliationStatus != ReconciliationStatus.Reconciled).ToString())
+        };
+        return (columns, rows, summary, totalRows);
+    }
+
+    // ── 25 · Financial summary ──────────────────────────────────────────────
+
+    private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
+        BuildFinanceSummaryAsync(ReportFilterRequest filters, DateOnly from, DateOnly to,
+            CancellationToken ct)
+    {
+        var fromUtc = IstClock.ToUtc(from.ToDateTime(TimeOnly.MinValue));
+        var toUtc = IstClock.ToUtc(to.ToDateTime(TimeOnly.MaxValue));
+        var location = filters.LocationId;
+
+        var quotations = await db.Quotations.AsNoTracking()
+            .Where(q => q.QuotationDate >= from && q.QuotationDate <= to
+                        && (location == null || q.LocationId == location))
+            .Select(q => new { q.TotalAmount, q.Status })
+            .ToListAsync(ct);
+
+        var invoices = await db.Invoices.AsNoTracking()
+            .Where(i => i.InvoiceDate >= from && i.InvoiceDate <= to
+                        && (location == null || i.LocationId == location))
+            .Select(i => new { i.TotalAmount, i.PaidAmount, i.OutstandingAmount, i.Status })
+            .ToListAsync(ct);
+
+        var received = await db.Payments.AsNoTracking()
+            .Where(p => p.Status == PaymentStatus.Success
+                        && p.PaidUtc >= fromUtc && p.PaidUtc <= toUtc)
+            .SumAsync(p => (decimal?)p.Amount, ct) ?? 0m;
+
+        var expenses = await db.Expenses.AsNoTracking()
+            .Where(e => e.ExpenseDate >= from && e.ExpenseDate <= to
+                        && (location == null || e.LocationId == location))
+            .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
+
+        var poValue = await db.PurchaseOrders.AsNoTracking()
+            .Where(p => p.PoDate >= from && p.PoDate <= to
+                        && p.Status != PurchaseOrderStatus.Cancelled
+                        && (location == null || p.LocationId == location))
+            .SumAsync(p => (decimal?)p.TotalAmount, ct) ?? 0m;
+
+        var bank = await db.BankTransactions.AsNoTracking()
+            .Where(t => t.TransactionDate >= from && t.TransactionDate <= to
+                        && (location == null || t.LocationId == location))
+            .Select(t => new { t.Direction, t.Amount, t.ReconciliationStatus })
+            .ToListAsync(ct);
+
+        // One row per line of the business, so the summary reads like a statement
+        // rather than a wall of cards — and exports to Excel and PDF unchanged.
+        var columns = new List<ReportColumn>
+        {
+            new("area", "Area", "string"),
+            new("metric", "Measure", "string"),
+            new("count", "Count", "number"),
+            new("value", "Value", "money")
+        };
+
+        var bankCredits = bank.Where(b => b.Direction == BankTransactionDirection.Credit).Sum(b => b.Amount);
+        var bankDebits = bank.Where(b => b.Direction == BankTransactionDirection.Debit).Sum(b => b.Amount);
+
+        var rows = new List<Dictionary<string, object?>>
+        {
+            Row(("area", "Quotations"), ("metric", "Raised"), ("count", quotations.Count),
+                ("value", quotations.Sum(q => q.TotalAmount))),
+            Row(("area", "Quotations"), ("metric", "Approved"),
+                ("count", quotations.Count(q => q.Status == QuotationStatus.Approved)),
+                ("value", quotations.Where(q => q.Status == QuotationStatus.Approved)
+                    .Sum(q => q.TotalAmount))),
+            Row(("area", "Invoices"), ("metric", "Issued"), ("count", invoices.Count),
+                ("value", invoices.Sum(i => i.TotalAmount))),
+            Row(("area", "Invoices"), ("metric", "Paid"),
+                ("count", invoices.Count(i => i.Status == InvoiceStatus.Paid)),
+                ("value", invoices.Sum(i => i.PaidAmount))),
+            Row(("area", "Invoices"), ("metric", "Outstanding"),
+                ("count", invoices.Count(i => i.OutstandingAmount > 0)),
+                ("value", invoices.Sum(i => i.OutstandingAmount))),
+            Row(("area", "Payments"), ("metric", "Received"), ("count", null),
+                ("value", received)),
+            Row(("area", "Expenses"), ("metric", "Recorded"), ("count", null),
+                ("value", expenses)),
+            Row(("area", "Purchase orders"), ("metric", "Committed"), ("count", null),
+                ("value", poValue)),
+            Row(("area", "Bank"), ("metric", "Credits"),
+                ("count", bank.Count(b => b.Direction == BankTransactionDirection.Credit)),
+                ("value", bankCredits)),
+            Row(("area", "Bank"), ("metric", "Debits"),
+                ("count", bank.Count(b => b.Direction == BankTransactionDirection.Debit)),
+                ("value", bankDebits)),
+            Row(("area", "Bank"), ("metric", "Reconciled"),
+                ("count", bank.Count(b => b.ReconciliationStatus == ReconciliationStatus.Reconciled)),
+                ("value", null))
+        };
+
+        var summary = new List<ReportSummaryItem>
+        {
+            new("Money in", $"₹ {received:N2}"),
+            new("Money out", $"₹ {expenses:N2}"),
+            new("Net", $"₹ {received - expenses:N2}"),
+            new("Outstanding", $"₹ {invoices.Sum(i => i.OutstandingAmount):N2}")
+        };
+        return (columns, rows, summary, rows.Count);
+    }
 }

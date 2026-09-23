@@ -29,6 +29,16 @@ export const usersApi = {
   remove: (id: number) => api.delete(`/users/${id}`),
 };
 
+/**
+ * Customers are User rows with UserType 1; api/customers is the read-only
+ * customer register the admin portal uses for pickers and the customer grid.
+ */
+export const customersApi = {
+  list: (query: PagedRequest & { status?: number } = {}) =>
+    unwrap<PagedResult<UserListItem>>(api.get('/customers', { params: query })),
+  get: (id: number) => unwrap<UserDetail>(api.get(`/customers/${id}`)),
+};
+
 export const rolesApi = {
   list: () => unwrap<Role[]>(api.get('/roles')),
   create: (payload: { roleCode: string; roleName: string; description: string | null; portalType: number }) =>

@@ -43,10 +43,15 @@ public class InventoryTransactionConfiguration : IEntityTypeConfiguration<Invent
         builder.Property(x => x.DamageDescription).HasMaxLength(500);
         builder.Property(x => x.DamageCause).HasMaxLength(300);
         builder.Property(x => x.PhotoPath).HasMaxLength(500);
+        builder.Property(x => x.PurchaseInvoiceNumber).HasMaxLength(80);
+        builder.Property(x => x.AttachmentPath).HasMaxLength(500);
         builder.Property(x => x.Notes).HasMaxLength(500);
         builder.HasIndex(x => x.TransactionNumber).IsUnique().HasDatabaseName("UX_InvTxn_Number");
         builder.HasIndex(x => new { x.InventoryItemId, x.TransactionDate }).HasDatabaseName("IX_InvTxn_Item_Date");
         builder.HasIndex(x => new { x.TransactionType, x.TransactionDate }).HasDatabaseName("IX_InvTxn_Type_Date");
+        // Drives "what did we receive against this PO" on the goods-received screen.
+        builder.HasIndex(x => x.PurchaseOrderId).HasDatabaseName("IX_InvTxn_PurchaseOrder")
+            .HasFilter("[PurchaseOrderId] IS NOT NULL");
 
         builder.HasOne(x => x.InventoryItem).WithMany(x => x.Transactions)
             .HasForeignKey(x => x.InventoryItemId).OnDelete(DeleteBehavior.Restrict);

@@ -1,0 +1,1193 @@
+<title>Regalis WorkSpace Staffing Dossier</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+  :root{
+    --ground:#FCFBF8;
+    --surface:#FFFFFF;
+    --surface-2:#F6F4EE;
+    --ink:#141317;
+    --ink-soft:#3D3A42;
+    --muted:#6B6862;
+    --hair:#E4E0D6;
+    --hair-strong:#CFC9B8;
+    --gold:#C9A227;
+    --gold-deep:#856611;
+    --ok:#2F6F52;
+    --warn:#A9701F;
+    --risk:#A33A32;
+    --display:"Cormorant Garamond",'Iowan Old Style',Georgia,serif;
+    --body:"Lora",Georgia,'Times New Roman',serif;
+    --mono:ui-monospace,'SF Mono',SFMono-Regular,'Cascadia Mono','Segoe UI Mono',Menlo,Consolas,monospace;
+    --measure:70ch;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#0B0B0D;
+      --surface:#15151A;
+      --surface-2:#1C1C22;
+      --ink:#EFECE4;
+      --ink-soft:#C8C3B8;
+      --muted:#959084;
+      --hair:#2A2A31;
+      --hair-strong:#3C3B44;
+      --gold:#D8B23F;
+      --gold-deep:#E0BE58;
+      --ok:#5FA982;
+      --warn:#D2A055;
+      --risk:#D9736A;
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0B0B0D;
+    --surface:#15151A;
+    --surface-2:#1C1C22;
+    --ink:#EFECE4;
+    --ink-soft:#C8C3B8;
+    --muted:#959084;
+    --hair:#2A2A31;
+    --hair-strong:#3C3B44;
+    --gold:#D8B23F;
+    --gold-deep:#E0BE58;
+    --ok:#5FA982;
+    --warn:#D2A055;
+    --risk:#D9736A;
+    color-scheme:dark;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    background:var(--ground);
+    color:var(--ink);
+    font-family:var(--body);
+    font-size:16px;
+    line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+  }
+  .shell{display:grid;grid-template-columns:16.5rem minmax(0,1fr);gap:0;max-width:82rem;margin:0 auto}
+  @media (max-width:940px){.shell{grid-template-columns:1fr}}
+
+  /* ---------- rail ---------- */
+  .rail{
+    border-right:1px solid var(--hair);
+    padding:2.5rem 1.5rem 4rem;
+    position:sticky;top:0;align-self:start;max-height:100vh;overflow-y:auto;
+  }
+  @media (max-width:940px){
+    .rail{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--hair);padding-bottom:1.5rem}
+  }
+  .rail-mark{font-family:var(--display);font-size:1.4rem;font-weight:700;line-height:1.15;letter-spacing:.01em}
+  .rail-mark span{color:var(--gold-deep)}
+  .rail-sub{font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:.5rem}
+  .rail nav{margin-top:1.75rem;display:flex;flex-direction:column;gap:.1rem}
+  .rail a{
+    display:grid;grid-template-columns:1.9rem 1fr;gap:.4rem;
+    text-decoration:none;color:var(--ink-soft);font-size:.83rem;line-height:1.35;
+    padding:.32rem .4rem;border-radius:2px;
+  }
+  .rail a:hover{color:var(--ink);background:var(--surface-2)}
+  .rail a:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+  .rail a b{font-family:var(--mono);font-size:.66rem;color:var(--gold-deep);font-weight:400;padding-top:.18rem}
+  .rail hr{border:0;border-top:1px solid var(--hair);margin:.85rem .4rem}
+
+  /* ---------- main ---------- */
+  main{padding:2.5rem 2.75rem 6rem;min-width:0}
+  @media (max-width:640px){main{padding:1.75rem 1.15rem 4rem}}
+
+  .eyebrow{font-family:var(--mono);font-size:.66rem;letter-spacing:.16em;text-transform:uppercase;color:var(--gold-deep)}
+  h1{
+    font-family:var(--display);font-weight:700;font-size:clamp(2.1rem,4.6vw,3.15rem);
+    line-height:1.06;margin:.6rem 0 0;text-wrap:balance;letter-spacing:-.01em;
+  }
+  .lede{max-width:var(--measure);color:var(--ink-soft);font-size:1.06rem;margin-top:1rem}
+  .provenance{
+    max-width:var(--measure);margin-top:1.5rem;padding:.9rem 1.1rem;
+    background:var(--surface-2);border-left:2px solid var(--gold);
+    font-size:.87rem;color:var(--ink-soft);
+  }
+  .provenance code{font-family:var(--mono);font-size:.82em}
+
+  h2{
+    font-family:var(--display);font-weight:700;font-size:1.72rem;line-height:1.2;
+    margin:3.5rem 0 0;padding-top:1.5rem;border-top:1px solid var(--hair-strong);
+    text-wrap:balance;display:grid;grid-template-columns:2.6rem 1fr;gap:.5rem;
+  }
+  h2 b{font-family:var(--mono);font-size:.72rem;font-weight:400;color:var(--gold-deep);letter-spacing:.1em;padding-top:.55rem}
+  h3{font-family:var(--display);font-weight:600;font-size:1.24rem;margin:2.1rem 0 .5rem;line-height:1.25}
+  h4{font-family:var(--mono);font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin:1.5rem 0 .5rem;font-weight:400}
+  p,ul,ol{max-width:var(--measure)}
+  p{margin:.7rem 0}
+  ul,ol{margin:.7rem 0;padding-left:1.15rem}
+  li{margin:.28rem 0}
+  a{color:var(--gold-deep)}
+  strong{font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:var(--surface-2);padding:.08em .35em;border-radius:2px;color:var(--ink)}
+
+  /* ---------- metrics ---------- */
+  .metrics{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr));
+    gap:0;margin-top:2rem;border:1px solid var(--hair);background:var(--surface);
+  }
+  .metric{padding:.95rem 1.05rem;border-right:1px solid var(--hair)}
+  .metric:last-child{border-right:0}
+  @media (max-width:640px){.metric{border-bottom:1px solid var(--hair)}}
+  .metric .n{font-family:var(--display);font-size:1.85rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+  .metric .l{font-family:var(--mono);font-size:.6rem;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin-top:.42rem;line-height:1.3}
+
+  /* ---------- tables ---------- */
+  .scroll{overflow-x:auto;margin:1.15rem 0;border:1px solid var(--hair);background:var(--surface)}
+  table{border-collapse:collapse;width:100%;font-size:.845rem;min-width:34rem}
+  th,td{text-align:left;padding:.5rem .7rem;border-bottom:1px solid var(--hair);vertical-align:top;line-height:1.45}
+  th{
+    font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--muted);font-weight:400;background:var(--surface-2);white-space:nowrap;
+  }
+  tbody tr:last-child td{border-bottom:0}
+  td code{background:none;padding:0;font-size:.83em}
+  .num{font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  /* level pills */
+  .lv{font-family:var(--mono);font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;padding:.13em .45em;border:1px solid var(--hair-strong);border-radius:2px;white-space:nowrap;color:var(--ink-soft)}
+  .lv-x{border-color:var(--gold);color:var(--gold-deep);font-weight:600}
+  .lv-a{border-color:var(--gold);color:var(--gold-deep)}
+  .lv-i{border-color:var(--hair-strong)}
+  .lv-b{border-color:var(--hair);color:var(--muted)}
+  .lv-n{border:0;color:var(--muted);opacity:.6}
+
+  .pri{font-family:var(--mono);font-size:.62rem;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap}
+  .p1{color:var(--risk);font-weight:600}
+  .p2{color:var(--warn)}
+  .p3{color:var(--muted)}
+
+  /* ---------- callouts ---------- */
+  .flag{
+    max-width:var(--measure);margin:1.15rem 0;padding:.85rem 1.05rem;
+    background:var(--surface);border:1px solid var(--hair);border-left:2px solid var(--risk);
+    font-size:.9rem;
+  }
+  .flag.warn{border-left-color:var(--warn)}
+  .flag.ok{border-left-color:var(--ok)}
+  .flag .ft{font-family:var(--mono);font-size:.63rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:.3rem}
+  .flag p{margin:.35rem 0;max-width:none}
+
+  /* ---------- arch diagram ---------- */
+  .arch{margin:1.5rem 0;overflow-x:auto;border:1px solid var(--hair);background:var(--surface);padding:1.35rem 1.1rem}
+  .arch svg{display:block;min-width:36rem;max-width:100%;height:auto}
+  .arch text{font-family:var(--mono);fill:var(--ink)}
+  .arch .lbl{font-size:9.5px;letter-spacing:.05em}
+  .arch .tiny{font-size:8px;fill:var(--muted)}
+  .arch .bx{fill:var(--surface-2);stroke:var(--hair-strong);stroke-width:1}
+  .arch .bx-g{fill:none;stroke:var(--gold);stroke-width:1.2}
+  .arch .ar{stroke:var(--hair-strong);stroke-width:1;fill:none}
+  .arch .ar-d{stroke:var(--hair-strong);stroke-width:1;fill:none;stroke-dasharray:3 3}
+
+  /* ---------- questions ---------- */
+  ol.q{counter-reset:q;list-style:none;padding-left:0;max-width:var(--measure)}
+  ol.q li{counter-increment:q;display:grid;grid-template-columns:1.85rem 1fr;gap:.45rem;margin:.5rem 0;font-size:.925rem}
+  ol.q li::before{content:counter(q,decimal-leading-zero);font-family:var(--mono);font-size:.66rem;color:var(--gold-deep);padding-top:.28rem}
+
+  .role{margin:1.5rem 0;border:1px solid var(--hair);background:var(--surface);padding:1.2rem 1.35rem}
+  .role h3{margin-top:0}
+  .role .sum{color:var(--ink-soft);font-size:.93rem}
+
+  .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:0 1.75rem;max-width:none}
+  .two > div{min-width:0}
+  .two ul{max-width:none}
+
+  footer{margin-top:4rem;padding-top:1.35rem;border-top:1px solid var(--hair-strong);font-size:.83rem;color:var(--muted);max-width:var(--measure)}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="shell">
+<aside class="rail">
+  <div class="rail-mark">Regalis <span>WorkSpace</span></div>
+  <div class="rail-sub">Staffing &amp; Skills Dossier</div>
+  <nav>
+    <a href="#s1"><b>01</b><span>Analysis scope</span></a>
+    <a href="#s2"><b>02</b><span>What the system does</span></a>
+    <a href="#s3"><b>03</b><span>Technology stack</span></a>
+    <a href="#s4"><b>04</b><span>Frontend developer</span></a>
+    <a href="#s5"><b>05</b><span>Backend developer</span></a>
+    <a href="#s6"><b>06</b><span>Full-stack developer</span></a>
+    <a href="#s7"><b>07</b><span>Database / DBA</span></a>
+    <a href="#s8"><b>08</b><span>Manual tester</span></a>
+    <a href="#s9"><b>09</b><span>Module test matrix</span></a>
+    <a href="#s10"><b>10</b><span>API tester</span></a>
+    <a href="#s11"><b>11</b><span>Database testing</span></a>
+    <a href="#s12"><b>12</b><span>Automation tester</span></a>
+    <a href="#s13"><b>13</b><span>Security testing</span></a>
+    <a href="#s14"><b>14</b><span>DevOps / server</span></a>
+    <hr>
+    <a href="#s15"><b>15</b><span>Skill level matrix</span></a>
+    <a href="#s16"><b>16</b><span>Hiring requirement</span></a>
+    <a href="#s17"><b>17</b><span>Onboarding path</span></a>
+    <a href="#s18"><b>18</b><span>Job descriptions</span></a>
+    <hr>
+    <a href="#final"><b>★</b><span>Final recommendation</span></a>
+  </nav>
+</aside>
+
+<main>
+  <div class="eyebrow">Source-code analysis · Release 3 · <code>1.0.0-rc.1</code></div>
+  <h1>Who you need to build and test Regalis WorkSpace</h1>
+  <p class="lede">A staffing dossier derived entirely from this repository — its 5-project .NET solution, 27 API controllers, 45 EF Core entities, 103 permission codes and 33 React pages. Every skill below is tied to code that exists.</p>
+
+  <div class="provenance">
+    <strong>What was analysed.</strong> The source tree at <code>C:\Users\Administrator\Downloads\Regalis</code> (git branch <code>develop</code>, remote <code>Nandhakumarmnk/RegalisWorkSpace</code>). Note the VSCode workspace <code>c:\inetpub\wwwroot\Regalis_Src</code> is the <em>compiled IIS deployment</em> — minified bundles and DLLs, no source — so it was not the basis for this analysis. No credentials, keys or connection-string values are reproduced anywhere in this document.
+  </div>
+
+  <div class="metrics">
+    <div class="metric"><div class="n">167</div><div class="l">HTTP endpoints</div></div>
+    <div class="metric"><div class="n">27</div><div class="l">Controllers</div></div>
+    <div class="metric"><div class="n">45</div><div class="l">EF entities</div></div>
+    <div class="metric"><div class="n">103</div><div class="l">Permission codes</div></div>
+    <div class="metric"><div class="n">33</div><div class="l">React pages</div></div>
+    <div class="metric"><div class="n">95</div><div class="l">Backend tests</div></div>
+    <div class="metric"><div class="n">7</div><div class="l">Frontend tests</div></div>
+  </div>
+
+  <!-- ============ 01 ============ -->
+  <h2 id="s1"><b>01</b><span>Analysis scope and method</span></h2>
+  <p>I read dependency manifests, the composition root, every controller name, the service and adapter layers, the EF model, the middleware pipeline, the seeded RBAC catalogue, the test projects, and the deployment and security documents. Conclusions below cite file paths.</p>
+
+  <h4>Confirmed present</h4>
+  <div class="scroll"><table>
+    <thead><tr><th>Concern</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td>Layered backend, one-way deps</td><td><code>backend/src/*/Regalis.*.csproj</code> — 5 projects</td></tr>
+      <tr><td>Auth, JWT + rotating refresh</td><td><code>Infrastructure/Security/JwtTokenService.cs</code>, <code>Services/AuthService.cs</code></td></tr>
+      <tr><td>Permission-based authorization</td><td><code>API/Authorization/</code> — 4 files, custom policy provider</td></tr>
+      <tr><td>Validation</td><td>FluentValidation 11.11 + <code>API/Filters/ValidationActionFilter.cs</code></td></tr>
+      <tr><td>Middleware pipeline</td><td>Correlation-id, exception handling, request logging, security headers</td></tr>
+      <tr><td>Payments</td><td><code>Adapters/RazorpayPaymentGateway.cs</code>, <code>SandboxPaymentGateway.cs</code></td></tr>
+      <tr><td>Email / OTP</td><td>MailKit 4.17 — <code>SmtpOtpSender.cs</code>, <code>ConsoleOtpSender.cs</code></td></tr>
+      <tr><td>File upload</td><td><code>Services/FileTypeSniffer.cs</code>, ticket + profile endpoints</td></tr>
+      <tr><td>Reports &amp; exports</td><td>ClosedXML (Excel) + QuestPDF (PDF), 16 reports; <code>CsvPayrollExporter.cs</code></td></tr>
+      <tr><td>Background jobs</td><td><code>BackgroundJobs/BookingHoldSweeper.cs</code> (one job)</td></tr>
+      <tr><td>Caching</td><td><code>IMemoryCache</code> in <code>SettingService.cs</code> — in-process only</td></tr>
+      <tr><td>Rate limiting</td><td><code>Program.cs</code> — <code>auth</code>, <code>webhook</code>, read and write policies</td></tr>
+      <tr><td>Health checks</td><td><code>/health</code>, <code>/health/ready</code> with EF Core check</td></tr>
+      <tr><td>Logging</td><td>Serilog 8.0.3, console + rolling file, correlation id</td></tr>
+      <tr><td>API docs</td><td>Swashbuckle 6.9 with Bearer security definition; disabled in Production</td></tr>
+      <tr><td>PWA</td><td><code>vite-plugin-pwa</code> 1.0 + Workbox precache manifest</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>Confirmed absent</h4>
+  <p>These are genuine absences, not gaps in my reading — each was searched for explicitly.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Concern</th><th>Finding</th></tr></thead>
+    <tbody>
+      <tr><td>CI/CD</td><td><code>.github/workflows/</code> exists but is <strong>empty</strong>. No YAML anywhere in the repo; no Jenkins, Azure Pipelines or GitLab config.</td></tr>
+      <tr><td>Containers</td><td>No <code>Dockerfile</code> or compose file. Deployment is IIS-native.</td></tr>
+      <tr><td>Realtime</td><td>No SignalR, WebSocket, or EventSource usage in backend or frontend.</td></tr>
+      <tr><td>Distributed cache</td><td>No Redis or <code>IDistributedCache</code>. Caching is single-process.</td></tr>
+      <tr><td>Cloud services</td><td>No AWS/Azure/GCP SDKs. <code>Azure.Identity</code> appears only as a transitive dependency of <code>Microsoft.Data.SqlClient</code>.</td></tr>
+      <tr><td>SMS provider</td><td>A <code>Sms</code> notification-channel enum exists, but only Console and SMTP senders are implemented. <span class="lv lv-b">undetermined</span> whether SMS is planned.</td></tr>
+      <tr><td>Physical access hardware</td><td><code>MockAccessControlAdapter.cs</code> only — the turnstile/door integration is stubbed.</td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- ============ 02 ============ -->
+  <h2 id="s2"><b>02</b><span>What the system does</span></h2>
+  <p><strong>Regalis WorkSpace is a coworking-space operations platform</strong> for a premium Indian workspace operator. Members book desks, cabins and meeting rooms; staff run the floor, the money and the support desk. Currency is INR and times are handled in IST with UTC storage.</p>
+
+  <h3>Business purpose</h3>
+  <p>Convert a physical coworking site into a bookable, metered, auditable service: sell time and space (hourly bookings, day passes, monthly passes), collect money (wallet, gateway, invoices), control physical entry (signed QR at the gate), and run back-office operations (housekeeping, inventory, attendance, payroll export, tickets, 16 reports).</p>
+
+  <h3>User types</h3>
+  <p>Two portals are enforced at login (<code>PortalType.Customer</code> / <code>PortalType.Admin</code>), three user types (<code>Customer</code>, <code>Admin</code>, <code>Staff</code>), and six seeded roles from <code>Persistence/Seed/SeedCatalogue.cs</code>:</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Role</th><th>Portal</th><th>Scope as seeded</th></tr></thead>
+    <tbody>
+      <tr><td><code>CUSTOMER</code></td><td>Customer</td><td>Own data only — row-scoped</td></tr>
+      <tr><td><code>ADMIN</code></td><td>Admin</td><td>All 103 permissions (wildcard grant)</td></tr>
+      <tr><td><code>MANAGER</code></td><td>Admin</td><td>Operations Manager — floor, bookings, calendar</td></tr>
+      <tr><td><code>FINANCE</code></td><td>Admin</td><td>Money and reporting; read-only on operations</td></tr>
+      <tr><td><code>SUPPORT</code></td><td>Admin</td><td>Tickets, customers, bookings — read-mostly</td></tr>
+      <tr><td><code>HOUSEKEEPING</code></td><td>Admin</td><td>Housekeeping schedules and inventory</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Major modules</h3>
+  <p>Derived from the 27 controllers and the permission catalogue: <strong>Auth</strong> · <strong>Bookings</strong> (+ Availability, Calendar) · <strong>Workspaces</strong> (desks, cabins, meeting rooms) · <strong>Locations</strong> · <strong>Passes</strong> (day, monthly) · <strong>Wallet</strong> · <strong>Payments</strong> · <strong>Invoices</strong> · <strong>Access control</strong> (QR gate + logs) · <strong>Attendance</strong> (+ payroll export) · <strong>Housekeeping</strong> · <strong>Inventory</strong> · <strong>Services</strong> catalogue · <strong>Tickets</strong> · <strong>Notifications</strong> · <strong>Banners</strong> · <strong>Reports</strong> · <strong>Audit</strong> · <strong>Users / Roles / Menus / Settings</strong> · <strong>Dashboard</strong> · <strong>Customers</strong> · <strong>Profile</strong>.</p>
+
+  <h3>Architecture</h3>
+  <div class="arch">
+    <svg viewBox="0 0 720 300" role="img" aria-label="Request flows from browser through IIS to the API, then Application, Infrastructure and SQL Server, with external gateway and SMTP integrations.">
+      <rect class="bx" x="8" y="18" width="104" height="42"/>
+      <text class="lbl" x="60" y="35" text-anchor="middle">Browser</text>
+      <text class="tiny" x="60" y="49" text-anchor="middle">React 19 PWA</text>
+
+      <path class="ar" d="M112 39 H160"/><polygon points="160,39 154,36 154,42" fill="currentColor"/>
+      <rect class="bx" x="160" y="8" width="112" height="62"/>
+      <text class="lbl" x="216" y="26" text-anchor="middle">IIS</text>
+      <text class="tiny" x="216" y="40" text-anchor="middle">regalis-ui (static)</text>
+      <text class="tiny" x="216" y="52" text-anchor="middle">regalis-api (reverse proxy)</text>
+
+      <path class="ar" d="M272 39 H320"/><polygon points="320,39 314,36 314,42" fill="currentColor"/>
+      <rect class="bx-g" x="320" y="8" width="118" height="62"/>
+      <text class="lbl" x="379" y="26" text-anchor="middle">Regalis.API</text>
+      <text class="tiny" x="379" y="40" text-anchor="middle">27 controllers · 167 routes</text>
+      <text class="tiny" x="379" y="52" text-anchor="middle">JWT · rate limit · headers</text>
+
+      <path class="ar" d="M379 70 V104"/><polygon points="379,104 376,98 382,98" fill="currentColor"/>
+      <rect class="bx" x="320" y="104" width="118" height="46"/>
+      <text class="lbl" x="379" y="122" text-anchor="middle">Regalis.Application</text>
+      <text class="tiny" x="379" y="136" text-anchor="middle">DTOs · validators · interfaces</text>
+
+      <path class="ar" d="M379 150 V184"/><polygon points="379,184 376,178 382,178" fill="currentColor"/>
+      <rect class="bx" x="320" y="184" width="118" height="46"/>
+      <text class="lbl" x="379" y="202" text-anchor="middle">Regalis.Infrastructure</text>
+      <text class="tiny" x="379" y="216" text-anchor="middle">EF Core · 33 services</text>
+
+      <path class="ar" d="M379 230 V264"/><polygon points="379,264 376,258 382,258" fill="currentColor"/>
+      <rect class="bx" x="308" y="264" width="142" height="30"/>
+      <text class="lbl" x="379" y="283" text-anchor="middle">SQL Server 2019+</text>
+
+      <rect class="bx" x="196" y="184" width="104" height="46"/>
+      <text class="lbl" x="248" y="202" text-anchor="middle">Regalis.Domain</text>
+      <text class="tiny" x="248" y="216" text-anchor="middle">entities · enums</text>
+      <path class="ar" d="M320 127 H300 V196 H300"/><polygon points="300,196 306,193 306,199" fill="currentColor"/>
+
+      <rect class="bx-g" x="500" y="176" width="150" height="34"/>
+      <text class="lbl" x="575" y="192" text-anchor="middle">Razorpay</text>
+      <text class="tiny" x="575" y="204" text-anchor="middle">HMAC-verified orders</text>
+      <path class="ar-d" d="M438 200 H500"/><polygon points="500,200 494,197 494,203" fill="currentColor"/>
+
+      <rect class="bx" x="500" y="222" width="150" height="34"/>
+      <text class="lbl" x="575" y="238" text-anchor="middle">SMTP</text>
+      <text class="tiny" x="575" y="250" text-anchor="middle">MailKit · OTP mail</text>
+      <path class="ar-d" d="M438 212 H470 V239 H500"/><polygon points="500,239 494,236 494,242" fill="currentColor"/>
+
+      <rect class="bx" x="500" y="98" width="150" height="34"/>
+      <text class="lbl" x="575" y="114" text-anchor="middle">Access hardware</text>
+      <text class="tiny" x="575" y="126" text-anchor="middle">mocked adapter</text>
+      <path class="ar-d" d="M438 127 H500"/><polygon points="500,127 494,124 494,130" fill="currentColor"/>
+    </svg>
+  </div>
+  <p>Dotted edges are external. <code>Infrastructure</code> reaches <code>Domain</code> only <em>transitively</em> through <code>Application</code> — worth noting because the ASCII art in <code>documentation/ARCHITECTURE.md</code> §2 draws that as a direct arrow, which the <code>.csproj</code> files contradict.</p>
+
+  <h3>Authentication flow</h3>
+  <p>Ten endpoints on <code>AuthController</code>: <code>login</code>, <code>register</code>, <code>verify-otp</code>, <code>resend-otp</code>, <code>forgot-password</code>, <code>reset-password</code>, <code>change-password</code>, <code>refresh</code>, <code>logout</code>, <code>me</code>. Registration issues a hashed, attempt-capped, single-use OTP. Login returns a short-lived JWT plus a 7-day refresh token; refresh <strong>rotates</strong> the token and reuse detection <strong>revokes the whole token family</strong>. Passwords are PBKDF2/HMAC-SHA256 with per-user salt and password history. Lockout is setting-driven. The SPA runs a single-flight refresh on 401 in <code>frontend/src/api/client.ts</code>.</p>
+
+  <h3>Authorization</h3>
+  <p>Not role-checking — a genuine permission system. 103 codes of the form <code>MODULE.ACTION</code> (<code>BOOKING.CREATE</code>, <code>ACCESS.OVERRIDE</code>, <code>PAYROLL.EXPORT</code>) resolved through a custom <code>PermissionPolicyProvider</code> and <code>HasPermissionAttribute</code>. A fallback policy makes authentication the default, and a reflection test fails the build if any action lacks an explicit attribute. Customer row-scoping returns <strong>404, not 403</strong>, for another member's record.</p>
+
+  <h3>Important business workflows</h3>
+  <ol>
+    <li><strong>Booking with paid hold.</strong> Created <code>Pending</code>, holding the slot for <code>Booking.PendingHoldMinutes</code>; payment moves it to <code>Confirmed</code>; the <code>BookingHoldSweeper</code> job expires unpaid holds. Confirm runs at <strong>serializable</strong> isolation with re-checks inside the transaction.</li>
+    <li><strong>Gate entry.</strong> HMAC-SHA256-signed QR verified in constant time; <code>Confirmed → CheckedIn</code> at the gate or in-app; checkout closes to <code>Completed</code>; every transition writes <code>TRN_BookingStatusHistory</code>.</li>
+    <li><strong>Money.</strong> Append-only wallet ledger with compensating entries; gateway signature recomputed server-side; webhooks idempotent on gateway payment id; a client-reported success is never trusted.</li>
+    <li><strong>Gap-free numbering.</strong> <code>NumberSequenceService</code> issues invoice and booking numbers by atomic UPDATE — the one raw-SQL site in the codebase.</li>
+  </ol>
+
+  <!-- ============ 03 ============ -->
+  <h2 id="s3"><b>03</b><span>Technology stack</span></h2>
+  <p>Versions are from <code>package.json</code>, the <code>.csproj</code> files and <code>Directory.Build.props</code> — not inferred.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Area</th><th>Technology</th><th>Version</th><th>Where used</th><th>Importance</th></tr></thead>
+    <tbody>
+      <tr><td>Backend language</td><td>C#</td><td>12 · <code>net8.0</code> LTS</td><td>All 5 backend projects; nullable enabled</td><td><span class="lv lv-x">critical</span></td></tr>
+      <tr><td>Frontend language</td><td>TypeScript</td><td>~5.9.2</td><td>Whole SPA</td><td><span class="lv lv-x">critical</span></td></tr>
+      <tr><td>Backend framework</td><td>ASP.NET Core Web API</td><td>8.0.19</td><td><code>Regalis.API</code></td><td><span class="lv lv-x">critical</span></td></tr>
+      <tr><td>Frontend framework</td><td>React</td><td>19.1.1</td><td>33 pages</td><td><span class="lv lv-x">critical</span></td></tr>
+      <tr><td>Build tool</td><td>Vite</td><td>7.1</td><td>Dev server + prod bundle</td><td><span class="lv lv-a">high</span></td></tr>
+      <tr><td>Routing</td><td>React Router</td><td>7.8</td><td><code>AppRoutes.tsx</code>, ~50 paths</td><td><span class="lv lv-a">high</span></td></tr>
+      <tr><td>ORM</td><td>EF Core (SqlServer)</td><td>8.0.19</td><td>45 entities, 3 migrations</td><td><span class="lv lv-x">critical</span></td></tr>
+      <tr><td>Database</td><td>Microsoft SQL Server</td><td>2019+</td><td><code>MST_</code>/<code>TRN_</code>/<code>MAP_</code> tables</td><td><span class="lv lv-x">critical</span></td></tr>
+      <tr><td>Auth</td><td>JWT Bearer + rotating refresh</td><td>8.0.19 / JWT 8.3</td><td><code>AuthService</code>, <code>JwtTokenService</code></td><td><span class="lv lv-x">critical</span></td></tr>
+      <tr><td>Password hashing</td><td>PBKDF2 (HMAC-SHA256)</td><td>AspNetCore.Cryptography 8.0.19</td><td><code>PasswordHasher.cs</code></td><td><span class="lv lv-a">high</span></td></tr>
+      <tr><td>Authorization</td><td>Custom permission policies</td><td>—</td><td><code>API/Authorization/</code>, 103 codes</td><td><span class="lv lv-x">critical</span></td></tr>
+      <tr><td>Backend validation</td><td>FluentValidation</td><td>11.11</td><td><code>Application</code> + action filter</td><td><span class="lv lv-a">high</span></td></tr>
+      <tr><td>Frontend validation</td><td>React Hook Form + Zod</td><td>7.62 / 4.0</td><td>All forms, via <code>@hookform/resolvers</code> 5.2</td><td><span class="lv lv-a">high</span></td></tr>
+      <tr><td>State</td><td>Zustand</td><td>5.0.7</td><td><code>authStore</code>, <code>themeStore</code></td><td><span class="lv lv-i">medium</span></td></tr>
+      <tr><td>HTTP client</td><td>Axios</td><td>1.11</td><td><code>api/client.ts</code> single instance + interceptors</td><td><span class="lv lv-a">high</span></td></tr>
+      <tr><td>Logging</td><td>Serilog</td><td>8.0.3</td><td>Console + rolling file, correlation id</td><td><span class="lv lv-a">high</span></td></tr>
+      <tr><td>API docs</td><td>Swashbuckle / OpenAPI</td><td>6.9</td><td>Bearer-aware Swagger, off in Production</td><td><span class="lv lv-i">medium</span></td></tr>
+      <tr><td>Excel export</td><td>ClosedXML</td><td>0.105.1</td><td>16 reports</td><td><span class="lv lv-i">medium</span></td></tr>
+      <tr><td>PDF export</td><td>QuestPDF</td><td>2024.12.3</td><td>Invoices + reports (community licence)</td><td><span class="lv lv-i">medium</span></td></tr>
+      <tr><td>Email</td><td>MailKit</td><td>4.17</td><td><code>SmtpOtpSender</code></td><td><span class="lv lv-i">medium</span></td></tr>
+      <tr><td>Payments</td><td>Razorpay REST (hand-rolled)</td><td>API v1</td><td><code>RazorpayPaymentGateway</code>; Sandbox default</td><td><span class="lv lv-a">high</span></td></tr>
+      <tr><td>QR</td><td><code>qrcode</code> (client) + HMAC signer (server)</td><td>1.5.4</td><td>Gate passes</td><td><span class="lv lv-i">medium</span></td></tr>
+      <tr><td>Icons / UI</td><td>lucide-react + hand-rolled components</td><td>0.539</td><td>13 components in <code>components/ui</code></td><td><span class="lv lv-i">medium</span></td></tr>
+      <tr><td>CSS</td><td>Plain CSS + custom properties</td><td>—</td><td><code>frontend/src/styles</code>. <strong>No Tailwind or CSS-in-JS.</strong></td><td><span class="lv lv-a">high</span></td></tr>
+      <tr><td>PWA</td><td>vite-plugin-pwa (Workbox)</td><td>1.0.2</td><td><code>sw.js</code> precache manifest</td><td><span class="lv lv-i">medium</span></td></tr>
+      <tr><td>Backend tests</td><td>xUnit + FluentAssertions + Moq + WebApplicationFactory</td><td>—</td><td>16 integration + 3 unit files</td><td><span class="lv lv-a">high</span></td></tr>
+      <tr><td>Frontend tests</td><td>Vitest + Testing Library + jsdom</td><td>3.2.4 / 16.3</td><td><strong>One file only</strong></td><td><span class="lv lv-a">high</span></td></tr>
+      <tr><td>E2E</td><td>Playwright</td><td>1.62.1</td><td>2 specs, 5 tests</td><td><span class="lv lv-a">high</span></td></tr>
+      <tr><td>Web server</td><td>IIS (Windows Server 2019)</td><td>ANCM v2</td><td>Pools <code>regalis-api</code>, <code>regalis-ui</code></td><td><span class="lv lv-a">high</span></td></tr>
+      <tr><td>Package managers</td><td>npm + NuGet</td><td>—</td><td><code>package-lock.json</code> committed</td><td><span class="lv lv-i">medium</span></td></tr>
+      <tr><td>Version control</td><td>Git</td><td>—</td><td>GitHub; <code>develop</code> branch</td><td><span class="lv lv-a">high</span></td></tr>
+      <tr><td>CI/CD</td><td colspan="3"><strong>None found.</strong> <code>.github/workflows/</code> is empty.</td><td><span class="lv lv-b">absent</span></td></tr>
+      <tr><td>Containers / cloud</td><td colspan="3"><strong>None found.</strong> Bare-metal IIS deployment.</td><td><span class="lv lv-b">absent</span></td></tr>
+      <tr><td>Monitoring</td><td colspan="3">Health endpoints + Serilog files. No APM or metrics backend.</td><td><span class="lv lv-b">gap</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- ============ 04 ============ -->
+  <h2 id="s4"><b>04</b><span>Frontend developer</span></h2>
+  <h3>Mandatory skills</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>Skill</th><th>Level</th><th>Why this project needs it</th><th>Modules</th></tr></thead>
+    <tbody>
+      <tr><td>TypeScript</td><td><span class="lv lv-a">Advanced</span></td><td><code>Nullable</code>-strict API contracts are mirrored in <code>src/models</code>; generics wrap <code>ApiResponse&lt;T&gt;</code> and <code>PagedResult&lt;T&gt;</code></td><td>All</td></tr>
+      <tr><td>React 19 (hooks, function components)</td><td><span class="lv lv-a">Advanced</span></td><td>33 pages, no class components; lazy route chunks per page</td><td>All</td></tr>
+      <tr><td>React Router 7</td><td><span class="lv lv-a">Advanced</span></td><td>~50 routes behind two guard components — <code>ProtectedRoute</code> and <code>PermissionRoute</code></td><td>Routing, admin portal</td></tr>
+      <tr><td>Auth token handling</td><td><span class="lv lv-a">Advanced</span></td><td>Single-flight refresh with queued retries on 401 in <code>api/client.ts</code>; getting this wrong logs users out mid-session</td><td>Auth</td></tr>
+      <tr><td>Permission-driven UI</td><td><span class="lv lv-a">Advanced</span></td><td><code>usePermission</code> hook + server-driven menu; the same 103 codes gate nav, routes and buttons</td><td>Admin, menus</td></tr>
+      <tr><td>React Hook Form + Zod</td><td><span class="lv lv-a">Advanced</span></td><td>Every form; Zod schemas mirror FluentValidation rules (e.g. password complexity in <code>RegisterPage</code>)</td><td>Auth, bookings, admin CRUD</td></tr>
+      <tr><td>Plain CSS + custom properties</td><td><span class="lv lv-a">Advanced</span></td><td><strong>No utility framework.</strong> Theming is CSS variables with a light/dark <code>themeStore</code> — hand-written CSS skill is mandatory, not optional</td><td>All</td></tr>
+      <tr><td>REST integration</td><td><span class="lv lv-a">Advanced</span></td><td>10 typed API modules over 167 endpoints; envelope unwrapping and paged queries</td><td>All</td></tr>
+      <tr><td>Zustand</td><td><span class="lv lv-i">Intermediate</span></td><td>Only two stores — small surface, but auth state is load-bearing</td><td>Auth, theme</td></tr>
+      <tr><td>Async state &amp; error handling</td><td><span class="lv lv-a">Advanced</span></td><td>No React Query — loading, error and empty states are hand-rolled per page against <code>ApiError</code></td><td>All</td></tr>
+      <tr><td>Responsive UI</td><td><span class="lv lv-i">Intermediate</span></td><td>Dense admin data tables plus a phone-first customer portal</td><td>Admin grids, customer</td></tr>
+      <tr><td>PWA / service workers</td><td><span class="lv lv-i">Intermediate</span></td><td>Workbox precaches hashed assets with <code>revision:null</code> — a stale-cache trap during releases</td><td>Deployment</td></tr>
+      <tr><td>Browser debugging</td><td><span class="lv lv-i">Intermediate</span></td><td>Network/Application panels for tokens, SW cache, CORS</td><td>All</td></tr>
+      <tr><td>Frontend security hygiene</td><td><span class="lv lv-i">Intermediate</span></td><td><code>SECURITY.md</code> F-02 accepts a <code>localStorage</code> refresh token <em>on the condition</em> no XSS sink is introduced — no <code>innerHTML</code>, no <code>dangerouslySetInnerHTML</code></td><td>Auth, tickets</td></tr>
+      <tr><td>Vite + npm</td><td><span class="lv lv-i">Intermediate</span></td><td><code>tsc -b &amp;&amp; vite build</code>; path alias <code>@/</code></td><td>Build</td></tr>
+      <tr><td>Git</td><td><span class="lv lv-i">Intermediate</span></td><td><code>develop</code> branch flow; no CI safety net, so local discipline matters more</td><td>All</td></tr>
+      <tr><td>Vitest + Testing Library</td><td><span class="lv lv-i">Intermediate</span></td><td>Configured but barely used — the incoming dev is expected to grow this</td><td>All</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>Good to have</h4>
+  <ul>
+    <li>Playwright authoring — 2 specs exist and want extending</li>
+    <li>Accessibility (WCAG AA) — no audit evidence in the repo</li>
+    <li>Chart/QR rendering — <code>qrcode</code> is already used for gate passes</li>
+    <li>i18n — not present today; INR/IST formatting is hand-rolled in <code>utils/formatters.ts</code></li>
+    <li>Bundle-size discipline — the runbook cites ~430&nbsp;KB main JS</li>
+  </ul>
+
+  <h4>Responsibilities</h4>
+  <ul>
+    <li>Build and maintain the 12 customer and 16 admin pages against the typed API modules.</li>
+    <li>Keep Zod schemas in step with backend FluentValidation rules, so client and server reject the same inputs.</li>
+    <li>Own the permission-gated navigation and route guards; a missing gate is a security defect, not a cosmetic one.</li>
+    <li>Maintain the hand-rolled component library in <code>components/ui</code> rather than adding a UI framework.</li>
+    <li>Raise frontend test coverage from its current single file.</li>
+    <li>Manage service-worker cache invalidation across releases.</li>
+  </ul>
+
+  <h4>Interview questions</h4>
+  <ol class="q">
+    <li>Our Axios instance refreshes the token on a 401. Three requests fail concurrently — how do you avoid firing three refreshes, and how do you replay the originals?</li>
+    <li>Why would a refresh interceptor that calls the same Axios instance recurse, and how do you break that?</li>
+    <li>We keep a 7-day refresh token in <code>localStorage</code>. What is the risk, what compensating controls make it tolerable, and what would you move it to?</li>
+    <li>Sidebar and dashboard tiles were both generated from the same server-driven <code>menus</code> array. How would you remove the tiles without emptying the sidebar?</li>
+    <li>Difference between <code>ProtectedRoute</code> and <code>PermissionRoute</code>? Why do you need both?</li>
+    <li>If the server already enforces 103 permission codes, why gate the UI at all — and why is UI gating not sufficient?</li>
+    <li>Vite emits content-hashed filenames and Workbox precaches them with <code>revision:null</code>. Why might a user still see the old bundle after deploy?</li>
+    <li>Write a Zod schema for a password needing 8+ chars, upper, lower, digit and symbol, plus a matching confirm field.</li>
+    <li>How do you keep a Zod schema honest against a server-side FluentValidation rule that changes?</li>
+    <li>Theming is CSS custom properties with a light/dark store. How do you structure tokens so an explicit user choice beats the OS preference?</li>
+    <li>An admin grid must stay usable at 1280px and on a phone. What do you do with 12 columns?</li>
+    <li>The API returns <code>ApiResponse&lt;T&gt;</code> and <code>PagedResult&lt;T&gt;</code>. How do you type that once so pages stay clean?</li>
+    <li>Booking times are stored UTC and shown IST. Where do you convert, and what bug appears if you convert in two places?</li>
+    <li>How would you render a signed QR gate pass and make sure it is not cached or leaked?</li>
+    <li>No React Query here. How do you handle loading, error and empty states consistently across 33 pages without one?</li>
+    <li>Only <code>formatters.test.ts</code> exists. Which three test files would you write first, and why those?</li>
+    <li>A booking POST returns 409 on a slot conflict. What does the user see, and how do you recover state?</li>
+    <li>How would you prove no XSS sink exists in this SPA before shipping?</li>
+  </ol>
+
+  <!-- ============ 05 ============ -->
+  <h2 id="s5"><b>05</b><span>Backend developer</span></h2>
+  <h3>Mandatory skills</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>Skill</th><th>Level</th><th>Why this project needs it</th><th>Modules</th></tr></thead>
+    <tbody>
+      <tr><td>C# 12 / .NET 8</td><td><span class="lv lv-x">Expert</span></td><td>Nullable reference types on, primary constructors used throughout the service layer</td><td>All</td></tr>
+      <tr><td>ASP.NET Core Web API</td><td><span class="lv lv-x">Expert</span></td><td>27 controllers, 167 routes, custom filter, 4 middleware, fallback auth policy</td><td>All</td></tr>
+      <tr><td>Layered / clean architecture</td><td><span class="lv lv-a">Advanced</span></td><td>Strict one-way dependency rule; interfaces in <code>Application</code>, implementations in <code>Infrastructure</code>. Breaking it breaks the build's intent</td><td>All</td></tr>
+      <tr><td>EF Core 8</td><td><span class="lv lv-x">Expert</span></td><td>45 entities, interceptors, migrations, an audit interceptor that redacts hashes</td><td>All</td></tr>
+      <tr><td>SQL Server &amp; T-SQL</td><td><span class="lv lv-a">Advanced</span></td><td>Serializable transactions, <code>ROWVERSION</code> concurrency, raw-SQL atomic UPDATE for gap-free numbering</td><td>Bookings, invoices, inventory</td></tr>
+      <tr><td>Transactions &amp; concurrency</td><td><span class="lv lv-x">Expert</span></td><td><strong>The hardest skill here.</strong> Booking confirm and inventory issue run serializable with in-transaction re-checks; a 20-way conflict test asserts exactly one winner</td><td>Bookings, inventory, wallet, passes</td></tr>
+      <tr><td>AuthN — JWT + refresh rotation</td><td><span class="lv lv-x">Expert</span></td><td>Single-use rotating refresh tokens, hashed at rest, with family revocation on reuse</td><td>Auth</td></tr>
+      <tr><td>AuthZ — permission policies</td><td><span class="lv lv-x">Expert</span></td><td>Custom <code>IAuthorizationPolicyProvider</code>, 103 codes, wildcard admin grant, portal separation, row scoping via 404</td><td>All</td></tr>
+      <tr><td>FluentValidation</td><td><span class="lv lv-a">Advanced</span></td><td>Validators auto-run through <code>ValidationActionFilter</code>; controllers stay thin</td><td>All write paths</td></tr>
+      <tr><td>Exception handling &amp; problem details</td><td><span class="lv lv-a">Advanced</span></td><td><code>ExceptionHandlingMiddleware</code> maps domain exceptions to status codes without leaking internals</td><td>All</td></tr>
+      <tr><td>Serilog / structured logging</td><td><span class="lv lv-i">Intermediate</span></td><td>Correlation id on every response; append-only <code>TRN_AuditLog</code> with no update path</td><td>Audit, ops</td></tr>
+      <tr><td>Applied cryptography</td><td><span class="lv lv-a">Advanced</span></td><td>PBKDF2 hashing, HMAC-SHA256 QR signing with constant-time compare, gateway signature recomputation</td><td>Auth, access, payments</td></tr>
+      <tr><td>Payment integration</td><td><span class="lv lv-a">Advanced</span></td><td>Hand-rolled Razorpay REST client — <strong>no vendor SDK</strong>; idempotent webhooks keyed on gateway payment id</td><td>Payments</td></tr>
+      <tr><td>Secure file handling</td><td><span class="lv lv-i">Intermediate</span></td><td>Extension allow-list + size ceiling + magic-byte sniffing; GUID names outside the web root; ownership-checked streaming</td><td>Tickets, profile</td></tr>
+      <tr><td>Background services</td><td><span class="lv lv-i">Intermediate</span></td><td><code>BookingHoldSweeper</code> is an <code>IHostedService</code>; more will be needed (no-show sweeping is unimplemented)</td><td>Bookings</td></tr>
+      <tr><td>Reporting &amp; document generation</td><td><span class="lv lv-i">Intermediate</span></td><td>16 reports through one Excel and one PDF exporter; QuestPDF community licence obligations</td><td>Reports, invoices</td></tr>
+      <tr><td>Rate limiting</td><td><span class="lv lv-i">Intermediate</span></td><td>Four named policies partitioned per IP — correctness depends on forwarded headers being right</td><td>Auth, webhooks</td></tr>
+      <tr><td>xUnit + WebApplicationFactory</td><td><span class="lv lv-a">Advanced</span></td><td>83 integration tests run against a real API and SQL Server; a reflection test enforces authorization coverage</td><td>All</td></tr>
+      <tr><td>OpenAPI / Swashbuckle</td><td><span class="lv lv-i">Intermediate</span></td><td>Bearer-aware Swagger; must stay off in Production</td><td>All</td></tr>
+      <tr><td>IIS deployment</td><td><span class="lv lv-i">Intermediate</span></td><td><code>dotnet publish</code> → IIS with ANCM v2; forwarded headers and <code>KnownProxies</code> behind a proxy</td><td>Deployment</td></tr>
+      <tr><td>Configuration &amp; secrets</td><td><span class="lv lv-a">Advanced</span></td><td>App refuses to start without <code>Jwt__SigningKey</code> outside Development; committed config holds empty placeholders</td><td>All</td></tr>
+      <tr><td>Git</td><td><span class="lv lv-i">Intermediate</span></td><td>No CI to catch mistakes — local test discipline is the only gate</td><td>All</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>Good to have</h4>
+  <ul>
+    <li>GitHub Actions — someone has to write the pipeline that does not yet exist</li>
+    <li>Hardware/IoT access-control integration, to replace <code>MockAccessControlAdapter</code></li>
+    <li>SMS gateway integration (Twilio/MSG91) for the unimplemented <code>Sms</code> channel</li>
+    <li>Redis, if the app ever scales past one IIS worker — caching is in-process today</li>
+    <li>SQL performance tuning: execution plans, index design</li>
+    <li>OpenTelemetry / APM, absent today</li>
+  </ul>
+
+  <h4>Responsibilities</h4>
+  <ul>
+    <li>Extend the 27 controllers while preserving the one-way layer rule and thin-controller convention.</li>
+    <li>Guard money and slot correctness: every new write path on bookings, wallet or inventory needs its isolation level and re-check reasoned about explicitly.</li>
+    <li>Attach an explicit authorization attribute to every new action — the reflection test will otherwise fail the build.</li>
+    <li>Keep the audit trail append-only and free of secret material.</li>
+    <li>Own EF migrations and their idempotent SQL counterparts in <code>deploy/sql</code>.</li>
+    <li>Maintain integration coverage as the primary regression net.</li>
+  </ul>
+
+  <h4>Interview questions</h4>
+  <ol class="q">
+    <li>Two members confirm the last desk simultaneously. Walk through preventing a double-book, and why the check must sit inside the transaction.</li>
+    <li>What does <code>IsolationLevel.Serializable</code> cost, and why choose it over optimistic <code>ROWVERSION</code> for booking confirm?</li>
+    <li><code>ROWVERSION</code> is on <code>TRN_Booking</code>, <code>MST_Wallet</code> and <code>MST_Workspace</code>. How does EF Core use it, and what exception surfaces on conflict?</li>
+    <li>Design gap-free sequential invoice numbers under concurrency. Why is <code>MAX(id)+1</code> wrong?</li>
+    <li>Explain refresh-token rotation with family revocation. What happens when a stolen token is replayed after the victim refreshes?</li>
+    <li>Why store refresh tokens and OTPs hashed when they are already random and short-lived?</li>
+    <li>Implement a custom permission policy for 103 dynamic codes. Why does a static <code>AddPolicy</code> per code not scale?</li>
+    <li>Why return <strong>404 instead of 403</strong> when a customer requests another customer's booking?</li>
+    <li>How would you prove that no controller action shipped without an authorization attribute?</li>
+    <li>A customer holds <code>DASHBOARD.VIEW</code>. How do you stop that granting the admin dashboard's revenue aggregates?</li>
+    <li>Verify a Razorpay payment server-side. Why is a client-reported success never trusted?</li>
+    <li>Make a payment webhook idempotent. What is the natural idempotency key here?</li>
+    <li>Why compare HMAC signatures in constant time?</li>
+    <li>Behind a reverse proxy, HTTPS redirect and per-IP rate limits keyed on the wrong values. What was missing, and what is the risk of trusting forwarded headers indiscriminately?</li>
+    <li>A user renames <code>payload.exe</code> to <code>photo.jpg</code>. Which of extension check, size limit and magic-byte sniffing stops it?</li>
+    <li>Why store uploads outside the web root with GUID names, and stream them through an endpoint?</li>
+    <li>PBKDF2 vs bcrypt/Argon2 — what parameters matter, and what does password history add?</li>
+    <li>Design an append-only wallet ledger. How do you correct a wrong entry without an UPDATE?</li>
+    <li>Login, forgot-password and register all return generic responses. What attack does that defeat?</li>
+    <li>The app refuses to start without a JWT signing key outside Development. Why is that better than a default?</li>
+    <li>Where would you put a background job that marks unattended confirmed bookings as <code>NoShow</code>, and what guards does it need?</li>
+    <li>EF Core generates a slow query on a booking report. How do you diagnose and fix it without raw SQL?</li>
+  </ol>
+
+  <!-- ============ 06 ============ -->
+  <h2 id="s6"><b>06</b><span>Full-stack developer</span></h2>
+  <p>Viable — the repo is one solution with a shared vocabulary and the C#/TypeScript pairing is conventional. But the depth is asymmetric: the backend carries the concurrency, money and RBAC risk, while the frontend is broad but shallower. A full-stack hire should be <strong>backend-dominant</strong>. Do not staff this project with full-stack generalists alone.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Area</th><th>Expected</th><th>Specifics</th></tr></thead>
+    <tbody>
+      <tr><td>Frontend</td><td><span class="lv lv-i">Intermediate</span>–<span class="lv lv-a">Advanced</span></td><td>React 19 + TS, React Router 7, RHF + Zod, hand-written CSS, Zustand</td></tr>
+      <tr><td>Backend</td><td><span class="lv lv-a">Advanced</span></td><td>ASP.NET Core 8, layered architecture, FluentValidation, DI</td></tr>
+      <tr><td>Database</td><td><span class="lv lv-a">Advanced</span></td><td>EF Core 8, migrations, transactions, indexing, 45-entity model</td></tr>
+      <tr><td>API</td><td><span class="lv lv-a">Advanced</span></td><td>REST design, envelope + paging conventions, OpenAPI, versioned webhooks</td></tr>
+      <tr><td>Infrastructure</td><td><span class="lv lv-i">Intermediate</span></td><td>IIS publish, app pools, forwarded headers, health checks, Serilog files</td></tr>
+      <tr><td>Security</td><td><span class="lv lv-a">Advanced</span></td><td>OWASP Top 10 literacy; JWT lifecycle, RBAC, upload validation, HMAC</td></tr>
+      <tr><td>Tools</td><td><span class="lv lv-i">Intermediate</span></td><td>Git, npm, NuGet, xUnit, Vitest, Playwright, Swagger, SSMS</td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- ============ 07 ============ -->
+  <h2 id="s7"><b>07</b><span>Database developer / DBA</span></h2>
+  <p>Substantial database work, but <strong>schema-through-EF</strong>: 45 entities, 3 migrations, only 6 explicit <code>IEntityTypeConfiguration</code> classes, and an idempotent release script at <code>deploy/sql/release-3-idempotent.sql</code>. There are <strong>no stored procedures or views</strong> in the repo — despite <code>ARCHITECTURE.md</code> describing a <code>database/</code> folder for them that does not exist. Treat this as a <em>part-time</em> specialism, not a full seat.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Skill</th><th>Level</th><th>Grounding</th></tr></thead>
+    <tbody>
+      <tr><td>SQL Server administration</td><td><span class="lv lv-i">Intermediate</span></td><td>2019+, Windows auth (<code>Trusted_Connection</code>), separate UAT database</td></tr>
+      <tr><td>T-SQL</td><td><span class="lv lv-a">Advanced</span></td><td>Verification queries, the idempotent release script, ledger reconciliation</td></tr>
+      <tr><td>Schema design</td><td><span class="lv lv-a">Advanced</span></td><td><code>MST_</code>/<code>TRN_</code>/<code>MAP_</code> convention across 45 entities</td></tr>
+      <tr><td>Relationships &amp; constraints</td><td><span class="lv lv-a">Advanced</span></td><td>7 junction tables; self-referencing <code>MST_Menu</code>; unique keys on email/mobile</td></tr>
+      <tr><td>Indexing &amp; tuning</td><td><span class="lv lv-a">Advanced</span></td><td>Availability and calendar queries scan bookings by date and workspace</td></tr>
+      <tr><td>Transactions &amp; isolation</td><td><span class="lv lv-x">Expert</span></td><td>Serializable paths in 7 services; deadlock and retry behaviour</td></tr>
+      <tr><td>Migrations</td><td><span class="lv lv-a">Advanced</span></td><td>EF migrations <em>plus</em> a hand-kept idempotent script; UAT never migrates on startup</td></tr>
+      <tr><td>Backup &amp; recovery</td><td><span class="lv lv-i">Intermediate</span></td><td>Append-only financial ledgers make PITR meaningful; no backup automation in repo</td></tr>
+      <tr><td>Database security</td><td><span class="lv lv-i">Intermediate</span></td><td>Least-privilege app account; audit table must stay insert-only</td></tr>
+      <tr><td>Stored procedures</td><td><span class="lv lv-b">Basic</span></td><td>None used. Only needed if you deliberately move logic to the database</td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- ============ 08 ============ -->
+  <h2 id="s8"><b>08</b><span>Manual tester</span></h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Skill</th><th>Level</th><th>Why</th><th>Modules</th></tr></thead>
+    <tbody>
+      <tr><td>Requirement analysis</td><td><span class="lv lv-a">Advanced</span></td><td>12 planning documents exist and disagree with code in places — the tester must notice</td><td>All</td></tr>
+      <tr><td>Role-based / authorization testing</td><td><span class="lv lv-x">Expert</span></td><td><strong>The single most important QA skill here.</strong> 6 roles × 103 permissions × 2 portals. Three of the six historical security findings were access-control leaks</td><td>All admin</td></tr>
+      <tr><td>Authentication &amp; session testing</td><td><span class="lv lv-a">Advanced</span></td><td>OTP registration, lockout, forced password change, 15-min access token, 7-day rotating refresh, logout revocation</td><td>Auth</td></tr>
+      <tr><td>Functional testing</td><td><span class="lv lv-a">Advanced</span></td><td>~25 modules of CRUD plus stateful booking and money flows</td><td>All</td></tr>
+      <tr><td>Negative testing</td><td><span class="lv lv-a">Advanced</span></td><td>Enumeration responses must stay generic; renamed-executable uploads must be refused</td><td>Auth, tickets, profile</td></tr>
+      <tr><td>Boundary testing</td><td><span class="lv lv-a">Advanced</span></td><td>Hold expiry at <code>PendingHoldMinutes</code>, pass validity edges, wallet zero/insufficient, upload size ceiling, rate-limit burst</td><td>Bookings, wallet, passes</td></tr>
+      <tr><td>Money / payment testing</td><td><span class="lv lv-a">Advanced</span></td><td>Wallet ledger, refunds (full and partial), invoice totals, gateway sandbox, webhook replay</td><td>Payments, wallet, invoices</td></tr>
+      <tr><td>API testing</td><td><span class="lv lv-i">Intermediate</span></td><td>167 endpoints; many admin behaviours are faster to verify at the API than the UI</td><td>All</td></tr>
+      <tr><td>Database verification</td><td><span class="lv lv-i">Intermediate</span></td><td>Append-only ledgers and audit rows must be confirmed in SQL, not just on screen</td><td>Wallet, audit, access</td></tr>
+      <tr><td>Integration testing</td><td><span class="lv lv-i">Intermediate</span></td><td>Booking → payment → invoice → QR → gate → attendance is one chain</td><td>Cross-module</td></tr>
+      <tr><td>Regression &amp; smoke</td><td><span class="lv lv-a">Advanced</span></td><td><strong>No CI exists</strong>, so the human regression pass is the release gate. A 10-minute smoke list is in <code>deploy/DEPLOYMENT.md</code> §6</td><td>All</td></tr>
+      <tr><td>Concurrency awareness</td><td><span class="lv lv-i">Intermediate</span></td><td>Two testers booking one desk simultaneously must yield exactly one winner</td><td>Bookings, inventory</td></tr>
+      <tr><td>File upload testing</td><td><span class="lv lv-i">Intermediate</span></td><td>Type, size and magic-byte rules; cross-account access attempts</td><td>Tickets, profile</td></tr>
+      <tr><td>Responsive &amp; cross-browser</td><td><span class="lv lv-i">Intermediate</span></td><td>Customer PWA on phones; dense admin grids on desktop</td><td>All UI</td></tr>
+      <tr><td>PWA / cache testing</td><td><span class="lv lv-i">Intermediate</span></td><td>Service worker can serve a stale bundle after deploy — a real release risk</td><td>Frontend</td></tr>
+      <tr><td>Report &amp; export validation</td><td><span class="lv lv-i">Intermediate</span></td><td>16 reports in grid, Excel and PDF must agree cell-for-cell</td><td>Reports, invoices, payroll</td></tr>
+      <tr><td>Notification testing</td><td><span class="lv lv-b">Basic</span></td><td>In-app plus email OTP; console channel in dev</td><td>Notifications</td></tr>
+      <tr><td>Timezone reasoning</td><td><span class="lv lv-i">Intermediate</span></td><td>UTC storage, IST display — off-by-5:30 bugs are the classic failure</td><td>Bookings, attendance, reports</td></tr>
+      <tr><td>Performance awareness</td><td><span class="lv lv-b">Basic</span></td><td>Notice a slow report or grid; no load-testing tooling in repo</td><td>Reports</td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- ============ 09 ============ -->
+  <h2 id="s9"><b>09</b><span>Module test responsibility matrix</span></h2>
+  <p>Modules taken from the actual controllers and route table.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Module</th><th>What must be tested</th><th>Type</th><th>Priority</th><th>Knowledge needed</th></tr></thead>
+    <tbody>
+      <tr><td>Auth</td><td>OTP registration, generic enumeration responses, lockout threshold, forced password change, refresh rotation, reuse revocation, logout</td><td>Functional · Negative · Security</td><td class="pri p1">Critical</td><td>JWT lifecycle, OTP rules</td></tr>
+      <tr><td>Roles &amp; permissions</td><td>All 6 roles against all 103 codes; portal separation; customer negative sweep</td><td>Authorization · Regression</td><td class="pri p1">Critical</td><td>Permission catalogue</td></tr>
+      <tr><td>Bookings</td><td>Hold expiry, double-book prevention, cancel window, reschedule, status history rows</td><td>Functional · Boundary · Concurrency</td><td class="pri p1">Critical</td><td>Status machine, IST/UTC</td></tr>
+      <tr><td>Availability &amp; calendar</td><td>Slot maths, blocks, overlaps at day edges</td><td>Functional · Boundary</td><td class="pri p1">Critical</td><td>Timezones</td></tr>
+      <tr><td>Payments</td><td>Sandbox and gateway paths, signature rejection, webhook replay idempotency, refunds</td><td>Integration · Negative · Security</td><td class="pri p1">Critical</td><td>HMAC, idempotency</td></tr>
+      <tr><td>Wallet</td><td>Top-up, debit, insufficient balance, append-only ledger, compensating corrections</td><td>Functional · DB</td><td class="pri p1">Critical</td><td>SQL, ledger model</td></tr>
+      <tr><td>Invoices</td><td>Line totals, tax, gap-free numbering, PDF fidelity</td><td>Functional · DB</td><td class="pri p1">Critical</td><td>Numbering, PDF checks</td></tr>
+      <tr><td>Access control (QR)</td><td>Signed payload accepted, tampered rejected, expired/cancelled refused, override audited, append-only log</td><td>Security · Integration</td><td class="pri p1">Critical</td><td>QR signing, audit</td></tr>
+      <tr><td>Passes</td><td>Day and monthly issue, validity edges, consumption against bookings</td><td>Functional · Boundary</td><td class="pri p2">High</td><td>Pass plans</td></tr>
+      <tr><td>Users &amp; customers</td><td>CRUD, uniqueness on email/mobile, activation, row scoping (404 not 403)</td><td>Functional · Authorization</td><td class="pri p2">High</td><td>RBAC</td></tr>
+      <tr><td>Tickets</td><td>Threading, attachments (type/size/magic byte), cross-account access attempts</td><td>Functional · Security</td><td class="pri p2">High</td><td>Upload rules</td></tr>
+      <tr><td>Attendance &amp; payroll</td><td>Check-in/out, approval, CSV payroll export correctness</td><td>Functional · Integration</td><td class="pri p2">High</td><td>Timezones, CSV</td></tr>
+      <tr><td>Inventory</td><td>Issue/receipt, signed adjustments, negative-stock prevention under concurrency</td><td>Functional · Concurrency</td><td class="pri p2">High</td><td>Ledger model</td></tr>
+      <tr><td>Reports</td><td>All 16: grid vs Excel vs PDF agreement; permission-gated export</td><td>Functional · Authorization</td><td class="pri p2">High</td><td>Excel/PDF inspection</td></tr>
+      <tr><td>Workspaces &amp; locations</td><td>Desk/cabin/meeting-room CRUD, amenities, blocks, status</td><td>Functional</td><td class="pri p2">High</td><td>Domain model</td></tr>
+      <tr><td>Audit</td><td>Append-only, no update/delete path, secrets redacted, export gated</td><td>Security · DB</td><td class="pri p2">High</td><td>SQL</td></tr>
+      <tr><td>Dashboard</td><td>Customer vs admin aggregates; the historical <code>DASHBOARD.VIEW</code> leak</td><td>Authorization · Regression</td><td class="pri p2">High</td><td>RBAC</td></tr>
+      <tr><td>Services catalogue</td><td><code>includeUnavailable</code> honoured only for <code>SERVICE.EDIT</code> (past leak)</td><td>Authorization · Regression</td><td class="pri p2">High</td><td>Permission nuance</td></tr>
+      <tr><td>Banners</td><td>Customers see only live customer-portal rows (past leak)</td><td>Authorization · Regression</td><td class="pri p3">Medium</td><td>Permission nuance</td></tr>
+      <tr><td>Housekeeping</td><td>Schedules, assignment, completion</td><td>Functional</td><td class="pri p3">Medium</td><td>Domain model</td></tr>
+      <tr><td>Notifications</td><td>In-app unread counts, email OTP delivery</td><td>Functional</td><td class="pri p3">Medium</td><td>Channels</td></tr>
+      <tr><td>Menus &amp; settings</td><td>Server-driven nav per role; setting changes and their cache invalidation</td><td>Functional · Authorization</td><td class="pri p3">Medium</td><td>RBAC, caching</td></tr>
+      <tr><td>Profile</td><td>Photo upload rules, password change revoking sessions</td><td>Functional · Security</td><td class="pri p3">Medium</td><td>Upload, sessions</td></tr>
+      <tr><td>PWA shell</td><td>Install, offline shell, stale-bundle-after-deploy</td><td>Non-functional</td><td class="pri p3">Medium</td><td>Service workers</td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- ============ 10 ============ -->
+  <h2 id="s10"><b>10</b><span>API tester</span></h2>
+  <p>167 endpoints with a consistent <code>ApiResponse&lt;T&gt;</code> envelope and <code>PagedResult&lt;T&gt;</code> paging. Swagger is available outside Production and is the natural starting map.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Skill</th><th>Level</th><th>Applied to</th></tr></thead>
+    <tbody>
+      <tr><td>HTTP methods &amp; semantics</td><td><span class="lv lv-a">Advanced</span></td><td>76 GET · 56 POST · 16 PUT · 10 DELETE · 9 PATCH — PATCH vs PUT matters here</td></tr>
+      <tr><td>Status codes</td><td><span class="lv lv-a">Advanced</span></td><td>401 vs 403 vs <strong>404-for-scoping</strong>; 409 on conflicts; 422/400 on validation; 429 on rate limit</td></tr>
+      <tr><td>Bearer tokens</td><td><span class="lv lv-a">Advanced</span></td><td>Access vs refresh; expiry behaviour; rotation; post-logout rejection</td></tr>
+      <tr><td>Headers</td><td><span class="lv lv-i">Intermediate</span></td><td>Correlation id on responses; security headers; CORS; forwarded headers</td></tr>
+      <tr><td>Request/response validation</td><td><span class="lv lv-a">Advanced</span></td><td>Envelope shape, error contract, JSON casing</td></tr>
+      <tr><td>Authorization probing</td><td><span class="lv lv-x">Expert</span></td><td>Every endpoint against all 6 roles — the highest-value API work on this project</td></tr>
+      <tr><td>API chaining</td><td><span class="lv lv-a">Advanced</span></td><td>login → book → pay → invoice → QR → gate scan → attendance</td></tr>
+      <tr><td>Negative &amp; boundary</td><td><span class="lv lv-a">Advanced</span></td><td>Tampered HMAC, replayed webhook, expired pass, oversized upload, rate-limit burst</td></tr>
+      <tr><td>Postman / REST client</td><td><span class="lv lv-a">Advanced</span></td><td>Environments per tier, token capture, collection runs (no collection in repo — build one)</td></tr>
+      <tr><td>DB verification</td><td><span class="lv lv-i">Intermediate</span></td><td>Confirm ledger and audit rows after each call</td></tr>
+    </tbody>
+  </table></div>
+  <h4>Endpoints to master first</h4>
+  <p><code>POST /auth/login</code> · <code>POST /auth/refresh</code> · <code>POST /auth/verify-otp</code> · availability query · <code>POST /bookings</code> · booking confirm · payment create + webhook · wallet debit/top-up · invoice fetch + PDF · QR issue + access scan · report export · <code>GET /health/ready</code>.</p>
+
+  <!-- ============ 11 ============ -->
+  <h2 id="s11"><b>11</b><span>Database testing</span></h2>
+  <p><strong>SQL level required: intermediate.</strong> Comfortable with multi-table joins, aggregates, and reading a schema; no need to author procedures.</p>
+  <div class="two">
+    <div>
+      <h4>Tables to understand</h4>
+      <ul>
+        <li><code>MST_User</code>, <code>MST_Role</code>, <code>MST_Permission</code> and the <code>MAP_</code> junctions — the RBAC core</li>
+        <li><code>TRN_Booking</code> + <code>TRN_BookingStatusHistory</code> — one row per transition</li>
+        <li><code>MST_Wallet</code> + <code>TRN_WalletTxn</code> — append-only ledger</li>
+        <li><code>TRN_Invoice</code> + lines; <code>NumberSequence</code></li>
+        <li><code>TRN_AuditLog</code>, access log — insert-only</li>
+        <li><code>MST_Workspace</code>, <code>MST_Location</code>, <code>MST_WorkspaceType</code></li>
+      </ul>
+    </div>
+    <div>
+      <h4>What to verify</h4>
+      <ul>
+        <li><strong>CRUD:</strong> the UI action produced exactly the expected rows</li>
+        <li><strong>Relationships:</strong> no orphans; junctions consistent after role edits</li>
+        <li><strong>Duplicates:</strong> unique constraints on email and mobile hold</li>
+        <li><strong>Constraints:</strong> negative stock and negative wallet rejected at the database, not just the UI</li>
+        <li><strong>Transactions:</strong> a failed confirm leaves <em>no</em> partial rows</li>
+        <li><strong>Consistency:</strong> wallet balance equals the sum of its ledger</li>
+        <li><strong>Append-only:</strong> no UPDATE or DELETE ever touches audit or ledger rows</li>
+        <li><strong>Backend vs DB:</strong> API response matches stored state, especially UTC vs IST</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============ 12 ============ -->
+  <h2 id="s12"><b>12</b><span>Automation tester</span></h2>
+  <p><strong>Automation is strongly recommended</strong> — and the tooling decision is already made by the repo, so no invention is needed.</p>
+  <div class="flag ok">
+    <span class="ft">Why these tools</span>
+    <p><strong>Playwright</strong> (1.62.1) is already a dev dependency with 2 specs, a config and a runner script — extend it rather than introduce Cypress. <strong>xUnit + WebApplicationFactory</strong> already gives 83 API-level integration tests against real SQL Server; new API automation belongs there, not in a separate framework. <strong>Vitest</strong> is configured for component tests. TypeScript and C# are already required of the team, so no new language is needed.</p>
+  </div>
+  <div class="scroll"><table>
+    <thead><tr><th>Skill</th><th>Level</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>TypeScript for tests</td><td><span class="lv lv-a">Advanced</span></td><td>Playwright specs and Vitest are TS</td></tr>
+      <tr><td>Playwright</td><td><span class="lv lv-a">Advanced</span></td><td>Existing <code>admin-walkthrough</code> and <code>customer-journey</code> specs plus <code>helpers.ts</code></td></tr>
+      <tr><td>API automation</td><td><span class="lv lv-a">Advanced</span></td><td>Either extend the xUnit suite or drive Playwright's request context</td></tr>
+      <tr><td>xUnit + FluentAssertions</td><td><span class="lv lv-i">Intermediate</span></td><td>To contribute to the existing 95-test backend suite</td></tr>
+      <tr><td>Fixtures &amp; POM</td><td><span class="lv lv-a">Advanced</span></td><td>33 pages; <code>helpers.ts</code> is the seed of a page-object layer</td></tr>
+      <tr><td>Data-driven testing</td><td><span class="lv lv-x">Expert</span></td><td><strong>The key technique here:</strong> 6 roles × 103 permissions is a matrix, not a script</td></tr>
+      <tr><td>Auth state reuse</td><td><span class="lv lv-a">Advanced</span></td><td>Playwright storage state per role, avoiding 6 logins per spec</td></tr>
+      <tr><td>Test data &amp; seeding</td><td><span class="lv lv-a">Advanced</span></td><td>Idempotent seeding keyed by code; bookings mutate state</td></tr>
+      <tr><td>Assertions &amp; waits</td><td><span class="lv lv-a">Advanced</span></td><td>Web-first assertions; avoid sleeps around hold expiry</td></tr>
+      <tr><td>DB verification in tests</td><td><span class="lv lv-i">Intermediate</span></td><td>Assert ledger and audit rows, not just UI text</td></tr>
+      <tr><td>Reporting</td><td><span class="lv lv-i">Intermediate</span></td><td><code>e2e-report/</code> already produced</td></tr>
+      <tr><td>CI/CD integration</td><td><span class="lv lv-a">Advanced</span></td><td><strong>Must build the pipeline that does not exist</strong> — highest-leverage task for this hire</td></tr>
+      <tr><td>Git</td><td><span class="lv lv-i">Intermediate</span></td><td>Branch flow, review</td></tr>
+    </tbody>
+  </table></div>
+  <h4>Automate first</h4>
+  <div class="scroll"><table>
+    <thead><tr><th>Feature</th><th>Priority</th><th>Reason</th></tr></thead>
+    <tbody>
+      <tr><td>Role × permission matrix</td><td class="pri p1">1 — first</td><td>618 role/permission combinations; 3 of 6 past security findings were access-control leaks. Impossible to re-run by hand each release</td></tr>
+      <tr><td>Auth lifecycle</td><td class="pri p1">1 — first</td><td>Rotation, reuse revocation, lockout, forced change. Cheap at API level, catastrophic if broken</td></tr>
+      <tr><td>CI pipeline for the existing 95 tests</td><td class="pri p1">1 — first</td><td>The suite already exists and passes; nothing runs it automatically. Highest value per hour of work</td></tr>
+      <tr><td>Booking → payment → invoice → QR → gate</td><td class="pri p1">2</td><td>The revenue path, spanning 5 modules</td></tr>
+      <tr><td>Money invariants</td><td class="pri p1">2</td><td>Ledger sums, refunds, gap-free numbering — silent corruption otherwise</td></tr>
+      <tr><td>Concurrency on booking confirm</td><td class="pri p2">3</td><td>Already proven once by a 20-way test; keep it as a guard</td></tr>
+      <tr><td>Upload rejection rules</td><td class="pri p2">3</td><td>Magic-byte sniffing is a security control needing a regression test</td></tr>
+      <tr><td>Security headers &amp; rate limits</td><td class="pri p2">3</td><td>Asserted today on live responses; keep asserting</td></tr>
+      <tr><td>16 report exports</td><td class="pri p3">4</td><td>Slow and tedious manually; mostly format-stable</td></tr>
+      <tr><td>Component tests for 33 pages</td><td class="pri p3">4</td><td>Currently 7 assertions total — grow steadily, not in a big bang</td></tr>
+      <tr><td>Cross-browser visual</td><td class="pri p3">5</td><td>Lowest risk; do after the matrix is locked down</td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- ============ 13 ============ -->
+  <h2 id="s13"><b>13</b><span>Security testing requirements</span></h2>
+  <p>This project has an unusually mature security posture for its size: <code>SECURITY.md</code> maps all ten OWASP 2021 categories with per-claim evidence, records 6 findings (5 fixed with regression tests, 1 accepted), and lists deployment preconditions. The bar for anyone joining is therefore <em>maintaining</em> that standard. Defensive review only — no exploitation.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Area</th><th>Implementation to understand</th><th>Who needs it</th></tr></thead>
+    <tbody>
+      <tr><td>Authentication</td><td>OTP-gated registration, lockout, generic responses, portal separation at login</td><td>Backend <span class="lv lv-a">Adv</span> · QA <span class="lv lv-a">Adv</span></td></tr>
+      <tr><td>Password management</td><td>PBKDF2/HMAC-SHA256, per-user salt, password history, change revokes sessions</td><td>Backend <span class="lv lv-a">Adv</span> · QA <span class="lv lv-i">Int</span></td></tr>
+      <tr><td>Tokens</td><td>Short access token; single-use rotating refresh, hashed at rest, family revoked on reuse</td><td>Both <span class="lv lv-a">Adv</span></td></tr>
+      <tr><td>Sessions</td><td>Logout and password change revoke outstanding tokens</td><td>Both <span class="lv lv-i">Int</span></td></tr>
+      <tr><td>Authorization</td><td>103 codes, fallback-deny policy, reflection coverage test, row scoping via 404</td><td>Both <span class="lv lv-x">Expert</span></td></tr>
+      <tr><td>Input validation</td><td>FluentValidation server-side mirrored by Zod client-side</td><td>Both <span class="lv lv-a">Adv</span></td></tr>
+      <tr><td>SQL injection</td><td>EF Core parameterised throughout; one raw-SQL site is a fixed parameterised statement</td><td>Backend <span class="lv lv-a">Adv</span> · QA <span class="lv lv-i">Int</span></td></tr>
+      <tr><td>XSS</td><td>No <code>innerHTML</code>, <code>dangerouslySetInnerHTML</code> or <code>eval</code>. This absence is a <em>precondition</em> of accepting finding F-02 — do not introduce one</td><td>Frontend <span class="lv lv-a">Adv</span></td></tr>
+      <tr><td>CSRF</td><td>Bearer tokens in headers, not cookies, so classic CSRF does not apply — <strong>this changes if F-02's cookie fix lands</strong></td><td>Both <span class="lv lv-i">Int</span></td></tr>
+      <tr><td>File uploads</td><td>Allow-list + size cap + magic-byte sniffing; GUID names outside web root; ownership-checked streaming</td><td>Both <span class="lv lv-a">Adv</span></td></tr>
+      <tr><td>Payment integrity</td><td>Signature recomputed server-side, constant-time compare, idempotent webhooks</td><td>Backend <span class="lv lv-a">Adv</span> · QA <span class="lv lv-i">Int</span></td></tr>
+      <tr><td>Transport &amp; headers</td><td>HSTS + HTTPS redirect outside Development; CSP, <code>X-Frame-Options: DENY</code>, nosniff, Referrer-Policy, Permissions-Policy</td><td>DevOps <span class="lv lv-a">Adv</span></td></tr>
+      <tr><td>Secret handling</td><td>Committed config holds empty placeholders; startup refuses a missing signing key outside Development</td><td>All <span class="lv lv-a">Adv</span></td></tr>
+      <tr><td>Logging &amp; audit</td><td>Correlation ids; append-only audit with hash/signature redaction</td><td>Backend <span class="lv lv-i">Int</span></td></tr>
+    </tbody>
+  </table></div>
+  <div class="flag">
+    <span class="ft">Live secret-hygiene issue</span>
+    <p>The <strong>deployed</strong> copy at <code>c:\inetpub\wwwroot\Regalis_Src\api\appsettings.Production.json</code> contains a real JWT signing key and a seed admin password in cleartext — the file's own comment says to rotate both if it leaves the server. The <em>source</em> repo correctly ships empty placeholders, so this is a deployment-hygiene problem, not a code defect. Values are deliberately not reproduced here. Move both to environment variables or the host secret store, and rotate them.</p>
+  </div>
+
+  <!-- ============ 14 ============ -->
+  <h2 id="s14"><b>14</b><span>DevOps / server engineer</span></h2>
+  <p>Deployment is documented in detail (<code>deploy/DEPLOYMENT.md</code>: prerequisites, build, database, API and frontend config, nginx and IIS sketches, a 10-minute smoke list, rollback, code freeze) but <strong>entirely manual</strong>. Windows-centric, no containers, no pipeline.</p>
+  <div class="two">
+    <div>
+      <h4>Mandatory</h4>
+      <ul>
+        <li><strong>Windows Server administration</strong> — 2019, services, ACLs <span class="lv lv-a">Adv</span></li>
+        <li><strong>IIS</strong> — sites, app pools (<code>No Managed Code</code>), ANCM v2, URL Rewrite + ARR reverse proxy <span class="lv lv-a">Adv</span></li>
+        <li><strong>ASP.NET Core hosting</strong> — <code>dotnet publish</code>, Hosting Bundle, <code>web.config</code>, stdout logs <span class="lv lv-a">Adv</span></li>
+        <li><strong>SQL Server operations</strong> — install, auth mode, backups, per-tier databases <span class="lv lv-a">Adv</span></li>
+        <li><strong>Configuration &amp; secrets</strong> — env vars over file config; the app refuses to boot without a signing key <span class="lv lv-a">Adv</span></li>
+        <li><strong>TLS/SSL</strong> — certificates, bindings; HSTS is active outside Development <span class="lv lv-a">Adv</span></li>
+        <li><strong>Reverse proxy correctness</strong> — <code>X-Forwarded-For/Proto</code> and <code>KnownProxies</code>; finding F-03 was exactly this <span class="lv lv-a">Adv</span></li>
+        <li><strong>PowerShell</strong> — <code>appcmd</code>, existing <code>scripts/*.ps1</code> <span class="lv lv-a">Adv</span></li>
+        <li><strong>Static SPA hosting</strong> — SPA fallback routing, cache headers, service-worker invalidation <span class="lv lv-i">Int</span></li>
+        <li><strong>Log management</strong> — Serilog rolling files, 30-file retention <span class="lv lv-i">Int</span></li>
+        <li><strong>Health monitoring</strong> — <code>/health</code>, <code>/health/ready</code> <span class="lv lv-i">Int</span></li>
+        <li><strong>Git</strong> — tag-based releases, rollback <span class="lv lv-i">Int</span></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Good to have</h4>
+      <ul>
+        <li><strong>GitHub Actions</strong> — build the missing pipeline for a Windows/.NET/npm stack <span class="lv lv-a">Adv, high value</span></li>
+        <li>Backup automation and restore drills — nothing in repo</li>
+        <li>APM / metrics (OpenTelemetry, App Insights) — no telemetry today</li>
+        <li>Docker / containerisation, if you ever leave IIS</li>
+        <li>Cloud (Azure most natural for this stack) — currently on-prem</li>
+        <li>DNS and CDN operations</li>
+        <li>Secret vaulting beyond environment variables</li>
+        <li>Load testing (k6, JMeter)</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============ 15 ============ -->
+  <h2 id="s15"><b>15</b><span>Skill level matrix</span></h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Skill</th><th>Frontend</th><th>Backend</th><th>Full stack</th><th>Manual QA</th><th>Automation QA</th><th>DevOps</th></tr></thead>
+    <tbody>
+      <tr><td>TypeScript</td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-n">N/A</span></td></tr>
+      <tr><td>React 19</td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-n">N/A</span></td></tr>
+      <tr><td>Hand-written CSS</td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-n">N/A</span></td></tr>
+      <tr><td>C# / .NET 8</td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-x">Expert</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-b">Basic</span></td></tr>
+      <tr><td>ASP.NET Core API</td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-x">Expert</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-i">Int</span></td></tr>
+      <tr><td>EF Core</td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-x">Expert</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-n">N/A</span></td></tr>
+      <tr><td>SQL Server / T-SQL</td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-a">Adv</span></td></tr>
+      <tr><td>Transactions &amp; concurrency</td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-x">Expert</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-b">Basic</span></td></tr>
+      <tr><td>JWT &amp; refresh rotation</td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-x">Expert</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-i">Int</span></td></tr>
+      <tr><td>Permission-based RBAC</td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-x">Expert</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-x">Expert</span></td><td><span class="lv lv-x">Expert</span></td><td><span class="lv lv-b">Basic</span></td></tr>
+      <tr><td>Validation (Zod / FluentValidation)</td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-n">N/A</span></td></tr>
+      <tr><td>REST / API design</td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-x">Expert</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-b">Basic</span></td></tr>
+      <tr><td>Payment integration</td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-n">N/A</span></td></tr>
+      <tr><td>Applied cryptography (HMAC/PBKDF2)</td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-b">Basic</span></td></tr>
+      <tr><td>OWASP Top 10</td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-a">Adv</span></td></tr>
+      <tr><td>xUnit / integration testing</td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-n">N/A</span></td></tr>
+      <tr><td>Vitest / Testing Library</td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-n">N/A</span></td></tr>
+      <tr><td>Playwright</td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-b">Basic</span></td></tr>
+      <tr><td>Manual test design</td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-x">Expert</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-n">N/A</span></td></tr>
+      <tr><td>Postman / API tooling</td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-b">Basic</span></td></tr>
+      <tr><td>IIS / Windows Server</td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-x">Expert</span></td></tr>
+      <tr><td>PowerShell</td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-a">Adv</span></td></tr>
+      <tr><td>CI/CD (to be built)</td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-a">Adv</span></td><td><span class="lv lv-a">Adv</span></td></tr>
+      <tr><td>PWA / service workers</td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-i">Int</span></td></tr>
+      <tr><td>Serilog / observability</td><td><span class="lv lv-n">N/A</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-a">Adv</span></td></tr>
+      <tr><td>Git</td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-b">Basic</span></td><td><span class="lv lv-i">Int</span></td><td><span class="lv lv-i">Int</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- ============ 16 ============ -->
+  <h2 id="s16"><b>16</b><span>Hiring requirement</span></h2>
+  <p>Complexity drivers: money handling, serializable concurrency, a 103-code permission system, physical access control, 167 endpoints, and <strong>no CI safety net</strong>. That last point raises the experience bar — there is no pipeline to catch a junior's mistake.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Role</th><th>Recommended</th><th>Minimum</th><th>Reason</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Backend developer</strong></td><td class="num">5–8 yrs</td><td class="num">4 yrs</td><td>Serializable transactions, refresh-token families, custom authorization policies and payment-signature verification are senior-level concerns. The riskiest seat</td></tr>
+      <tr><td><strong>Frontend developer</strong></td><td class="num">3–5 yrs</td><td class="num">2.5 yrs</td><td>33 pages of conventional React, but token refresh, permission gating and hand-written CSS with no UI framework need real independence</td></tr>
+      <tr><td><strong>Full-stack developer</strong></td><td class="num">5–7 yrs</td><td class="num">4 yrs</td><td>Only viable if backend-dominant; must not be the sole owner of money or RBAC paths</td></tr>
+      <tr><td><strong>Manual QA</strong></td><td class="num">3–5 yrs</td><td class="num">2 yrs</td><td>Must reason about permission matrices, money invariants and UTC/IST rather than follow scripts. Currently the only release gate</td></tr>
+      <tr><td><strong>Automation QA</strong></td><td class="num">4–6 yrs</td><td class="num">3 yrs</td><td>Playwright plus building the missing CI pipeline — that is a senior task, not a scripting task</td></tr>
+      <tr><td><strong>DevOps / server</strong></td><td class="num">4–6 yrs</td><td class="num">3 yrs</td><td>IIS + ANCM + reverse proxy + SQL Server + TLS on Windows. <strong>Part-time or shared is sufficient</strong> — see the final recommendation</td></tr>
+      <tr><td><em>Dedicated DBA</em></td><td colspan="2" class="num">not required</td><td>Schema is EF-driven with no procedures or views. Fold into the backend seat; bring a consultant for index tuning and a backup/restore drill</td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- ============ 17 ============ -->
+  <h2 id="s17"><b>17</b><span>Onboarding path</span></h2>
+  <div class="two">
+    <div>
+      <h3>Developer</h3>
+      <h4>Day 1</h4>
+      <ul>
+        <li>Read <code>README.md</code>, then <code>documentation/ARCHITECTURE.md</code> §1–3</li>
+        <li>Run the API and Vite dev server; log in to both portals</li>
+        <li>Run <code>scripts/run-tests.ps1</code> and see the suite pass locally</li>
+        <li>Learn the layer rule: <code>Domain</code> depends on nothing</li>
+      </ul>
+      <h4>First 3 days</h4>
+      <ul>
+        <li>Trace one feature end to end: page → API module → controller → service → EF → table</li>
+        <li>Read <code>Program.cs</code> in full — it is the map of every cross-cutting concern</li>
+        <li>Read <code>AuthService</code> and <code>api/client.ts</code> together to understand the token dance</li>
+        <li>Understand <code>HasPermissionAttribute</code> and the seeded catalogue</li>
+      </ul>
+      <h4>First week</h4>
+      <ul>
+        <li>Read <code>SECURITY.md</code> cover to cover, especially accepted finding F-02</li>
+        <li>Study booking confirm: serializable isolation and in-transaction re-checks</li>
+        <li>Ship a small vertical slice with tests both sides</li>
+        <li>Write and roll back an EF migration on a scratch database</li>
+      </ul>
+      <h4>First 2 weeks</h4>
+      <ul>
+        <li>Own a module (e.g. Housekeeping or Inventory) including its report</li>
+        <li>Read the money paths: wallet ledger, invoice numbering, gateway verification</li>
+        <li>Do a full manual deploy to UAT from <code>deploy/DEPLOYMENT.md</code></li>
+      </ul>
+      <h4>First month</h4>
+      <ul>
+        <li>Take a slice of the 618-combination permission matrix and verify it</li>
+        <li>Contribute to the missing CI pipeline</li>
+        <li>Pick up one flagged risk: no-show sweeper, the F-02 cookie migration, or frontend test coverage</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Tester</h3>
+      <h4>Day 1</h4>
+      <ul>
+        <li>Get accounts for all 6 roles across both portals</li>
+        <li>Walk the customer journey: register → OTP → book → pay → QR</li>
+        <li>Open Swagger and browse the endpoint surface</li>
+      </ul>
+      <h4>First 3 days</h4>
+      <ul>
+        <li>Map the 6 roles against the permission catalogue; note what each portal exposes</li>
+        <li>Learn the booking state machine and where each transition is triggered</li>
+        <li>Run the <code>DEPLOYMENT.md</code> §6 smoke list on UAT</li>
+        <li>Get read access to the UAT database and run a first join query</li>
+      </ul>
+      <h4>First week</h4>
+      <ul>
+        <li>Read <code>SECURITY.md</code> §2 — the three past access-control leaks are your permanent regression set</li>
+        <li>Build a Postman collection with per-role environments (none exists yet)</li>
+        <li>Verify a wallet transaction in the UI and then in the ledger table</li>
+        <li>Test the auth lifecycle: lockout, forced change, refresh rotation, logout revocation</li>
+      </ul>
+      <h4>First 2 weeks</h4>
+      <ul>
+        <li>Own the authorization matrix as a living artefact</li>
+        <li>Boundary-test hold expiry, pass validity and upload ceilings</li>
+        <li>Cross-check 3 of the 16 reports across grid, Excel and PDF</li>
+        <li>Run the existing Playwright specs and read <code>helpers.ts</code></li>
+      </ul>
+      <h4>First month</h4>
+      <ul>
+        <li>Own the release regression pack — the de facto quality gate</li>
+        <li>Automate the auth lifecycle and the role matrix first</li>
+        <li>Concurrency-test double booking with a colleague</li>
+        <li>Push for the CI pipeline; manual regression does not scale to 618 combinations</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============ 18 ============ -->
+  <h2 id="s18"><b>18</b><span>Job descriptions</span></h2>
+
+  <div class="role">
+    <h3>Frontend Developer — React + TypeScript</h3>
+    <p class="sum"><strong>Summary.</strong> Build and maintain the customer PWA and admin console of a coworking-operations platform: 33 pages of React 19 and TypeScript against a 167-endpoint .NET API, with permission-driven navigation and no UI framework to lean on.</p>
+    <h4>Mandatory</h4>
+    <ul>
+      <li>React 19 with hooks and function components — advanced</li>
+      <li>TypeScript, including generics over API envelopes — advanced</li>
+      <li>React Router 7, including guarded and lazy routes — advanced</li>
+      <li>React Hook Form + Zod schema validation — advanced</li>
+      <li><strong>Hand-written modern CSS</strong> with custom properties and light/dark theming — advanced (no Tailwind or CSS-in-JS on this project)</li>
+      <li>REST integration with Axios interceptors; JWT access/refresh handling including single-flight refresh — advanced</li>
+      <li>Permission-gated UI against a server-driven menu — advanced</li>
+      <li>Zustand or comparable lightweight state — intermediate</li>
+      <li>Vite, npm, Git — intermediate</li>
+      <li>Vitest + React Testing Library — intermediate</li>
+    </ul>
+    <h4>Good to have</h4>
+    <ul><li>Playwright · PWA and service-worker caching · WCAG AA accessibility · bundle-size optimisation · INR/IST formatting</li></ul>
+    <h4>Experience</h4><p>3–5 years, minimum 2.5.</p>
+    <h4>Responsibilities</h4>
+    <ul>
+      <li>Deliver customer and admin features against typed API modules</li>
+      <li>Keep client validation aligned with server rules</li>
+      <li>Own route guards and permission gating as security-relevant code</li>
+      <li>Maintain the in-house component library and grow frontend test coverage</li>
+      <li>Introduce no XSS sink — a documented precondition of an accepted security risk</li>
+    </ul>
+  </div>
+
+  <div class="role">
+    <h3>Backend Developer — .NET 8 / ASP.NET Core</h3>
+    <p class="sum"><strong>Summary.</strong> Own the API and domain services of a coworking-operations platform: 27 controllers, 45 EF Core entities, a 103-code permission system, and money and slot-allocation paths that must be correct under concurrency.</p>
+    <h4>Mandatory</h4>
+    <ul>
+      <li>C# 12 / .NET 8 with nullable reference types — expert</li>
+      <li>ASP.NET Core Web API: middleware, filters, DI, custom authorization policies — expert</li>
+      <li>Layered architecture with strict one-way dependencies — advanced</li>
+      <li>EF Core 8: modelling, migrations, interceptors, query performance — expert</li>
+      <li><strong>Transactions and concurrency</strong>: isolation levels, serializable paths, <code>ROWVERSION</code>, deadlock handling — expert</li>
+      <li>SQL Server and T-SQL — advanced</li>
+      <li>JWT authentication with rotating refresh tokens and family revocation — expert</li>
+      <li>Permission-based authorization at scale — expert</li>
+      <li>FluentValidation; centralised exception handling — advanced</li>
+      <li>Applied cryptography: PBKDF2, HMAC-SHA256, constant-time comparison — advanced</li>
+      <li>Payment-gateway integration against a REST API without a vendor SDK — advanced</li>
+      <li>xUnit + WebApplicationFactory integration testing — advanced</li>
+      <li>Serilog, OpenAPI/Swagger, IIS publishing, Git — intermediate</li>
+    </ul>
+    <h4>Good to have</h4>
+    <ul><li>GitHub Actions for Windows/.NET · hardware access-control integration · SMS gateways · Redis · SQL tuning · OpenTelemetry</li></ul>
+    <h4>Experience</h4><p>5–8 years, minimum 4.</p>
+    <h4>Responsibilities</h4>
+    <ul>
+      <li>Extend the API while preserving layering and thin controllers</li>
+      <li>Reason explicitly about isolation and re-checks on every money or slot write</li>
+      <li>Attach explicit authorization to every action; keep the audit trail append-only</li>
+      <li>Own migrations and their idempotent release scripts</li>
+      <li>Maintain integration tests as the principal regression net</li>
+    </ul>
+  </div>
+
+  <div class="role">
+    <h3>Full-Stack Developer — .NET + React (backend-dominant)</h3>
+    <p class="sum"><strong>Summary.</strong> Deliver vertical slices across a React 19 SPA and an ASP.NET Core 8 API, with primary depth on the backend where the concurrency, money and access-control risk sits.</p>
+    <h4>Mandatory</h4>
+    <ul>
+      <li>ASP.NET Core 8 and C# 12 — advanced</li>
+      <li>EF Core 8 and SQL Server, including transactions — advanced</li>
+      <li>React 19 + TypeScript, React Router, RHF + Zod — intermediate to advanced</li>
+      <li>Hand-written CSS with theming — intermediate</li>
+      <li>REST design, JWT lifecycle, permission-based RBAC — advanced</li>
+      <li>OWASP Top 10 literacy — advanced</li>
+      <li>xUnit and Vitest; Git — intermediate</li>
+      <li>IIS deployment basics — intermediate</li>
+    </ul>
+    <h4>Good to have</h4>
+    <ul><li>Playwright · CI/CD authoring · PWA caching · reporting with ClosedXML/QuestPDF</li></ul>
+    <h4>Experience</h4><p>5–7 years, minimum 4.</p>
+    <h4>Responsibilities</h4>
+    <ul><li>Own features end to end; pair with a senior backend engineer on money and RBAC paths rather than owning them alone</li></ul>
+  </div>
+
+  <div class="role">
+    <h3>Manual QA Tester</h3>
+    <p class="sum"><strong>Summary.</strong> Be the release gate for a coworking-operations platform with no CI: verify a 6-role × 103-permission access matrix, stateful booking flows, and money correctness across wallet, gateway and invoicing.</p>
+    <h4>Mandatory</h4>
+    <ul>
+      <li>Role-based and authorization testing across multiple roles and portals — expert</li>
+      <li>Authentication and session testing: OTP, lockout, token expiry and rotation — advanced</li>
+      <li>Functional, negative, boundary and regression testing — advanced</li>
+      <li>Payment and wallet-ledger verification, including refunds — advanced</li>
+      <li>API testing with Postman or similar — intermediate</li>
+      <li>SQL for data verification (joins, aggregates) — intermediate</li>
+      <li>Integration testing across module chains — intermediate</li>
+      <li>File-upload validation; responsive and cross-browser testing — intermediate</li>
+      <li>Timezone reasoning (UTC storage, IST display) — intermediate</li>
+      <li>Clear defect reporting with correlation ids from responses</li>
+    </ul>
+    <h4>Good to have</h4>
+    <ul><li>Playwright reading/authoring · PWA cache testing · Excel/PDF export verification · basic performance awareness · security-testing fundamentals</li></ul>
+    <h4>Experience</h4><p>3–5 years, minimum 2.</p>
+    <h4>Responsibilities</h4>
+    <ul>
+      <li>Own the release regression pack and the pre-deploy smoke list</li>
+      <li>Maintain the authorization matrix as a living artefact</li>
+      <li>Verify money flows in both UI and database</li>
+      <li>Guard the three historical access-control leaks as permanent regression cases</li>
+    </ul>
+  </div>
+
+  <div class="role">
+    <h3>Automation QA Engineer</h3>
+    <p class="sum"><strong>Summary.</strong> Turn a large manual regression burden into an automated suite, and build the CI pipeline this project does not yet have. Playwright and xUnit are already in place.</p>
+    <h4>Mandatory</h4>
+    <ul>
+      <li>Playwright with TypeScript, including fixtures and storage-state auth reuse — advanced</li>
+      <li>TypeScript — advanced</li>
+      <li>API test automation — advanced</li>
+      <li><strong>Data-driven testing of large matrices</strong> (6 roles × 103 permissions) — expert</li>
+      <li>Page-object or fixture-based design across 33 pages — advanced</li>
+      <li>Test data management against idempotent seeding — advanced</li>
+      <li><strong>CI/CD authoring</strong>, ideally GitHub Actions on Windows — advanced</li>
+      <li>xUnit + FluentAssertions to extend the existing backend suite — intermediate</li>
+      <li>SQL verification inside tests; Git — intermediate</li>
+    </ul>
+    <h4>Good to have</h4>
+    <ul><li>Vitest component tests · visual regression · k6 or JMeter · Docker for test environments</li></ul>
+    <h4>Experience</h4><p>4–6 years, minimum 3.</p>
+    <h4>Responsibilities</h4>
+    <ul>
+      <li>Stand up CI that runs the existing 95 backend tests on every push</li>
+      <li>Automate the permission matrix and auth lifecycle first</li>
+      <li>Extend E2E coverage over the booking-to-gate revenue path</li>
+      <li>Keep the suite fast and non-flaky enough to gate merges</li>
+    </ul>
+  </div>
+
+  <div class="role">
+    <h3>DevOps / Server Engineer <span class="lv lv-i">part-time or shared</span></h3>
+    <p class="sum"><strong>Summary.</strong> Own Windows/IIS hosting, SQL Server operations and release mechanics for an on-premises .NET 8 + React deployment, and replace a fully manual runbook with automation.</p>
+    <h4>Mandatory</h4>
+    <ul>
+      <li>Windows Server 2019 administration — advanced</li>
+      <li>IIS: sites, app pools, ANCM v2, URL Rewrite and ARR reverse proxy — advanced</li>
+      <li>ASP.NET Core hosting: publish, Hosting Bundle, <code>web.config</code>, stdout logs — advanced</li>
+      <li>SQL Server operations: install, auth, backup and restore — advanced</li>
+      <li>TLS certificates and bindings; HSTS behaviour — advanced</li>
+      <li>Reverse-proxy correctness: forwarded headers and known-proxy configuration — advanced</li>
+      <li>Environment-based configuration and secret handling — advanced</li>
+      <li>PowerShell scripting — advanced</li>
+      <li>SPA static hosting, cache headers and service-worker invalidation — intermediate</li>
+      <li>Log management and health-endpoint monitoring; Git tag-based releases — intermediate</li>
+    </ul>
+    <h4>Good to have</h4>
+    <ul><li>GitHub Actions (high value — no pipeline exists) · backup automation and restore drills · APM/OpenTelemetry · Docker · Azure · DNS/CDN · secret vaulting · load testing</li></ul>
+    <h4>Experience</h4><p>4–6 years, minimum 3.</p>
+    <h4>Responsibilities</h4>
+    <ul>
+      <li>Own UAT and production deployments and rollback</li>
+      <li>Move secrets out of configuration files into the environment or a secret store, and rotate the exposed ones</li>
+      <li>Automate the manual runbook; establish backup and restore drills</li>
+      <li>Add monitoring beyond health endpoints and log files</li>
+    </ul>
+  </div>
+
+  <!-- ============ FINAL ============ -->
+  <h2 id="final"><b>★</b><span>Final recommendation</span></h2>
+
+  <h3>Team shape</h3>
+  <p><strong>Developers:</strong> 1 senior backend (.NET, 5–8 yrs) — the non-negotiable hire; 1 frontend (React/TS, 3–5 yrs); optionally 1 backend-dominant full-stack (5–7 yrs) for throughput. <strong>Testers:</strong> 1 manual QA (3–5 yrs) and 1 automation QA (4–6 yrs). <strong>DevOps:</strong> part-time or shared, 4–6 yrs. <strong>No dedicated DBA</strong> — fold into backend, with a consultant for index tuning and restore drills.</p>
+  <p>Interestingly, <code>Regalis_Proposal_3Dev_1QA.xlsx</code> in the repo suggests a 3-developer, 1-QA shape was already costed. My analysis broadly agrees on developers but says <strong>1 QA is not enough</strong>, because manual testing is currently the only release gate.</p>
+
+  <h3>Top 10 developer skills</h3>
+  <ol>
+    <li>ASP.NET Core 8 / C# 12</li>
+    <li>Transactions, isolation levels and concurrency control</li>
+    <li>EF Core 8 modelling and migrations</li>
+    <li>Permission-based authorization design (103 codes)</li>
+    <li>JWT with rotating refresh tokens and family revocation</li>
+    <li>React 19 + TypeScript</li>
+    <li>SQL Server and T-SQL</li>
+    <li>Validation on both sides (FluentValidation + Zod)</li>
+    <li>OWASP Top 10 applied to money and access-control paths</li>
+    <li>Integration testing with xUnit + WebApplicationFactory</li>
+  </ol>
+
+  <h3>Top 10 tester skills</h3>
+  <ol>
+    <li>Role and permission matrix testing across 2 portals</li>
+    <li>Authentication, session and token-lifecycle testing</li>
+    <li>Payment and wallet-ledger verification</li>
+    <li>Boundary testing on holds, passes and limits</li>
+    <li>API testing over 167 endpoints</li>
+    <li>SQL data verification</li>
+    <li>Regression discipline without CI</li>
+    <li>Negative testing, especially enumeration and uploads</li>
+    <li>Integration testing along the booking-to-gate chain</li>
+    <li>Playwright automation with data-driven matrices</li>
+  </ol>
+
+  <h3>Risks and skill gaps found</h3>
+  <div class="flag">
+    <span class="ft">Risk 1 · highest priority</span>
+    <p><strong>No CI/CD, while the docs assume it.</strong> <code>.github/workflows/</code> is empty and no pipeline config exists anywhere, yet <code>SECURITY.md</code> line 8 states the 101 tests "execute on every merge." The tests are real and runnable via <code>scripts/run-tests.ps1</code>, but nothing enforces them. Every security guarantee in that document rests on a suite no automation runs.</p>
+  </div>
+  <div class="flag">
+    <span class="ft">Risk 2</span>
+    <p><strong>Frontend testing is effectively absent.</strong> 7 assertions in a single <code>formatters.test.ts</code> against 33 pages, versus 95 backend tests. The 5 Playwright tests are the only real frontend safety net.</p>
+  </div>
+  <div class="flag warn">
+    <span class="ft">Risk 3</span>
+    <p><strong>Production secrets in a deployed config file.</strong> A live JWT signing key and seed admin password sit in cleartext in the deployed <code>appsettings.Production.json</code>. Anyone holding that key can forge tokens for any user. The source repo is clean; this is a deployment-hygiene failure. Rotate both and move them to the environment.</p>
+  </div>
+  <div class="flag warn">
+    <span class="ft">Risk 4</span>
+    <p><strong>Two features are stubs, not implementations.</strong> <code>MockAccessControlAdapter</code> means physical gate integration is unproven against real hardware. And <code>BookingStatus.NoShow</code> is declared and queried but <em>never assigned anywhere</em> — a no-show is currently unrepresentable, so revenue-recovery and occupancy reporting silently understate it.</p>
+  </div>
+  <div class="flag warn">
+    <span class="ft">Risk 5</span>
+    <p><strong>Single-process assumptions.</strong> Caching is <code>IMemoryCache</code>, the booking sweeper is an in-process hosted service, and booking locks are in-process. Scaling to a second IIS worker or server would break cache coherence and could run the sweeper twice.</p>
+  </div>
+  <div class="flag">
+    <span class="ft">Risk 6 · documentation drift</span>
+    <p>Docs disagree with code in at least three places: <code>ARCHITECTURE.md</code> §2 claims a <code>database/</code> tree of procedures and views that does not exist and draws a direct Infrastructure→Domain reference the <code>.csproj</code> files contradict; <code>SECURITY.md</code> references a parallel repo and per-merge CI that is absent. A new joiner trusting the docs will be misled — budget onboarding time for reading code over prose.</p>
+  </div>
+  <p>Lesser gaps: no observability beyond log files; no backup automation in the repo; only 3 EF migrations for 45 entities, so schema history is thin; the <code>Sms</code> channel is enumerated but unimplemented; and QuestPDF's community licence carries revenue conditions worth confirming before go-live.</p>
+
+  <h3>Direct answers</h3>
+  <p><strong>Is manual testing alone enough?</strong> No. A 6-role × 103-permission matrix is 618 combinations, and three of the six recorded security findings were access-control leaks that a matrix sweep catches. Re-running that by hand every release is not credible.</p>
+  <p><strong>Is automation recommended?</strong> Yes, and it is unusually cheap here — Playwright, xUnit and Vitest are already installed and 95 backend tests already pass. The missing piece is a pipeline, not a framework.</p>
+  <p><strong>What should be automated first?</strong> In order: (1) CI running the existing backend suite, (2) the role/permission matrix, (3) the auth lifecycle, (4) the booking→payment→invoice→QR→gate path, (5) money invariants.</p>
+  <p><strong>Is a dedicated DevOps person required?</strong> Not full-time. The stack is a single Windows host with IIS and SQL Server, and the runbook is thorough. Engage someone part-time or shared to fix secret handling, build the pipeline, and establish backups and monitoring — roughly a focused month of work, then low ongoing load. Revisit if you move to multiple servers or the cloud, which the single-process assumptions above would force anyway.</p>
+
+  <footer>
+    Analysis of <code>Nandhakumarmnk/RegalisWorkSpace</code> @ <code>develop</code>, version <code>1.0.0-rc.1</code> (Release 3). All conclusions trace to files in the repository; absences were verified by explicit search. Items marked <span class="lv lv-b">undetermined</span> could not be established from source. No credentials, keys or connection-string values are reproduced in this document.
+  </footer>
+</main>
+</div>

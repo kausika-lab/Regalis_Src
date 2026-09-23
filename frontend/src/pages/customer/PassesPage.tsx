@@ -7,30 +7,54 @@ import { Badge, Button, Card, Input, Modal, PageHeader, Spinner, type Column, Da
 import { useToast } from '@/components/ui/Toast';
 import type { PagedResult } from '@/models/api';
 import type { CustomerPass, PassPlan, Wallet } from '@/models/finance';
-import { PASS_STATUS_LABELS } from '@/models/finance';
+import { PASS_STATUS_LABELS, PASS_TYPES, PASS_TYPE_LABELS } from '@/models/finance';
 import { formatDate, formatInr } from '@/utils/formatters';
 
-/** /day-pass and /monthly-pass: browse active plans and purchase; the "My passes"
- * table below shows both kinds (route /passes shows it standalone). */
-export function PassPlansPage({ passType }: { passType: 1 | 2 }) {
+/**
+ * /passes — every kind of pass in one place, filtered by the badges across the
+ * top; /day-pass and /monthly-pass still land here with that badge preselected
+ * so older links and bookmarks keep working.
+ */
+export function PassPlansPage({ passType = 1 }: { passType?: number }) {
   const toast = useToast();
+  const [type, setType] = useState<number>(passType);
   const [plans, setPlans] = useState<PassPlan[] | null>(null);
   const [buying, setBuying] = useState<PassPlan | null>(null);
 
   useEffect(() => {
+    setType(passType);
+  }, [passType]);
+
+  useEffect(() => {
     setPlans(null);
-    passApi.activePlans(passType)
+    passApi.activePlans(type)
       .then(setPlans)
       .catch(() => toast.error('Failed to load plans.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [passType]);
+  }, [type]);
 
-  const title = passType === 1 ? 'Day Pass' : 'Monthly Pass';
+  const title = PASS_TYPE_LABELS[type] ?? 'Passes';
 
   return (
     <>
-      <PageHeader title={title}
+      <PageHeader title="Passes"
         description="A pass carries its own QR access valid for the whole window — no per-visit booking needed." />
+
+      <div className="passtabs" role="tablist" aria-label="Pass type">
+        {PASS_TYPES.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="tab"
+            aria-selected={type === option.value}
+            className={`passtabs__tab${type === option.value ? ' passtabs__tab--active' : ''}`}
+            onClick={() => setType(option.value)}
+          >
+            <Ticket size={15} aria-hidden /> {option.label}
+          </button>
+        ))}
+      </div>
+
       {!plans ? (
         <Spinner center />
       ) : plans.length === 0 ? (

@@ -10,6 +10,9 @@ public static class ErrorCodes
     public const string AccountLocked = "ACCOUNT_LOCKED";
     public const string AccountInactive = "ACCOUNT_INACTIVE";
     public const string AuthorizationFailed = "AUTHORIZATION_FAILED";
+    /// <summary>Authenticated, but onboarding is unfinished. Distinct from a plain 403
+    /// so the SPA can route to the onboarding form rather than say "not allowed".</summary>
+    public const string ProfileIncomplete = "PROFILE_INCOMPLETE";
     public const string NotFound = "NOT_FOUND";
     public const string SlotUnavailable = "SLOT_UNAVAILABLE";
     public const string InsufficientWalletBalance = "INSUFFICIENT_WALLET_BALANCE";

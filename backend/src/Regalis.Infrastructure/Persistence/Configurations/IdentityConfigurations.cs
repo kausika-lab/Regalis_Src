@@ -15,15 +15,34 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(x => x.FullName).HasMaxLength(150).IsRequired();
         builder.Property(x => x.Email).HasMaxLength(256).IsRequired();
         builder.Property(x => x.MobileNumber).HasMaxLength(20).IsRequired();
-        builder.Property(x => x.PasswordHash).HasMaxLength(400).IsRequired();
+        // Nullable: a Google-only account has no password. See User.PasswordHash.
+        builder.Property(x => x.PasswordHash).HasMaxLength(400);
+        builder.Property(x => x.GoogleId).HasMaxLength(64);
         builder.Property(x => x.CompanyName).HasMaxLength(200);
         builder.Property(x => x.Address).HasMaxLength(500);
         builder.Property(x => x.PhotoPath).HasMaxLength(500);
 
+        // Structured profile. Lengths follow MST_Location for the address parts and
+        // MST_Supplier.Gstin for the tax number, so MST_User reads the same way.
+        builder.Property(x => x.AddressLine1).HasMaxLength(200);
+        builder.Property(x => x.AddressLine2).HasMaxLength(200);
+        builder.Property(x => x.City).HasMaxLength(100);
+        builder.Property(x => x.State).HasMaxLength(100);
+        builder.Property(x => x.Country).HasMaxLength(100);
+        builder.Property(x => x.PostalCode).HasMaxLength(20);
+        builder.Property(x => x.Gstin).HasMaxLength(20);
+        // Derived from the columns above, never stored — one definition, on the entity.
+        builder.Ignore(x => x.IsProfileComplete);
+
         builder.HasIndex(x => x.Email).IsUnique().HasDatabaseName("UX_User_Email")
             .HasFilter("[IsDeleted] = 0");
+        // Google sign-up collects no phone number, so those rows carry the empty
+        // string. Without excluding it the second such account breaks the index.
         builder.HasIndex(x => x.MobileNumber).IsUnique().HasDatabaseName("UX_User_Mobile")
-            .HasFilter("[IsDeleted] = 0");
+            .HasFilter("[IsDeleted] = 0 AND [MobileNumber] <> ''");
+        // Two accounts must never claim the same Google subject.
+        builder.HasIndex(x => x.GoogleId).IsUnique().HasDatabaseName("UX_User_GoogleId")
+            .HasFilter("[GoogleId] IS NOT NULL");
 
         builder.HasOne(x => x.DefaultLocation).WithMany()
             .HasForeignKey(x => x.DefaultLocationId).OnDelete(DeleteBehavior.Restrict);

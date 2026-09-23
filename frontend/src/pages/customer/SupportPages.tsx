@@ -23,6 +23,7 @@ import {
   type TicketDetail,
   type TicketListItem,
 } from '@/models/support';
+import { ContactDetailsCard } from './ContactUsPage';
 import { formatDateTime } from '@/utils/formatters';
 
 export const TICKET_STATUS_TONES: Record<number, 'info' | 'warning' | 'success' | 'danger' | 'neutral'> = {
@@ -83,7 +84,7 @@ export function MyTicketsPage() {
 
   return (
     <>
-      <PageHeader title="Support"
+      <PageHeader title="Support & Contact"
         description="Raise an issue and follow the conversation — we usually respond within one business day."
         actions={
           <Link to="/support/raise">
@@ -96,6 +97,8 @@ export function MyTicketsPage() {
           emptyTitle="No tickets yet"
           emptyDescription="Something not right? Raise a ticket and we will take it from there." />
       </Card>
+      {/* Contact Us used to be its own sidebar entry; the details live here now. */}
+      <ContactDetailsCard />
     </>
   );
 }

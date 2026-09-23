@@ -21,6 +21,7 @@ export interface WalletTransaction {
 export interface InvoiceLine {
   lineNumber: number;
   description: string;
+  hsnSacCode: string | null;
   quantity: number;
   unitPrice: number;
   lineAmount: number;
@@ -34,18 +35,27 @@ export interface Invoice {
   invoiceNumber: string;
   customerId: number;
   bookingId: number | null;
+  quotationId: number | null;
+  quotationNumber: string | null;
   invoiceDate: string;
   dueDate: string;
   subTotal: number;
+  discountAmount: number;
   taxableAmount: number;
   cgstPercent: number;
   cgstAmount: number;
   sgstPercent: number;
   sgstAmount: number;
+  igstPercent: number;
+  igstAmount: number;
   totalAmount: number;
   paidAmount: number;
   outstandingAmount: number;
   status: number;
+  isOverdue: boolean;
+  paidUtc: string | null;
+  cancellationReason: string | null;
+  termsAndConditions: string | null;
   customerName: string;
   customerEmail: string;
   companyName: string;
@@ -102,6 +112,15 @@ export interface AppNotification {
   createdDate: string;
 }
 
+export interface InvoicePaymentResult {
+  payment: PaymentRow;
+  invoiceId: number;
+  invoiceNumber: string;
+  paidAmount: number;
+  outstandingAmount: number;
+  invoiceStatus: number;
+}
+
 export interface PaymentRow {
   paymentId: number;
   paymentNumber: string;
@@ -109,9 +128,16 @@ export interface PaymentRow {
   customerName: string;
   bookingId: number | null;
   invoiceId: number | null;
+  invoiceNumber: string | null;
+  invoiceAmount: number | null;
   amount: number;
   paymentMethod: number;
   gateway: string | null;
+  gatewayOrderId: string | null;
+  gatewayPaymentId: string | null;
+  refundedAmount: number | null;
+  refundReference: string | null;
+  isSignatureVerified: boolean;
   status: number;
   paidUtc: string | null;
   createdDate: string;
@@ -135,6 +161,22 @@ export const INVOICE_STATUS_LABELS: Record<number, string> = {
   3: 'Partially paid',
   4: 'Cancelled',
   5: 'Refunded',
+  6: 'Sent',
+};
+
+/** PassType. Listed in duration order, which is how the Passes page reads. */
+export const PASS_TYPES: { value: number; label: string }[] = [
+  { value: 1, label: 'Day pass' },
+  { value: 3, label: 'Weekly pass' },
+  { value: 2, label: 'Monthly pass' },
+  { value: 4, label: 'Yearly pass' },
+];
+
+export const PASS_TYPE_LABELS: Record<number, string> = {
+  1: 'Day pass',
+  2: 'Monthly pass',
+  3: 'Weekly pass',
+  4: 'Yearly pass',
 };
 
 export const PASS_STATUS_LABELS: Record<number, string> = {
@@ -160,4 +202,34 @@ export const PAYMENT_STATUS_LABELS: Record<number, string> = {
   3: 'Failed',
   4: 'Refunded',
   5: 'Cancelled',
+};
+
+/** POST /notifications/broadcast — audience 2 all customers, 3 all admin-portal users. */
+export interface BroadcastNotificationPayload {
+  audience: number;
+  title: string;
+  message: string;
+  category: number;
+  actionLabel: string | null;
+  actionRoute: string | null;
+}
+
+export const NOTIFICATION_CATEGORY_LABELS: Record<number, string> = {
+  1: 'Booking',
+  2: 'Meeting room',
+  3: 'Check-in / out',
+  4: 'Payment',
+  5: 'Invoice',
+  6: 'Service order',
+  7: 'Event',
+  8: 'Support ticket',
+  9: 'Announcement',
+  10: 'Registration',
+  11: 'Pass',
+  12: 'Housekeeping',
+};
+
+export const NOTIFICATION_AUDIENCE_LABELS: Record<number, string> = {
+  2: 'All customers',
+  3: 'All admin-portal users',
 };

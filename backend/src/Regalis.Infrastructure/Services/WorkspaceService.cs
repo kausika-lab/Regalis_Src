@@ -190,6 +190,7 @@ public class WorkspaceService(RegalisDbContext db) : IWorkspaceService
         workspace.Capacity = request.Capacity;
         workspace.PricePerHour = request.PricePerHour;
         workspace.PricePerDay = request.PricePerDay;
+        workspace.PricePerMonth = request.PricePerMonth;
         workspace.Equipment = request.Equipment?.Trim();
         workspace.Description = request.Description?.Trim();
         workspace.IsBookable = request.IsBookable;
@@ -230,7 +231,8 @@ public class WorkspaceService(RegalisDbContext db) : IWorkspaceService
     private static WorkspaceDto ToDto(Workspace w) => new(
         w.WorkspaceId, w.LocationId, w.Location.LocationName, w.WorkspaceTypeId,
         w.WorkspaceType.TypeName, w.WorkspaceCode, w.WorkspaceName, w.FloorNumber, w.Capacity,
-        w.PricePerHour, w.PricePerDay, w.Equipment, w.Description, (byte)w.Status, w.IsBookable,
+        w.PricePerHour, w.PricePerDay, w.PricePerMonth, w.Equipment, w.Description,
+        (byte)w.Status, w.IsBookable,
         w.IsActive,
         w.WorkspaceAmenities
             .Select(wa => new AmenityDto(wa.Amenity.AmenityId, wa.Amenity.AmenityName,

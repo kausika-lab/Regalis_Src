@@ -54,6 +54,17 @@ public class RegalisDbContext(DbContextOptions<RegalisDbContext> options) : DbCo
     public DbSet<CustomerPass> CustomerPasses => Set<CustomerPass>();
     public DbSet<ServiceOrder> ServiceOrders => Set<ServiceOrder>();
     public DbSet<ServiceOrderLine> ServiceOrderLines => Set<ServiceOrderLine>();
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+    public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+    public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
+    public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<Quotation> Quotations => Set<Quotation>();
+    public DbSet<QuotationLine> QuotationLines => Set<QuotationLine>();
+    public DbSet<QuotationStatusHistory> QuotationStatusHistories => Set<QuotationStatusHistory>();
+    public DbSet<QuotationAttachment> QuotationAttachments => Set<QuotationAttachment>();
+    public DbSet<QuotationEvent> QuotationEvents => Set<QuotationEvent>();
+    public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
+    public DbSet<BankTransaction> BankTransactions => Set<BankTransaction>();
 
     // Access & Attendance
     public DbSet<AccessToken> AccessTokens => Set<AccessToken>();
@@ -94,6 +105,44 @@ public class RegalisDbContext(DbContextOptions<RegalisDbContext> options) : DbCo
                 Expression.Constant(false));
             modelBuilder.Entity(entityType.ClrType)
                 .HasQueryFilter(Expression.Lambda(body, parameter));
+        }
+
+        // Matching filters for the required children of soft-deletable principals
+        // (UserRole, InvoiceLine, RefreshToken, ...): rows whose parent is deleted
+        // disappear with it. Without these, EF warns that filtering the principal
+        // out of a required relationship can produce unexpected results.
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if (entityType.IsOwned() || typeof(ISoftDeletableEntity).IsAssignableFrom(entityType.ClrType))
+            {
+                continue;
+            }
+
+            var parameter = Expression.Parameter(entityType.ClrType, "e");
+            Expression? body = null;
+            foreach (var foreignKey in entityType.GetForeignKeys())
+            {
+                var navigation = foreignKey.DependentToPrincipal;
+                if (!foreignKey.IsRequired
+                    || navigation is null
+                    || !typeof(ISoftDeletableEntity).IsAssignableFrom(foreignKey.PrincipalEntityType.ClrType))
+                {
+                    continue;
+                }
+
+                var parentNotDeleted = Expression.Equal(
+                    Expression.Property(
+                        Expression.Property(parameter, navigation.Name),
+                        nameof(ISoftDeletableEntity.IsDeleted)),
+                    Expression.Constant(false));
+                body = body is null ? parentNotDeleted : Expression.AndAlso(body, parentNotDeleted);
+            }
+
+            if (body is not null)
+            {
+                modelBuilder.Entity(entityType.ClrType)
+                    .HasQueryFilter(Expression.Lambda(body, parameter));
+            }
         }
 
         base.OnModelCreating(modelBuilder);

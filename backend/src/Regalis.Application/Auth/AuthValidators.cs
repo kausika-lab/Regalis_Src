@@ -32,6 +32,16 @@ public class LoginRequestValidator : AbstractValidator<LoginRequest>
     }
 }
 
+public class GoogleLoginRequestValidator : AbstractValidator<GoogleLoginRequest>
+{
+    public GoogleLoginRequestValidator()
+    {
+        // A sanity bound only. Everything that matters about this token — signature,
+        // issuer, audience, expiry — is settled by Google's verifier, not here.
+        RuleFor(x => x.IdToken).NotEmpty().MaximumLength(4096);
+    }
+}
+
 public class RegisterRequestValidator : AbstractValidator<RegisterRequest>
 {
     public RegisterRequestValidator()
@@ -47,6 +57,31 @@ public class RegisterRequestValidator : AbstractValidator<RegisterRequest>
             .Equal(x => x.Password)
             .WithMessage("Passwords do not match.");
         RuleFor(x => x.CompanyName).MaximumLength(200);
+
+        // The profile fields stay OPTIONAL on this endpoint even though the SPA marks
+        // them required. Making them mandatory here would break any other client and,
+        // more importantly, there is already a place that insists on them: onboarding,
+        // which a member cannot get past without filling them in. Validate shape, not
+        // presence.
+        RuleFor(x => x.AddressLine1).MaximumLength(200);
+        RuleFor(x => x.AddressLine2).MaximumLength(200);
+        RuleFor(x => x.City).MaximumLength(100);
+        RuleFor(x => x.State).MaximumLength(100);
+        RuleFor(x => x.Country).MaximumLength(100);
+        RuleFor(x => x.PostalCode)
+            .Matches(@"^[1-9][0-9]{5}$").When(x => !string.IsNullOrWhiteSpace(x.PostalCode))
+            .WithMessage("Enter a valid 6-digit PIN code.");
+        RuleFor(x => x.DateOfBirth)
+            .Must(d => d < DateOnly.FromDateTime(DateTime.UtcNow)).When(x => x.DateOfBirth is not null)
+            .WithMessage("Date of birth must be in the past.");
+        RuleFor(x => x.Gender)
+            .Must(g => g is >= 1 and <= 4).When(x => x.Gender is not null)
+            .WithMessage("Select a gender from the list.");
+        RuleFor(x => x.Gstin)
+            .Matches(@"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+            .When(x => !string.IsNullOrWhiteSpace(x.Gstin))
+            .WithMessage("Enter a valid 15-character GSTIN.");
     }
 }
 

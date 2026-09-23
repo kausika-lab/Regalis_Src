@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
 import { invoicesApi as invoicePdfApi } from '@/api/bookings';
-import { invoiceApi, passApi, paymentAdminApi, walletApi } from '@/api/finance';
+import { invoiceApi, invoicePaymentApi, passApi, paymentAdminApi, walletApi } from '@/api/finance';
 import { usersApi } from '@/api/admin';
 import { ApiClientError } from '@/api/client';
 import {
@@ -44,9 +44,13 @@ export function AdminInvoicesPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  const [overdueOnly, setOverdueOnly] = useState(false);
   const [result, setResult] = useState<PagedResult<Invoice> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cancelTarget, setCancelTarget] = useState<Invoice | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
   const debouncedSearch = useDebounce(search, 350);
+  const canEdit = usePermission('INVOICE.EDIT');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,6 +59,7 @@ export function AdminInvoicesPage() {
         page, pageSize: 20,
         search: debouncedSearch || undefined,
         status: status ? Number(status) : undefined,
+        overdue: overdueOnly || undefined,
       }));
     } catch (error) {
       toast.error(error instanceof ApiClientError ? error.message : 'Failed to load invoices.');
@@ -62,9 +67,22 @@ export function AdminInvoicesPage() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, debouncedSearch, status]);
+  }, [page, debouncedSearch, status, overdueOnly]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const send = async (invoice: Invoice) => {
+    setBusyId(invoice.invoiceId);
+    try {
+      await invoiceApi.send(invoice.invoiceId);
+      toast.success('Invoice marked as sent.');
+      await load();
+    } catch (error) {
+      toast.error(error instanceof ApiClientError ? error.message : 'Could not update the invoice.');
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const columns: Column<Invoice>[] = [
     {
@@ -78,32 +96,67 @@ export function AdminInvoicesPage() {
         </div>
       ),
     },
+    {
+      key: 'source', header: 'Source',
+      render: (i) => i.quotationNumber ?? (i.bookingId ? 'Booking' : '—'),
+    },
     { key: 'date', header: 'Date', render: (i) => formatDate(i.invoiceDate) },
+    {
+      key: 'due', header: 'Due',
+      render: (i) => (
+        <span style={{ color: i.isOverdue ? 'var(--color-danger)' : undefined }}>
+          {formatDate(i.dueDate)}
+        </span>
+      ),
+    },
     { key: 'taxable', header: 'Taxable', render: (i) => formatInr(i.taxableAmount) },
-    { key: 'gst', header: 'GST', render: (i) => formatInr(i.cgstAmount + i.sgstAmount) },
+    { key: 'gst', header: 'GST', render: (i) => formatInr(i.cgstAmount + i.sgstAmount + i.igstAmount) },
     { key: 'total', header: 'Total', render: (i) => formatInr(i.totalAmount) },
+    {
+      key: 'outstanding', header: 'Outstanding',
+      render: (i) => (i.outstandingAmount > 0 ? <strong>{formatInr(i.outstandingAmount)}</strong> : '—'),
+    },
     {
       key: 'status', header: 'Status',
       render: (i) => (
-        <Badge tone={i.status === 2 ? 'success' : i.status === 4 ? 'neutral' : 'warning'}>
-          {INVOICE_STATUS_LABELS[i.status]}
-        </Badge>
+        <>
+          <Badge tone={i.status === 2 ? 'success' : i.status === 4 ? 'neutral' : 'warning'}>
+            {INVOICE_STATUS_LABELS[i.status]}
+          </Badge>
+          {/* Overdue is derived, so it sits alongside the stored status rather than
+              replacing it — an invoice is Sent *and* overdue. */}
+          {i.isOverdue && <Badge tone="danger">Overdue</Badge>}
+        </>
       ),
     },
     {
-      key: 'pdf', header: '',
+      key: 'actions', header: '',
       render: (i) => (
-        <Button size="sm" variant="outline"
-          onClick={() => invoicePdfApi.downloadPdf(i.invoiceId, i.invoiceNumber)}>
-          <Download size={14} /> PDF
-        </Button>
+        <div className="row-actions">
+          <Button size="sm" variant="outline"
+            onClick={() => invoicePdfApi.downloadPdf(i.invoiceId, i.invoiceNumber)}>
+            <Download size={14} /> PDF
+          </Button>
+          {canEdit && i.status === 1 && (
+            <Button size="sm" variant="outline" loading={busyId === i.invoiceId}
+              onClick={() => void send(i)}>
+              Mark sent
+            </Button>
+          )}
+          {canEdit && i.paidAmount === 0 && i.status !== 4 && (
+            <Button size="sm" variant="ghost" onClick={() => setCancelTarget(i)}>
+              Cancel
+            </Button>
+          )}
+        </div>
       ),
     },
   ];
 
   return (
     <>
-      <PageHeader title="Invoices" description="Every GST invoice issued by the system." />
+      <PageHeader title="Invoices"
+        description="Every GST invoice issued by the system. An issued invoice is a snapshot — corrections are a cancellation, never an edit." />
       <Card>
         <div className="toolbar">
           <Input label="Search" placeholder="Number, customer…" value={search}
@@ -111,11 +164,64 @@ export function AdminInvoicesPage() {
           <Select label="Status" value={status} placeholder="All statuses"
             options={Object.entries(INVOICE_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
             onChange={(e) => { setStatus(e.target.value); setPage(1); }} />
+          <Button variant={overdueOnly ? 'primary' : 'outline'}
+            onClick={() => { setOverdueOnly((v) => !v); setPage(1); }}>
+            {overdueOnly ? 'Showing overdue' : 'Overdue only'}
+          </Button>
         </div>
         <DataTable columns={columns} result={result} loading={loading}
           rowKey={(i) => i.invoiceId} onPageChange={setPage} emptyTitle="No invoices yet" />
       </Card>
+
+      {cancelTarget && (
+        <CancelInvoiceModal invoice={cancelTarget}
+          onClose={() => setCancelTarget(null)}
+          onCancelled={() => { setCancelTarget(null); void load(); }} />
+      )}
     </>
+  );
+}
+
+function CancelInvoiceModal({ invoice, onClose, onCancelled }: {
+  invoice: Invoice;
+  onClose: () => void;
+  onCancelled: () => void;
+}) {
+  const toast = useToast();
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await invoiceApi.cancel(invoice.invoiceId, reason.trim());
+      toast.success('Invoice cancelled.');
+      onCancelled();
+    } catch (error) {
+      toast.error(error instanceof ApiClientError ? error.message : 'Could not cancel the invoice.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open title={`Cancel ${invoice.invoiceNumber}?`} onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Keep it</Button>
+          <Button onClick={submit} loading={busy} disabled={reason.trim().length === 0}>
+            Cancel invoice
+          </Button>
+        </>
+      }>
+      <div className="form-stack">
+        <p>
+          The invoice keeps its number and stays on the register — cancelling records why,
+          it does not erase it. An invoice with payments against it cannot be cancelled.
+        </p>
+        <Input label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
+      </div>
+    </Modal>
   );
 }
 
@@ -158,7 +264,20 @@ export function AdminPaymentsPage() {
         </div>
       ),
     },
-    { key: 'amount', header: 'Amount', render: (p) => formatInr(p.amount) },
+    {
+      key: 'invoice', header: 'Invoice',
+      render: (p) => (
+        <div>
+          <div>{p.invoiceNumber ?? (p.bookingId ? 'Booking' : '')}</div>
+          {p.invoiceAmount !== null && (
+            <div style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)' }}>
+              of {formatInr(p.invoiceAmount)}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    { key: 'amount', header: 'Amount paid', render: (p) => <strong>{formatInr(p.amount)}</strong> },
     { key: 'method', header: 'Method', render: (p) => PAYMENT_METHOD_LABELS[p.paymentMethod] ?? '—' },
     { key: 'gateway', header: 'Gateway', render: (p) => p.gateway ?? '—' },
     {
@@ -169,7 +288,29 @@ export function AdminPaymentsPage() {
         </Badge>
       ),
     },
+    {
+      key: 'txn', header: 'Transaction ID',
+      render: (p) => (
+        <div>
+          <div>{p.gatewayPaymentId ?? ''}</div>
+          {p.gatewayOrderId && (
+            <div style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)' }}>
+              {p.gatewayOrderId}
+            </div>
+          )}
+        </div>
+      ),
+    },
     { key: 'when', header: 'Paid (IST)', render: (p) => p.paidUtc ? formatDateTime(p.paidUtc) : '—' },
+    {
+      key: 'receipt', header: '',
+      render: (p) => (p.status === 2 ? (
+        <Button size="sm" variant="outline"
+          onClick={() => void invoicePaymentApi.receipt(p.paymentId, p.paymentNumber)}>
+          <Download size={14} /> Receipt
+        </Button>
+      ) : null),
+    },
   ];
 
   return (

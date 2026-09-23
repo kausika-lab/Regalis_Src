@@ -154,6 +154,56 @@ public static class PermissionCodes
         public const string Export = "INVENTORY.EXPORT";
     }
 
+    public static class Supplier
+    {
+        public const string View = "SUPPLIER.VIEW";
+        public const string Create = "SUPPLIER.CREATE";
+        public const string Edit = "SUPPLIER.EDIT";
+        public const string Delete = "SUPPLIER.DELETE";
+    }
+
+    public static class Purchase
+    {
+        public const string View = "PURCHASE.VIEW";
+        public const string Create = "PURCHASE.CREATE";
+        public const string Edit = "PURCHASE.EDIT";
+        public const string Delete = "PURCHASE.DELETE";
+        public const string Approve = "PURCHASE.APPROVE";
+        public const string Export = "PURCHASE.EXPORT";
+    }
+
+    public static class Expense
+    {
+        public const string View = "EXPENSE.VIEW";
+        public const string Create = "EXPENSE.CREATE";
+        public const string Edit = "EXPENSE.EDIT";
+        public const string Delete = "EXPENSE.DELETE";
+        public const string Export = "EXPENSE.EXPORT";
+    }
+
+    public static class Quotation
+    {
+        public const string View = "QUOTATION.VIEW";
+        public const string Create = "QUOTATION.CREATE";
+        public const string Edit = "QUOTATION.EDIT";
+        public const string Delete = "QUOTATION.DELETE";
+        /// <summary>Held by the customer: this is the accept/reject decision.</summary>
+        public const string Approve = "QUOTATION.APPROVE";
+        public const string Export = "QUOTATION.EXPORT";
+        public const string Print = "QUOTATION.PRINT";
+    }
+
+    public static class Bank
+    {
+        public const string View = "BANK.VIEW";
+        public const string Create = "BANK.CREATE";
+        public const string Edit = "BANK.EDIT";
+        public const string Delete = "BANK.DELETE";
+        /// <summary>Confirming a match -- the reconciliation sign-off.</summary>
+        public const string Reconcile = "BANK.RECONCILE";
+        public const string Export = "BANK.EXPORT";
+    }
+
     public static class Housekeeping
     {
         public const string View = "HOUSEKEEPING.VIEW";

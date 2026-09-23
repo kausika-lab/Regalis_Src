@@ -208,6 +208,10 @@ public class InventoryService(
                 TransactionDate = request.TransactionDate ?? IstClock.IstDateOf(clock.UtcNow),
                 SourceOrDestination = request.SourceOrDestination?.Trim(),
                 ReferenceNumber = request.ReferenceNumber?.Trim(),
+                SupplierId = request.SupplierId,
+                PurchaseOrderId = request.PurchaseOrderId,
+                PurchaseInvoiceNumber = request.PurchaseInvoiceNumber?.Trim(),
+                AttachmentPath = request.AttachmentPath?.Trim(),
                 UnitCost = request.UnitCost,
                 DamageDescription = request.DamageDescription?.Trim(),
                 DamageCause = request.DamageCause?.Trim(),
@@ -317,6 +321,14 @@ public class InventoryService(
         {
             query = query.Where(t => t.TransactionDate <= request.To);
         }
+        if (request.SupplierId is not null)
+        {
+            query = query.Where(t => t.SupplierId == request.SupplierId);
+        }
+        if (request.PurchaseOrderId is not null)
+        {
+            query = query.Where(t => t.PurchaseOrderId == request.PurchaseOrderId);
+        }
         if (request.LocationId is not null)
         {
             query = query.Where(t => t.LocationId == request.LocationId);
@@ -332,7 +344,14 @@ public class InventoryService(
                 (x, u) => new InventoryTransactionDto(
                     x.t.InventoryTransactionId, x.t.TransactionNumber, x.t.InventoryItemId,
                     x.i.ItemCode, x.i.ItemName, x.i.Unit, (byte)x.t.TransactionType, x.t.Quantity,
-                    x.t.TransactionDate, x.t.SourceOrDestination, x.t.ReferenceNumber, x.t.UnitCost,
+                    x.t.TransactionDate, x.t.SourceOrDestination, x.t.ReferenceNumber,
+                    x.t.SupplierId,
+                    db.Suppliers.Where(s => s.SupplierId == x.t.SupplierId)
+                        .Select(s => s.SupplierName).FirstOrDefault(),
+                    x.t.PurchaseOrderId,
+                    db.PurchaseOrders.Where(p => p.PurchaseOrderId == x.t.PurchaseOrderId)
+                        .Select(p => p.PoNumber).FirstOrDefault(),
+                    x.t.PurchaseInvoiceNumber, x.t.AttachmentPath, x.t.UnitCost,
                     x.t.DamageDescription, x.t.DamageCause, x.t.LocationId, x.t.EnteredByUserId,
                     u.FullName, x.t.Notes, x.t.CreatedDate));
 

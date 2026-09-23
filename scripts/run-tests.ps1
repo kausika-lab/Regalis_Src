@@ -33,7 +33,11 @@ param(
     [switch]$SkipBackend,
     [switch]$SkipFrontend,
     [switch]$SkipIntegration,
-    [switch]$UpdateDatabase
+    [switch]$UpdateDatabase,
+    # Use -Configuration Release when Visual Studio is debugging the API:
+    # F5 locks the Debug output DLLs, which fails the Debug build here.
+    [ValidateSet('Debug', 'Release')]
+    [string]$Configuration = 'Debug'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -75,16 +79,16 @@ try {
 
     if (-not $SkipBackend) {
         Invoke-Step 'Backend build' {
-            dotnet build backend/Regalis.sln --nologo -v minimal
+            dotnet build backend/Regalis.sln -c $Configuration --nologo -v minimal
         }
 
         if ($results['Backend build'].Ok) {
             Invoke-Step 'Backend unit tests' {
-                dotnet test tests/backend/Regalis.UnitTests --no-build --nologo -v minimal
+                dotnet test tests/backend/Regalis.UnitTests -c $Configuration --no-build --nologo -v minimal
             }
             if (-not $SkipIntegration) {
                 Invoke-Step 'Backend integration tests' {
-                    dotnet test tests/backend/Regalis.IntegrationTests --no-build --nologo -v minimal
+                    dotnet test tests/backend/Regalis.IntegrationTests -c $Configuration --no-build --nologo -v minimal
                 }
             }
         }

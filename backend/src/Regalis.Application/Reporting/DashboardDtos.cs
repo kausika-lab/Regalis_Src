@@ -28,5 +28,8 @@ public record CustomerDashboardDto(
 public interface IDashboardService
 {
     Task<AdminDashboardDto> GetAdminAsync(CancellationToken ct = default);
+
+    /// <summary>The Billing &amp; Finance summary (document §16).</summary>
+    Task<AdminDashboardDto> GetFinanceAsync(CancellationToken ct = default);
     Task<CustomerDashboardDto> GetCustomerAsync(CancellationToken ct = default);
 }

@@ -51,8 +51,28 @@ public class NumberSequenceService(RegalisDbContext db) : INumberSequenceService
         var financialYear = reader.IsDBNull(2) ? null : reader.GetString(2);
 
         // REG-000123 · REG/INV/2026-27/00042 (A09)
-        return sequenceKey == SequenceKeys.Invoice
-            ? $"{prefix}/{financialYear}/{value:D5}"
-            : $"{prefix}{value:D6}";
+        // Year-scoped sequences are the ones seeded with a FinancialYear, so the shape
+        // follows the data rather than a hard-coded key list. Behaviour for the rows
+        // that exist today (Invoice alone carries a year) is unchanged.
+        return financialYear is null
+            ? $"{prefix}{value:D6}"
+            : $"{prefix}/{financialYear}/{value:D5}";
+    }
+
+    public async Task<string> PeekAsync(string sequenceKey, CancellationToken ct = default)
+    {
+        // Read-only twin of NextAsync: same row, same shape, but CurrentValue is left
+        // alone and the "+ 1" happens here instead of in the UPDATE.
+        var row = await db.NumberSequences.AsNoTracking()
+            .Where(x => x.SequenceKey == sequenceKey)
+            .OrderByDescending(x => x.NumberSequenceId)
+            .Select(x => new { x.CurrentValue, x.Prefix, x.FinancialYear })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new BusinessRuleException($"Number sequence '{sequenceKey}' is not seeded.");
+
+        var value = row.CurrentValue + 1;
+        return string.IsNullOrWhiteSpace(row.FinancialYear)
+            ? $"{row.Prefix}{value:D6}"
+            : $"{row.Prefix}/{row.FinancialYear}/{value:D5}";
     }
 }

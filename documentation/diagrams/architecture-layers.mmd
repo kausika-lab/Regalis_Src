@@ -1,0 +1,15 @@
+%% Regalis WorkSpace — backend layer dependencies
+%% generated from the <ProjectReference> elements in backend/src/*/Regalis.*.csproj
+%% Domain and Shared reference nothing. Infrastructure reaches Domain only
+%% transitively, through Application.
+
+flowchart TB
+  api[Regalis.API] -->|depends on| app[Regalis.Application]
+  app -->|depends on| dom[Regalis.Domain]
+  app -->|depends on| shared[Regalis.Shared]
+  infra[Regalis.Infrastructure] -->|implements interfaces from| app
+  api -.->|DI registration only| infra
+
+  %% The dotted edge is a composition-root concern: API references
+  %% Infrastructure solely to register implementations in the container.
+  %% Drawing it solid would imply controllers may call Infrastructure directly.

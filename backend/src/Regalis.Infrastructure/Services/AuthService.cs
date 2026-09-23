@@ -31,6 +31,7 @@ public class AuthService(
     IOtpSender otpSender,
     ICurrentUser currentUser,
     IDateTimeProvider clock,
+    IGoogleTokenVerifier googleTokens,
     IOptions<JwtOptions> jwtOptions,
     ILogger<AuthService> logger) : IAuthService
 {
@@ -83,6 +84,17 @@ public class AuthService(
                 ErrorCodes.AccountLocked);
         }
 
+        // A Google-only account has no password to check. Saying so beats a generic
+        // failure the user can never resolve by retyping: by this point the address is
+        // already known to exist, so this leaks nothing a login form would not.
+        if (user.PasswordHash is null)
+        {
+            await RecordLoginAttemptAsync(user.UserId, email, false, "NoPasswordSet", ct);
+            throw new UnauthorizedException(
+                "This account signs in with Google. Use the Google button, " +
+                "or set a password with Forgot Password.");
+        }
+
         if (!passwordHasher.Verify(request.Password, user.PasswordHash))
         {
             user.FailedLoginCount++;
@@ -124,12 +136,244 @@ public class AuthService(
             ToUserDto(user), roles, permissions);
     }
 
+    /// <summary>
+    /// Copies whatever structured profile the registration form supplied. Each field is
+    /// only written when it is present, so an older client that omits them leaves the
+    /// account as it was rather than blanking it — the member then finishes at onboarding.
+    /// The legacy single-line Address is recomposed because TRN_Invoice snapshots it.
+    /// </summary>
+    private static void ApplyProfileFields(User user, RegisterRequest request)
+    {
+        static string? Clean(string? value) =>
+            string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+        user.AddressLine1 = Clean(request.AddressLine1) ?? user.AddressLine1;
+        user.AddressLine2 = Clean(request.AddressLine2) ?? user.AddressLine2;
+        user.City = Clean(request.City) ?? user.City;
+        user.State = Clean(request.State) ?? user.State;
+        user.Country = Clean(request.Country) ?? user.Country;
+        user.PostalCode = Clean(request.PostalCode) ?? user.PostalCode;
+        user.DateOfBirth = request.DateOfBirth ?? user.DateOfBirth;
+        user.Gender = request.Gender is { } g and >= 1 and <= 4 ? (Gender)g : user.Gender;
+        user.Gstin = Clean(request.Gstin)?.ToUpperInvariant() ?? user.Gstin;
+
+        var composed = string.Join(", ", new[]
+        {
+            user.AddressLine1, user.AddressLine2, user.City, user.State,
+            user.PostalCode, user.Country
+        }.Where(part => !string.IsNullOrWhiteSpace(part)));
+        if (composed.Length > 0)
+        {
+            user.Address = composed;
+        }
+    }
+
     private static bool PortalAccepts(LoginPortal portal, UserType userType) => portal switch
     {
         LoginPortal.Customer => userType == UserType.Customer,
         LoginPortal.Admin => userType is UserType.Admin or UserType.Staff,
         _ => false
     };
+
+    // ── Google sign-in ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Google Identity Services token flow: the browser gets an ID token from Google and
+    /// posts it here. Nothing the SPA says about who the user is is trusted — only what
+    /// a Google-signed token says, after it has been verified.
+    ///
+    /// The result is deliberately the same <see cref="LoginResponse"/> a password login
+    /// returns, so nothing downstream has to care how the member signed in.
+    /// </summary>
+    public async Task<LoginResponse> GoogleSignInAsync(GoogleLoginRequest request,
+        CancellationToken ct = default)
+    {
+        var nowUtc = clock.UtcNow;
+
+        if (!googleTokens.IsConfigured)
+        {
+            logger.LogWarning("Google sign-in attempted but Authentication:Google:ClientId is empty.");
+            throw new BusinessRuleException("Google sign-in is not configured.");
+        }
+
+        var identity = await googleTokens.VerifyAsync(request.IdToken, ct);
+        if (identity is null)
+        {
+            await RecordLoginAttemptAsync(null, "(google)", false, "GoogleTokenInvalid", ct);
+            throw new UnauthorizedException("Google sign-in could not be verified.");
+        }
+
+        // The load-bearing check. Without it the email branch below is an
+        // account-takeover path: register a Google account claiming someone else's
+        // address, sign in, own their Regalis account.
+        if (!identity.EmailVerified)
+        {
+            await RecordLoginAttemptAsync(null, identity.Email, false, "GoogleEmailUnverified", ct);
+            throw new UnauthorizedException("This Google account has no verified email address.");
+        }
+
+        // The subject is the identity we store, because a Google account can change its
+        // email address but never its subject. The address is only used to find an
+        // existing password account the first time, so the two are not separate members.
+        var user = await db.Users
+            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+            .FirstOrDefaultAsync(u => u.GoogleId == identity.Subject, ct);
+
+        if (user is null)
+        {
+            user = await db.Users
+                .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.Email == identity.Email, ct);
+
+            if (user is null)
+            {
+                user = await CreateGoogleCustomerAsync(identity, nowUtc, ct);
+            }
+            else if (user.GoogleId is not null)
+            {
+                // The address is already tied to a different Google subject. Re-pointing
+                // it would hand the account to whoever holds the newer Google account.
+                logger.LogWarning(
+                    "Google sign-in for user {UserId} presented subject that does not match the linked one",
+                    user.UserId);
+                await RecordLoginAttemptAsync(user.UserId, identity.Email, false, "GoogleSubjectMismatch", ct);
+                throw new UnauthorizedException("This email is linked to a different Google account.");
+            }
+            else
+            {
+                user.GoogleId = identity.Subject;
+                user.IsEmailVerified = true;
+                // Google has verified the mailbox, which is exactly what the registration
+                // OTP proves. Completing a half-finished registration here beats leaving
+                // the member locked out of an account they can demonstrably reach.
+                if (user.Status == UserStatus.PendingVerification)
+                {
+                    user.Status = UserStatus.Active;
+                }
+                AddAuditRow(user.UserId, user.FullName, AuditActions.Update,
+                    "Auth", "User", user.UserId.ToString());
+            }
+        }
+
+        // Google is a member door only. An admin or staff account is not enterable with
+        // a Google token however its email reads — staff sign in with a password.
+        if (user.UserType != UserType.Customer)
+        {
+            await RecordLoginAttemptAsync(user.UserId, identity.Email, false, "GoogleWrongPortal", ct);
+            throw new ForbiddenException(
+                "Google sign-in is for member accounts. Use the staff sign-in page.");
+        }
+
+        // A disabled, locked or half-deleted account is not revived by arriving through
+        // Google. Soft-deleted rows never reach here — the global query filter hides them.
+        if (user.Status == UserStatus.Inactive || !user.IsActive)
+        {
+            await RecordLoginAttemptAsync(user.UserId, identity.Email, false, "Inactive", ct);
+            throw new UnauthorizedException("Your account is inactive. Contact support.",
+                ErrorCodes.AccountInactive);
+        }
+
+        if (user.Status == UserStatus.Locked ||
+            (user.LockoutEndUtc is not null && user.LockoutEndUtc > nowUtc))
+        {
+            await RecordLoginAttemptAsync(user.UserId, identity.Email, false, "LockedOut", ct);
+            throw new UnauthorizedException(
+                "Your account is locked. Try again later or contact support.",
+                ErrorCodes.AccountLocked);
+        }
+
+        if (user.Status != UserStatus.Active)
+        {
+            await RecordLoginAttemptAsync(user.UserId, identity.Email, false, "NotActive", ct);
+            throw new UnauthorizedException("Your account is not active. Contact support.",
+                ErrorCodes.AccountInactive);
+        }
+
+        user.FailedLoginCount = 0;
+        user.LockoutEndUtc = null;
+        user.LastLoginUtc = nowUtc;
+
+        var (roles, permissions) = ResolveAccess(user);
+        var access = tokenService.CreateAccessToken(user, roles, permissions);
+        var refresh = tokenService.CreateRefreshToken();
+
+        // A new family, exactly as a password login starts one. The family plus
+        // ConsumedUtc and ReplacedByTokenHash are what implement reuse detection; a
+        // token inserted without one silently opts out of it.
+        db.RefreshTokens.Add(new RefreshToken
+        {
+            UserId = user.UserId,
+            TokenHash = refresh.TokenHash,
+            FamilyId = Guid.NewGuid(),
+            ExpiresUtc = refresh.ExpiresUtc,
+            CreatedUtc = nowUtc,
+            CreatedByIp = currentUser.IpAddress
+        });
+
+        AddAuditRow(user.UserId, user.FullName, AuditActions.Login, "Auth", "User", user.UserId.ToString());
+        await RecordLoginAttemptAsync(user.UserId, identity.Email, true, null, saveNow: false, ct);
+        await db.SaveChangesAsync(ct);
+
+        return new LoginResponse(access.Token, access.ExpiresUtc, refresh.RawToken,
+            ToUserDto(user), roles, permissions);
+    }
+
+    /// <summary>
+    /// First Google sign-in. Creates everything OTP registration creates — the user row,
+    /// the Customer role and the wallet. An account missing either is broken in ways that
+    /// are hard to trace: no role means no perm claims in the JWT, an empty sidebar from
+    /// /api/menus/my, and 403 on every guarded endpoint.
+    /// </summary>
+    private async Task<User> CreateGoogleCustomerAsync(GoogleIdentity identity, DateTime nowUtc,
+        CancellationToken ct)
+    {
+        var fullName = string.IsNullOrWhiteSpace(identity.Name)
+            ? identity.Email.Split('@')[0]
+            : identity.Name;
+        if (fullName.Length > 150)
+        {
+            fullName = fullName[..150];
+        }
+
+        var user = new User
+        {
+            UserType = UserType.Customer,
+            FullName = fullName,
+            Email = identity.Email,
+            // Google supplies no phone number. Empty rather than invented, so the gap is
+            // visible and the member can fill it in on their profile; UX_User_Mobile
+            // excludes the empty string so more than one such account can exist.
+            MobileNumber = string.Empty,
+            // No password: this account cannot be signed into with one until the member
+            // sets one through Forgot Password.
+            PasswordHash = null,
+            GoogleId = identity.Subject,
+            // Google verified the address; there is nothing left for an OTP to prove.
+            IsEmailVerified = true,
+            Status = UserStatus.Active
+        };
+        db.Users.Add(user);
+        await db.SaveChangesAsync(ct);
+
+        // The Role entity itself, not just its id: ResolveAccess reads RoleCode and
+        // IsActive off the navigation to build the token's role and perm claims.
+        var customerRole = await db.Roles.FirstAsync(r => r.RoleCode == RoleCodes.Customer, ct);
+        var membership = new UserRole
+        {
+            UserId = user.UserId,
+            RoleId = customerRole.RoleId,
+            Role = customerRole,
+            AssignedDateUtc = nowUtc
+        };
+        db.UserRoles.Add(membership);
+        user.UserRoles.Add(membership);
+
+        db.Wallets.Add(new Wallet { CustomerId = user.UserId });
+
+        AddAuditRow(user.UserId, user.FullName, AuditActions.Create, "Auth", "User", user.UserId.ToString());
+        logger.LogInformation("Created customer {UserId} from a Google sign-in", user.UserId);
+        return user;
+    }
 
     // ── Registration + OTP ──────────────────────────────────────────────────
 
@@ -140,6 +384,10 @@ public class AuthService(
         var mobile = request.MobileNumber.Trim();
 
         await EnforcePasswordPolicyAsync(request.Password, ct);
+
+        // Hashed once into a local: User.PasswordHash is nullable now, and the history
+        // row below needs the value without the compiler having to prove it is set.
+        var passwordHash = passwordHasher.Hash(request.Password);
 
         var existing = await db.Users.FirstOrDefaultAsync(
             u => u.Email == email || u.MobileNumber == mobile, ct);
@@ -167,7 +415,8 @@ public class AuthService(
             user.Email = email;
             user.MobileNumber = mobile;
             user.CompanyName = request.CompanyName?.Trim();
-            user.PasswordHash = passwordHasher.Hash(request.Password);
+            user.PasswordHash = passwordHash;
+            ApplyProfileFields(user, request);
         }
         else
         {
@@ -178,9 +427,10 @@ public class AuthService(
                 Email = email,
                 MobileNumber = mobile,
                 CompanyName = request.CompanyName?.Trim(),
-                PasswordHash = passwordHasher.Hash(request.Password),
+                PasswordHash = passwordHash,
                 Status = UserStatus.PendingVerification
             };
+            ApplyProfileFields(user, request);
             db.Users.Add(user);
             await db.SaveChangesAsync(ct);
 
@@ -200,7 +450,7 @@ public class AuthService(
         db.PasswordHistories.Add(new PasswordHistory
         {
             UserId = user.UserId,
-            PasswordHash = user.PasswordHash,
+            PasswordHash = passwordHash,
             ChangedUtc = nowUtc
         });
 
@@ -340,6 +590,14 @@ public class AuthService(
         var nowUtc = clock.UtcNow;
         var user = await db.Users.FirstOrDefaultAsync(u => u.UserId == currentUser.UserId, ct)
                    ?? throw new UnauthorizedException();
+
+        // A Google-only account has nothing to change. Forgot Password is the route
+        // that sets a first password, because it proves control of the mailbox.
+        if (user.PasswordHash is null)
+        {
+            throw new BusinessRuleException(
+                "This account has no password yet. Use Forgot Password to set one.");
+        }
 
         if (!passwordHasher.Verify(request.CurrentPassword, user.PasswordHash))
         {
@@ -650,5 +908,5 @@ public class AuthService(
 
     private static AuthUserDto ToUserDto(User user) => new(
         user.UserId, user.FullName, user.Email, (byte)user.UserType,
-        user.PhotoPath, user.DefaultLocationId);
+        user.PhotoPath, user.DefaultLocationId, user.IsProfileComplete);
 }

@@ -48,7 +48,7 @@ public class MastersAndWalletTests(RegalisApiFactory factory)
 
         var code = $"D-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}";
         SaveWorkspaceRequest Request() => new(1, deskId, code, "Dup Desk", null, 1,
-            300m, null, null, null, true, []);
+            300m, null, null, null, null, true, []);
 
         (await admin.PostAsJsonAsync("/api/workspaces", Request()))
             .StatusCode.Should().Be(HttpStatusCode.Created);
@@ -70,7 +70,7 @@ public class MastersAndWalletTests(RegalisApiFactory factory)
         (await customer.GetAsync("/api/workspaces")).StatusCode.Should().Be(HttpStatusCode.OK);
 
         var forbidden = await customer.PostAsJsonAsync("/api/workspaces", new SaveWorkspaceRequest(
-            1, 1, "HAX-001", "Nope", null, 1, 1m, null, null, null, true, []));
+            1, 1, "HAX-001", "Nope", null, 1, 1m, null, null, null, null, true, []));
         forbidden.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 

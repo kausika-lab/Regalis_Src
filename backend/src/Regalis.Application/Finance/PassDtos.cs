@@ -45,8 +45,8 @@ public class SavePassPlanRequestValidator : AbstractValidator<SavePassPlanReques
         RuleFor(x => x.PlanCode).NotEmpty().MaximumLength(40).Matches("^[A-Z0-9-]+$")
             .WithMessage("Plan code must be uppercase letters, digits and hyphens.");
         RuleFor(x => x.PlanName).NotEmpty().MaximumLength(120);
-        RuleFor(x => x.PassType).Must(t => t is 1 or 2)
-            .WithMessage("PassType must be 1 (day) or 2 (monthly).");
+        RuleFor(x => x.PassType).Must(t => t is 1 or 2 or 3 or 4)
+            .WithMessage("PassType must be 1 (day), 2 (monthly), 3 (weekly) or 4 (yearly).");
         RuleFor(x => x.Price).GreaterThan(0);
         RuleFor(x => x.ValidityDays).GreaterThan(0);
         RuleFor(x => x.MaxGuests).GreaterThanOrEqualTo(0).When(x => x.MaxGuests is not null);

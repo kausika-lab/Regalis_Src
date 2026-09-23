@@ -5,9 +5,35 @@ import { settingsApi } from '@/api/masters';
 import { Button, Card, PageHeader, Spinner } from '@/components/ui';
 import type { PublicSettings } from '@/models/masters';
 
-/** /contact — support and company details straight from MST_AppSetting
- * (M23; the values are data, edited on the admin Settings screen). */
+/** /contact — the same details the Support page carries, on their own page so
+ * older links keep working. */
 export function ContactUsPage() {
+  const [settings, setSettings] = useState<PublicSettings | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    settingsApi.public().then(setSettings).catch(() => setFailed(true));
+  }, []);
+
+  if (!settings && !failed) {
+    return <Spinner center />;
+  }
+
+  return (
+    <>
+      <PageHeader title="Contact Us"
+        description={settings?.supportMessage ?? 'We are here to help.'} />
+      <ContactDetailsCard showRaiseTicket />
+    </>
+  );
+}
+
+/**
+ * Company and support details straight from MST_AppSetting (M23 — the values
+ * are data, edited on the admin Settings screen). Shared by /contact and the
+ * Support page, which is where the sidebar now sends everyone.
+ */
+export function ContactDetailsCard({ showRaiseTicket = false }: { showRaiseTicket?: boolean }) {
   const [settings, setSettings] = useState<PublicSettings | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -27,10 +53,7 @@ export function ContactUsPage() {
   ].filter((row) => row.value) : [];
 
   return (
-    <>
-      <PageHeader title="Contact Us"
-        description={settings?.supportMessage ?? 'We are here to help.'} />
-      <Card title={settings?.companyName ?? 'Regalis WorkSpace'}>
+    <Card title={settings?.companyName ?? 'Regalis WorkSpace'}>
         {rows.length === 0 ? (
           <p style={{ color: 'var(--text-secondary)' }}>
             Contact details are being set up — meanwhile, raise a support ticket and
@@ -52,12 +75,13 @@ export function ContactUsPage() {
             ))}
           </div>
         )}
+      {showRaiseTicket && (
         <div style={{ marginTop: 'var(--space-4)' }}>
           <Link to="/support/raise">
             <Button variant="outline"><LifeBuoy size={16} /> Raise a support ticket</Button>
           </Link>
         </div>
-      </Card>
-    </>
+      )}
+    </Card>
   );
 }

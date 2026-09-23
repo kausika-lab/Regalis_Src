@@ -9,11 +9,12 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label: string;
   options: SelectOption[];
   error?: string;
+  hint?: string;
   placeholder?: string;
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
-  { label, options, error, placeholder, required, id, ...rest },
+  { label, options, error, hint, placeholder, required, id, ...rest },
   ref,
 ) {
   const autoId = useId();
@@ -45,6 +46,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
           </option>
         ))}
       </select>
+      {hint && !error && <span className="field__hint">{hint}</span>}
       {error && (
         <span className="field__error" role="alert">
           {error}

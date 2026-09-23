@@ -51,6 +51,9 @@ public class BookingsController(
     /// completes (Booking.PendingHoldMinutes, default 10).</summary>
     [HttpPost]
     [HasPermission(PermissionCodes.Booking.Create)]
+    // Confirming raises a GST invoice, which needs a billing address and a GSTIN. Held
+    // here rather than at confirm so the member is stopped before a slot is reserved.
+    [RequireCompleteProfile]
     [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateHold(CreateBookingRequest request, CancellationToken ct)
@@ -71,6 +74,8 @@ public class BookingsController(
     /// Confirmed booking + GST invoice + QR access token + notification.</summary>
     [HttpPost("{id:long}/confirm")]
     [HasPermission(PermissionCodes.Booking.Create)]
+    // Also gated: a hold created before onboarding lapsed must not become an invoice.
+    [RequireCompleteProfile]
     [ProducesResponseType(typeof(ApiResponse<ConfirmBookingResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status422UnprocessableEntity)]

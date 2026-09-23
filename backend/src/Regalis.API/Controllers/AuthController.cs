@@ -20,6 +20,18 @@ public class AuthController(IAuthService authService) : ApiControllerBase
     public async Task<IActionResult> Login(LoginRequest request, CancellationToken ct) =>
         OkEnvelope(await authService.LoginAsync(request, ct), "Signed in successfully.");
 
+    /// <summary>Google sign-in. Exchanges a Google ID token for the same session
+    /// <c>login</c> returns, creating the member account on first use.</summary>
+    /// <remarks>Anonymous and rate limited like the rest — an unauthenticated surface
+    /// that can create accounts.</remarks>
+    [HttpPost("google")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    [ProducesResponseType(typeof(ApiResponse<LoginResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Google(GoogleLoginRequest request, CancellationToken ct) =>
+        OkEnvelope(await authService.GoogleSignInAsync(request, ct), "Signed in successfully.");
+
     /// <summary>Customer self-registration. Creates a PendingVerification account and sends an OTP.</summary>
     [HttpPost("register")]
     [AllowAnonymous]

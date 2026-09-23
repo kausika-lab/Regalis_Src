@@ -6,11 +6,25 @@ using Regalis.Domain.Entities.Finance;
 using Regalis.Domain.Enums;
 using Regalis.Infrastructure.Reporting;
 using Regalis.Infrastructure.Persistence;
+using Regalis.Shared;
 using Regalis.Shared.Api;
+using Regalis.Shared.Constants;
+using Regalis.Domain.Entities.Operations;
 
 namespace Regalis.Infrastructure.Services;
 
-public class InvoiceService(RegalisDbContext db, ICurrentUser currentUser) : IInvoiceService
+/// <summary>
+/// Invoices. Reads are row-scoped; writes are deliberately narrow. There is no
+/// free-form create and no edit: an issued invoice is a snapshot, so the only ways to
+/// change one are to cancel it or to let a payment move its status. The one creation
+/// path is an approved quotation, whose figures are carried across verbatim.
+/// </summary>
+public class InvoiceService(
+    RegalisDbContext db,
+    ISettingService settings,
+    INumberSequenceService numberSequence,
+    ICurrentUser currentUser,
+    IDateTimeProvider clock) : IInvoiceService
 {
     public async Task<InvoiceDto> GetInvoiceAsync(long invoiceId, CancellationToken ct = default)
     {
@@ -54,6 +68,16 @@ public class InvoiceService(RegalisDbContext db, ICurrentUser currentUser) : IIn
         {
             query = query.Where(i => i.CustomerId == request.CustomerId);
         }
+        if (request.Overdue == true)
+        {
+            // Same predicate as InvoiceDto.IsOverdue, evaluated in SQL.
+            var todayIst = IstClock.IstDateOf(clock.UtcNow);
+            query = query.Where(i => i.DueDate < todayIst
+                                     && i.OutstandingAmount > 0
+                                     && (i.Status == InvoiceStatus.Pending
+                                         || i.Status == InvoiceStatus.Sent
+                                         || i.Status == InvoiceStatus.PartiallyPaid));
+        }
         if (request.From is not null)
         {
             query = query.Where(i => i.InvoiceDate >= request.From);
@@ -87,6 +111,281 @@ public class InvoiceService(RegalisDbContext db, ICurrentUser currentUser) : IIn
         return InvoicePdfGenerator.Generate(invoice);
     }
 
+
+    public async Task<InvoiceDto> CreateFromQuotationAsync(long quotationId,
+        CancellationToken ct = default)
+    {
+        var quotation = await db.Quotations
+            .Include(q => q.Lines.OrderBy(l => l.LineNumber))
+            .FirstOrDefaultAsync(q => q.QuotationId == quotationId, ct)
+            ?? throw new NotFoundException("Quotation", quotationId);
+
+        // Rule 4: an approved quotation is the source. Rule 5: nothing else is.
+        if (quotation.Status != QuotationStatus.Approved)
+        {
+            throw new BusinessRuleException(
+                "Only an approved quotation can be invoiced. " +
+                $"{quotation.QuotationNumber} is {quotation.Status.ToString().ToLowerInvariant()}.");
+        }
+        if (quotation.InvoiceId is not null)
+        {
+            throw new ConflictException(
+                $"{quotation.QuotationNumber} has already been invoiced.",
+                ErrorCodes.DuplicateRecord);
+        }
+
+        var invoiceDate = IstClock.IstDateOf(clock.UtcNow);
+        var dueDays = await settings.GetIntAsync(AppSettingKeys.Invoice.DueDays, 7, ct);
+
+        var invoice = new Invoice
+        {
+            CustomerId = quotation.CustomerId,
+            QuotationId = quotation.QuotationId,
+            LocationId = quotation.LocationId,
+            InvoiceDate = invoiceDate,
+            DueDate = invoiceDate.AddDays(dueDays),
+
+            // Carried across, not recomputed. The customer approved these numbers and
+            // these tax rates; a settings change since then must not alter the bill.
+            SubTotal = quotation.SubTotal,
+            DiscountAmount = quotation.DiscountAmount,
+            TaxableAmount = quotation.TaxableAmount,
+            CgstPercent = quotation.CgstPercent,
+            SgstPercent = quotation.SgstPercent,
+            IgstPercent = quotation.IgstPercent,
+            CgstAmount = quotation.CgstAmount,
+            SgstAmount = quotation.SgstAmount,
+            IgstAmount = quotation.IgstAmount,
+            TdsLabel = quotation.TdsLabel,
+            TdsPercent = quotation.TdsPercent,
+            TdsAmount = quotation.TdsAmount,
+            AdjustmentLabel = quotation.AdjustmentLabel,
+            AdjustmentAmount = quotation.AdjustmentAmount,
+            RoundOffAmount = quotation.RoundOffAmount,
+            TotalAmount = quotation.TotalAmount,
+            PaidAmount = 0,
+            Status = InvoiceStatus.Pending,
+
+            // The quotation's own snapshot, taken when it was sent.
+            CustomerName = quotation.CustomerName,
+            CustomerEmail = quotation.CustomerEmail,
+            CustomerMobile = quotation.CustomerMobile,
+            CustomerGstin = quotation.CustomerGstin,
+            BillingAddress = quotation.BillingAddress,
+            CompanyName = quotation.CompanyName,
+            CompanyGstin = quotation.CompanyGstin,
+            CompanyAddress = quotation.CompanyAddress,
+            TermsAndConditions = quotation.TermsAndConditions,
+            Notes = $"Raised from quotation {quotation.QuotationNumber}."
+        };
+
+        foreach (var line in quotation.Lines.OrderBy(l => l.LineNumber))
+        {
+            // The duration is folded into the printed description rather than the
+            // quantity, so the invoice reads the way the quotation did.
+            var description = line.DurationValue is null
+                ? line.Description
+                : $"{line.Description} ({line.DurationValue:0.###} {line.DurationUnit})".Trim();
+
+            invoice.Lines.Add(new InvoiceLine
+            {
+                LineNumber = line.LineNumber,
+                Description = description,
+                HsnSacCode = line.HsnSacCode,
+                Quantity = line.Quantity,
+                UnitPrice = line.UnitPrice,
+                LineAmount = line.LineAmount,
+                TaxPercent = line.TaxPercent,
+                TaxAmount = line.TaxAmount,
+                TotalAmount = line.TotalAmount
+            });
+        }
+
+        // Invoice, its number, the quotation's back-reference and the customer's
+        // notification all commit together or not at all.
+        var strategy = db.Database.CreateExecutionStrategy();
+        var newId = await strategy.ExecuteAsync(async () =>
+        {
+            await using var dbTransaction = await db.Database.BeginTransactionAsync(ct);
+
+            invoice.InvoiceNumber = await numberSequence.NextAsync(SequenceKeys.Invoice, ct);
+            db.Invoices.Add(invoice);
+            await db.SaveChangesAsync(ct);
+
+            var tracked = await db.Quotations
+                .FirstAsync(q => q.QuotationId == quotationId, ct);
+            tracked.InvoiceId = invoice.InvoiceId;
+
+            db.Notifications.Add(new Notification
+            {
+                UserId = invoice.CustomerId,
+                Audience = NotificationAudience.SingleUser,
+                Title = "Your invoice is ready",
+                Message = $"Invoice {invoice.InvoiceNumber} for Rs {invoice.TotalAmount:N2} "
+                          + $"is due on {invoice.DueDate:dd MMM yyyy}.",
+                Category = NotificationCategory.Invoice,
+                Priority = NotificationPriority.Normal,
+                ReferenceType = "Invoice",
+                ReferenceId = invoice.InvoiceId,
+                ActionLabel = "View invoice",
+                ActionRoute = "/invoices",
+                SentUtc = clock.UtcNow
+            });
+
+            await db.SaveChangesAsync(ct);
+            await dbTransaction.CommitAsync(ct);
+            return invoice.InvoiceId;
+        });
+
+        return await GetInvoiceAsync(newId, ct);
+    }
+
+    public async Task<InvoiceDto> CreateAdvanceFromQuotationAsync(long quotationId,
+        CancellationToken ct = default)
+    {
+        var quotation = await db.Quotations
+            .Include(q => q.Lines.OrderBy(l => l.LineNumber))
+            .FirstOrDefaultAsync(q => q.QuotationId == quotationId, ct)
+            ?? throw new NotFoundException("Quotation", quotationId);
+
+        if (quotation.Status != QuotationStatus.Approved)
+        {
+            throw new BusinessRuleException(
+                "An advance invoice follows the customer's approval.");
+        }
+        if (!quotation.AdvanceInvoiceEnabled)
+        {
+            throw new BusinessRuleException(
+                $"{quotation.QuotationNumber} does not ask for an advance invoice.");
+        }
+
+        var amount = AdvanceAmountOf(quotation);
+        if (amount <= 0)
+        {
+            throw new BusinessRuleException(
+                "The advance works out to nothing. Check the deposit setting on the quotation.");
+        }
+
+        var invoiceDate = IstClock.IstDateOf(clock.UtcNow);
+        var dueDays = await settings.GetIntAsync(AppSettingKeys.Invoice.DueDays, 7, ct);
+        var description = quotation.AdvanceType == QuotationAdvanceType.Months
+            ? $"Security deposit — {quotation.AdvanceValue:0.##} month(s) of rent "
+              + $"(quotation {quotation.QuotationNumber})"
+            : $"Security deposit (quotation {quotation.QuotationNumber})";
+
+        var invoice = new Invoice
+        {
+            CustomerId = quotation.CustomerId,
+            // Deliberately not QuotationId: that slot belongs to the invoice the
+            // quotation converts into, and UX_Invoice_Quotation allows only one.
+            LocationId = quotation.LocationId,
+            InvoiceDate = invoiceDate,
+            DueDate = invoiceDate.AddDays(dueDays),
+            SubTotal = amount,
+            TaxableAmount = amount,
+            TotalAmount = amount,
+            PaidAmount = 0,
+            Status = InvoiceStatus.Pending,
+            CustomerName = quotation.CustomerName,
+            CustomerEmail = quotation.CustomerEmail,
+            CustomerMobile = quotation.CustomerMobile,
+            CustomerGstin = quotation.CustomerGstin,
+            BillingAddress = quotation.BillingAddress,
+            CompanyName = quotation.CompanyName,
+            CompanyGstin = quotation.CompanyGstin,
+            CompanyAddress = quotation.CompanyAddress,
+            TermsAndConditions = quotation.TermsAndConditions,
+            Notes = $"Refundable security deposit against quotation {quotation.QuotationNumber}."
+        };
+        invoice.Lines.Add(new InvoiceLine
+        {
+            LineNumber = 1,
+            Description = description,
+            Quantity = 1,
+            UnitPrice = amount,
+            LineAmount = amount,
+            // A refundable deposit is not consideration for a supply, so no GST.
+            TaxPercent = 0,
+            TaxAmount = 0,
+            TotalAmount = amount
+        });
+
+        var strategy = db.Database.CreateExecutionStrategy();
+        var newId = await strategy.ExecuteAsync(async () =>
+        {
+            await using var dbTransaction = await db.Database.BeginTransactionAsync(ct);
+            invoice.InvoiceNumber = await numberSequence.NextAsync(SequenceKeys.Invoice, ct);
+            db.Invoices.Add(invoice);
+            await db.SaveChangesAsync(ct);
+            await dbTransaction.CommitAsync(ct);
+            return invoice.InvoiceId;
+        });
+
+        return await GetInvoiceAsync(newId, ct);
+    }
+
+    /// <summary>Months of rent, or the flat sum. "A month's rent" is one month of the
+    /// lines actually priced by the month; an hourly meeting room is not rent.</summary>
+    private static decimal AdvanceAmountOf(Quotation quotation)
+    {
+        if (quotation.AdvanceType == QuotationAdvanceType.FixedAmount)
+        {
+            return Math.Round(quotation.AdvanceValue, 2, MidpointRounding.AwayFromZero);
+        }
+
+        var monthlyRent = quotation.Lines
+            .Where(l => l.LineType != QuotationLineType.Header
+                        && string.Equals(l.DurationUnit, "Month", StringComparison.OrdinalIgnoreCase))
+            .Sum(l => l.Quantity * l.UnitPrice);
+        return Math.Round(monthlyRent * quotation.AdvanceValue, 2, MidpointRounding.AwayFromZero);
+    }
+
+    public async Task<InvoiceDto> SendAsync(long invoiceId, CancellationToken ct = default)
+    {
+        var invoice = await db.Invoices
+            .FirstOrDefaultAsync(i => i.InvoiceId == invoiceId, ct)
+            ?? throw new NotFoundException("Invoice", invoiceId);
+
+        if (invoice.Status != InvoiceStatus.Pending)
+        {
+            throw new BusinessRuleException(
+                "Only a pending invoice can be marked as sent.");
+        }
+        invoice.Status = InvoiceStatus.Sent;
+        await db.SaveChangesAsync(ct);
+        return await GetInvoiceAsync(invoiceId, ct);
+    }
+
+    public async Task<InvoiceDto> CancelAsync(long invoiceId, string reason,
+        CancellationToken ct = default)
+    {
+        var invoice = await db.Invoices
+            .FirstOrDefaultAsync(i => i.InvoiceId == invoiceId, ct)
+            ?? throw new NotFoundException("Invoice", invoiceId);
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new AppValidationException([new ApiError(ErrorCodes.ValidationError,
+                "Give a reason for cancelling the invoice.", nameof(reason))]);
+        }
+        if (invoice.Status == InvoiceStatus.Cancelled)
+        {
+            throw new BusinessRuleException("This invoice is already cancelled.");
+        }
+        // Money has changed hands; cancelling would leave the payment unexplained.
+        if (invoice.PaidAmount > 0)
+        {
+            throw new BusinessRuleException(
+                "This invoice has payments against it and cannot be cancelled. "
+                + "Refund the payment first.");
+        }
+
+        invoice.Status = InvoiceStatus.Cancelled;
+        invoice.CancellationReason = reason.Trim();
+        await db.SaveChangesAsync(ct);
+        return await GetInvoiceAsync(invoiceId, ct);
+    }
+
     /// <summary>Customers read their own invoices only, whatever id they pass.</summary>
     private async Task<Invoice> LoadScopedAsync(long invoiceId, CancellationToken ct)
     {
@@ -101,13 +400,28 @@ public class InvoiceService(RegalisDbContext db, ICurrentUser currentUser) : IIn
         return invoice;
     }
 
-    private static InvoiceDto ToDto(Invoice i) => new(
-        i.InvoiceId, i.InvoiceNumber, i.CustomerId, i.BookingId, i.InvoiceDate, i.DueDate,
-        i.SubTotal, i.DiscountAmount, i.TaxableAmount,
-        i.CgstPercent, i.CgstAmount, i.SgstPercent, i.SgstAmount,
-        i.TotalAmount, i.PaidAmount, i.OutstandingAmount, (byte)i.Status,
-        i.CustomerName, i.CustomerEmail, i.CompanyName, i.CompanyGstin,
-        i.Lines.Select(l => new InvoiceLineDto(
-            l.LineNumber, l.Description, l.HsnSacCode, l.Quantity, l.UnitPrice,
-            l.LineAmount, l.TaxPercent, l.TaxAmount, l.TotalAmount)).ToList());
+    private InvoiceDto ToDto(Invoice i)
+    {
+        // Overdue is derived, not a status: due date passed and money still owed, and
+        // only while the invoice is actually awaiting payment.
+        var isOverdue = i.DueDate < IstClock.IstDateOf(clock.UtcNow)
+                        && i.OutstandingAmount > 0
+                        && i.Status is InvoiceStatus.Pending
+                            or InvoiceStatus.Sent or InvoiceStatus.PartiallyPaid;
+
+        return new InvoiceDto(
+            i.InvoiceId, i.InvoiceNumber, i.CustomerId, i.BookingId, i.QuotationId,
+            db.Quotations.Where(q => q.QuotationId == i.QuotationId)
+                .Select(q => q.QuotationNumber).FirstOrDefault(),
+            i.InvoiceDate, i.DueDate,
+            i.SubTotal, i.DiscountAmount, i.TaxableAmount,
+            i.CgstPercent, i.CgstAmount, i.SgstPercent, i.SgstAmount,
+            i.IgstPercent, i.IgstAmount,
+            i.TotalAmount, i.PaidAmount, i.OutstandingAmount, (byte)i.Status,
+            isOverdue, i.PaidUtc, i.CancellationReason, i.TermsAndConditions,
+            i.CustomerName, i.CustomerEmail, i.CompanyName, i.CompanyGstin,
+            i.Lines.Select(l => new InvoiceLineDto(
+                l.LineNumber, l.Description, l.HsnSacCode, l.Quantity, l.UnitPrice,
+                l.LineAmount, l.TaxPercent, l.TaxAmount, l.TotalAmount)).ToList());
+    }
 }

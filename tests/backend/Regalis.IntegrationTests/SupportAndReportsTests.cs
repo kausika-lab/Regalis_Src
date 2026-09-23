@@ -241,14 +241,14 @@ public class SupportAndReportsTests(RegalisApiFactory factory)
     // ── Reports ──────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Reports_CatalogueListsSixteen()
+    public async Task Reports_CatalogueIsComplete()
     {
         var admin = await AdminClientAsync();
         var catalogue = (await admin.GetFromJsonAsync<ApiResponse<List<ReportInfo>>>(
             "/api/reports"))!.Data!;
-        catalogue.Should().HaveCount(16);
-        // Day 9 shipped the first 8; availability of all 16 is asserted by
-        // FeatureCompleteTests (Day 10). An unknown key stays 404.
+        // 16 operational reports + 9 from Billing & Finance. That every one of them
+        // actually runs is asserted by FeatureCompleteTests. An unknown key stays 404.
+        catalogue.Should().HaveCount(25);
         (await admin.GetAsync("/api/reports/nonsense"))
             .StatusCode.Should().Be(HttpStatusCode.NotFound);
     }

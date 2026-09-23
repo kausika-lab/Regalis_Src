@@ -1,8 +1,10 @@
 import type { PagedRequest, PagedResult } from '@/models/api';
 import type {
   AppNotification,
+  BroadcastNotificationPayload,
   CustomerPass,
   Invoice,
+  InvoicePaymentResult,
   PassPlan,
   PaymentRow,
   Wallet,
@@ -33,13 +35,20 @@ export const walletApi = {
 export const invoiceApi = {
   my: (query: PagedRequest & { status?: 'pending' | 'paid' } = {}) =>
     unwrap<PagedResult<Invoice>>(api.get('/invoices/my', { params: query })),
-  list: (query: PagedRequest & { status?: number } = {}) =>
+  list: (query: PagedRequest & { status?: number; overdue?: boolean } = {}) =>
     unwrap<PagedResult<Invoice>>(api.get('/invoices', { params: query })),
   get: (invoiceId: number) => unwrap<Invoice>(api.get(`/invoices/${invoiceId}`)),
+  /** Rules 4 and 5: an approved quotation is the only source of a new invoice. */
+  fromQuotation: (quotationId: number) =>
+    unwrap<Invoice>(api.post(`/invoices/from-quotation/${quotationId}`)),
+  send: (invoiceId: number) => unwrap<Invoice>(api.post(`/invoices/${invoiceId}/send`)),
+  cancel: (invoiceId: number, reason: string) =>
+    unwrap<Invoice>(api.post(`/invoices/${invoiceId}/cancel`, { reason })),
 };
 
 export const passApi = {
-  activePlans: (type?: 1 | 2) =>
+  /** PassType: 1 day, 2 monthly, 3 weekly, 4 yearly. */
+  activePlans: (type?: number) =>
     unwrap<PassPlan[]>(api.get('/pass-plans/active', { params: type ? { type } : {} })),
   allPlans: () => unwrap<PassPlan[]>(api.get('/pass-plans')),
   createPlan: (payload: Omit<PassPlan, 'passPlanId' | 'locationName' | 'cgstAmount' | 'sgstAmount' | 'totalAmount'>) =>
@@ -77,11 +86,33 @@ export const notificationApi = {
   markRead: (id: number) => api.patch(`/notifications/${id}/read`),
   readAll: () => api.post('/notifications/read-all'),
   remove: (id: number) => api.delete(`/notifications/${id}`),
+  /** Announcement to every customer or every admin-portal user; returns the recipient count. */
+  broadcast: (payload: BroadcastNotificationPayload) =>
+    unwrap<number>(api.post('/notifications/broadcast', payload)),
 };
 
 export const paymentAdminApi = {
-  list: (query: PagedRequest & { status?: number } = {}) =>
+  list: (query: PagedRequest & { status?: number; paymentMethod?: number; customerId?: number } = {}) =>
     unwrap<PagedResult<PaymentRow>>(api.get('/payments', { params: query })),
+};
+
+/** Pay Now against an invoice (requirements §11). */
+export const invoicePaymentApi = {
+  createOrder: (invoiceId: number, amount?: number) =>
+    unwrap<PaymentOrder>(api.post('/payments/invoice-order', { invoiceId, amount: amount ?? null })),
+  verify: (gatewayOrderId: string, gatewayPaymentId: string, gatewaySignature: string) =>
+    unwrap<InvoicePaymentResult>(api.post('/payments/invoice-verify', {
+      gatewayOrderId, gatewayPaymentId, gatewaySignature,
+    })),
+  receipt: async (paymentId: number, paymentNumber: string) => {
+    const response = await api.get(`/payments/${paymentId}/receipt`, { responseType: 'blob' });
+    const url = URL.createObjectURL(response.data as Blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${paymentNumber}.pdf`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
 };
 
 export const bookingMutationApi = {

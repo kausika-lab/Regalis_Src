@@ -25,12 +25,18 @@ coverage/
 *.local
 .vite/
 
+# ── Playwright E2E artifacts ──
+e2e-results/
+e2e-report/
+
 # ── Environment / secrets ──
 .env
 .env.*
 !.env.example
 appsettings.*.Local.json
 **/secrets.json
+# UAT sign-in details handed to testers — credentials, never committed
+UAT-ACCESS.txt
 
 # ── Logs ──
 logs/

@@ -23,6 +23,24 @@ public class ProfileController(IProfileService profileService) : ApiControllerBa
         OkEnvelope(await profileService.UpdateAsync(request, ct),
             "Profile updated. Issued invoices keep their original details.");
 
+    /// <summary>What onboarding still needs, plus the profile to pre-fill the form.</summary>
+    /// <remarks>Deliberately reachable while the profile is incomplete — it is how the
+    /// SPA finds out that it is.</remarks>
+    [HttpGet("onboarding")]
+    [ProducesResponseType(typeof(ApiResponse<OnboardingStatusDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> OnboardingStatus(CancellationToken ct) =>
+        OkEnvelope(await profileService.GetOnboardingStatusAsync(ct));
+
+    /// <summary>Finishes onboarding: phone, company, address, date of birth, gender and
+    /// GSTIN in one submission. Member accounts only.</summary>
+    [HttpPost("onboarding")]
+    [ProducesResponseType(typeof(ApiResponse<ProfileDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CompleteOnboarding(CompleteOnboardingRequest request,
+        CancellationToken ct) =>
+        OkEnvelope(await profileService.CompleteOnboardingAsync(request, ct),
+            "Thanks — your profile is complete.");
+
     [HttpPost("photo")]
     [RequestSizeLimit(3 * 1024 * 1024)]
     [ProducesResponseType(typeof(ApiResponse<ProfileDto>), StatusCodes.Status200OK)]

@@ -55,6 +55,8 @@ public class PassesController(IPassService passService) : ApiControllerBase
     /// <summary>Gateway order for a pass purchase (wallet purchases skip this).</summary>
     [HttpPost("order")]
     [HasPermission(PermissionCodes.Pass.Create)]
+    // A pass purchase raises a GST invoice, which needs a billing address and GSTIN.
+    [RequireCompleteProfile]
     [ProducesResponseType(typeof(ApiResponse<PaymentOrderResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> CreateOrder(PassOrderRequest request, CancellationToken ct) =>
         OkEnvelope(await passService.CreatePurchaseOrderAsync(request, ct));
@@ -62,6 +64,7 @@ public class PassesController(IPassService passService) : ApiControllerBase
     /// <summary>The atomic purchase: pass + payment + invoice + QR + notification.</summary>
     [HttpPost("purchase")]
     [HasPermission(PermissionCodes.Pass.Create)]
+    [RequireCompleteProfile]
     [ProducesResponseType(typeof(ApiResponse<PurchasePassResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Purchase(PurchasePassRequest request, CancellationToken ct) =>
         OkEnvelope(await passService.PurchaseAsync(request, ct),

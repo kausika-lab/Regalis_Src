@@ -47,6 +47,8 @@ export interface InventoryItemListQuery extends PagedRequest {
 
 export interface InventoryTransactionListQuery extends PagedRequest {
   inventoryItemId?: number;
+  supplierId?: number;
+  purchaseOrderId?: number;
   transactionType?: number;
   from?: string;
   to?: string;

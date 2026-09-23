@@ -34,13 +34,19 @@ public class FeatureCompleteTests(RegalisApiFactory factory)
     }
 
     [Fact]
-    public async Task Reports_AllSixteenAvailable()
+    public async Task Reports_EveryCatalogueKeyRuns()
     {
         var admin = await AdminClientAsync();
         var catalogue = (await admin.GetFromJsonAsync<ApiResponse<List<ReportInfo>>>(
             "/api/reports"))!.Data!;
-        catalogue.Should().HaveCount(16);
+        // 16 operational reports + the 9 the Billing & Finance module adds.
+        catalogue.Should().HaveCount(25);
         catalogue.Should().OnlyContain(r => r.IsAvailable, "Day 10 is the feature-complete target");
+        catalogue.Select(r => r.Key).Should().Contain(new[]
+        {
+            "quotation", "outstanding", "expense", "purchase-order", "inventory",
+            "incoming-goods", "outgoing-goods", "bank-statement", "finance-summary"
+        }, "the Billing & Finance reports are part of the catalogue");
 
         // Every key actually runs — not just the catalogue flag.
         foreach (var report in catalogue)

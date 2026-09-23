@@ -1,13 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, CalendarPlus, Coffee, LifeBuoy, QrCode, Ticket, Wallet } from 'lucide-react';
-import { resolveMenuIcon } from '@/utils/menuIcons';
-import { bannersApi, servicesApi } from '@/api/masters';
+import {
+  ArrowRight,
+  Bell,
+  CalendarDays,
+  CalendarPlus,
+  CalendarRange,
+  ChevronLeft,
+  ChevronRight,
+  LifeBuoy,
+  QrCode,
+  Ticket,
+  Wallet,
+} from 'lucide-react';
+import { bannersApi } from '@/api/masters';
 import { dashboardApi, type CustomerDashboard } from '@/api/reports';
 import { Badge, Button, Card } from '@/components/ui';
 import { useAuthStore } from '@/store/authStore';
-import type { Banner, ServiceItem } from '@/models/masters';
+import { useUiStore } from '@/store/uiStore';
+import type { Banner } from '@/models/masters';
 import { formatDateTime, formatInr, formatTime } from '@/utils/formatters';
+import { greeting } from '@/utils/greeting';
 
 const BOOKING_STATUS: Record<number, { label: string; tone: 'info' | 'success' | 'warning' }> = {
   1: { label: 'Payment pending', tone: 'warning' },
@@ -15,175 +28,260 @@ const BOOKING_STATUS: Record<number, { label: string; tone: 'info' | 'success' |
   3: { label: 'Checked in', tone: 'success' },
 };
 
-/** Customer home (UI_PLAN §5): banner carousel · featured services · today's
- * booking with its QR · quick tiles from the dynamic menu. */
+/** The four things a member does most; each is a real customer route. */
+const QUICK_LINKS = [
+  { to: '/book', icon: CalendarPlus, title: 'Book a space', meta: 'Desks, cabins and meeting rooms' },
+  { to: '/day-pass', icon: Ticket, title: 'Day pass', meta: 'Flexible access for a single day' },
+  { to: '/monthly-pass', icon: CalendarRange, title: 'Monthly pass', meta: 'Unlimited access, one price' },
+  { to: '/qr', icon: QrCode, title: 'My QR / access', meta: 'Scan in at the door' },
+];
+
+/** Customer home (UI_PLAN §5): greeting, workspace carousel, quick links,
+ * today's booking and wallet. */
 export function CustomerHomePage() {
-  const { user, menus } = useAuthStore();
+  const { user } = useAuthStore();
+  const locationId = useUiStore((state) => state.locationId);
   const [dashboard, setDashboard] = useState<CustomerDashboard | null>(null);
   const [banners, setBanners] = useState<Banner[]>([]);
-  const [services, setServices] = useState<ServiceItem[]>([]);
 
   useEffect(() => {
     dashboardApi.customer().then(setDashboard).catch(() => {});
-    bannersApi.active().then(setBanners).catch(() => {});
-    servicesApi.list({ page: 1, pageSize: 10 })
-      .then((result) => setServices(result.items)).catch(() => {});
   }, []);
 
+  // Re-fetch when the header switches workspace: banners are location-scoped.
+  useEffect(() => {
+    bannersApi.active(locationId ?? undefined).then(setBanners).catch(() => {});
+  }, [locationId]);
+
   const booking = dashboard?.todaysBooking ?? null;
-  const tiles = menus.filter((m) => m.route && m.route !== '/');
 
   return (
     <>
-      <Card>
-        <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 800 }}>
-          Welcome, {user?.fullName ?? 'Guest'}
+      <header className="home__greeting">
+        <h2>
+          {greeting()}, {user?.fullName ?? 'Guest'}
         </h2>
-        <p style={{ color: 'var(--text-secondary)', marginTop: 'var(--space-2)' }}>
-          Book a desk, cabin or meeting room, manage your wallet and passes — all in one place.
-        </p>
-        {dashboard && (
-          <div className="row-actions" style={{ marginTop: 'var(--space-3)', flexWrap: 'wrap' }}>
-            <Link to="/wallet"><Badge tone="gold">
-              <Wallet size={12} /> {formatInr(dashboard.walletBalance)}
-            </Badge></Link>
-            <Link to="/passes"><Badge tone="info">
-              <Ticket size={12} /> {dashboard.activePasses} active pass{dashboard.activePasses === 1 ? '' : 'es'}
-            </Badge></Link>
-            <Link to="/notifications"><Badge tone={dashboard.unreadNotifications > 0 ? 'warning' : 'neutral'}>
-              <Bell size={12} /> {dashboard.unreadNotifications} unread
-            </Badge></Link>
-            {dashboard.openTickets > 0 && (
-              <Link to="/support"><Badge tone="warning">
-                <LifeBuoy size={12} /> {dashboard.openTickets} open ticket{dashboard.openTickets === 1 ? '' : 's'}
-              </Badge></Link>
-            )}
-          </div>
-        )}
-      </Card>
+        <p>Let&apos;s make today productive.</p>
+      </header>
 
-      {banners.length > 0 && <BannerCarousel banners={banners} />}
+      <BannerCarousel banners={banners} />
 
-      <Card title="Today's booking">
-        {booking ? (
-          <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: 220 }}>
-              <div style={{ fontWeight: 700 }}>
-                {booking.workspaceName}{' '}
-                <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
-                  · {booking.workspaceTypeName}
-                </span>
-              </div>
-              <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-                {booking.bookingNumber} · {formatDateTime(booking.startUtc)} – {formatTime(booking.endUtc)} IST
-              </div>
-              <div style={{ marginTop: 'var(--space-2)' }}>
-                <Badge tone={BOOKING_STATUS[booking.status]?.tone ?? 'neutral'}>
-                  {BOOKING_STATUS[booking.status]?.label ?? 'Booked'}
-                </Badge>
-              </div>
-            </div>
-            <div className="row-actions">
-              <Link to="/qr"><Button><QrCode size={16} /> View QR</Button></Link>
-              <Link to="/bookings"><Button variant="outline">View booking</Button></Link>
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: 220 }}>
-              <div style={{ fontWeight: 700 }}>No booking found</div>
-              <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-                {dashboard?.nextBooking
-                  ? `Next up: ${dashboard.nextBooking.workspaceName}, ${formatDateTime(dashboard.nextBooking.startUtc)} IST`
-                  : 'Nothing scheduled for today.'}
-              </div>
-            </div>
-            <Link to="/book"><Button><CalendarPlus size={16} /> Book now</Button></Link>
-          </div>
-        )}
-      </Card>
+      <div className="home__quick">
+        {QUICK_LINKS.map(({ to, icon: Icon, title, meta }) => (
+          <Link key={to} to={to} className="home__tile">
+            <span className="home__tile-icon">
+              <Icon size={20} />
+            </span>
+            <span className="home__tile-title">{title}</span>
+            <span className="home__tile-meta">{meta}</span>
+            <ArrowRight size={16} className="home__tile-arrow" aria-hidden />
+          </Link>
+        ))}
+      </div>
 
-      {services.length > 0 && (
-        <Card title="Featured services"
-          actions={<Link to="/services"><Button size="sm" variant="ghost">See all</Button></Link>}>
-          <div style={{ display: 'flex', gap: 'var(--space-3)', overflowX: 'auto', paddingBottom: 'var(--space-2)' }}>
-            {services.map((item) => (
-              <Link key={item.serviceItemId} to="/services" className="choice-card"
-                style={{ minWidth: 150, flexShrink: 0, textDecoration: 'none' }}>
-                <Coffee size={16} color="var(--regalis-gold-dark)" />
-                <div className="choice-card__title" style={{ fontSize: 'var(--font-size-sm)' }}>
-                  {item.itemName}
-                </div>
-                <div className="choice-card__meta">{formatInr(item.price)}</div>
-              </Link>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      <div className="dash-grid">
-        {tiles.map((tile) => {
-          const Icon = resolveMenuIcon(tile.icon);
-          return (
-            <Link key={tile.menuId} to={tile.route!} className="dash-tile">
-              <span className="dash-tile__icon"><Icon size={26} /></span>
-              <span className="dash-tile__label">{tile.displayName}</span>
+      <div className="home__columns">
+        <Card
+          title="Today's booking"
+          actions={
+            <Link to="/bookings">
+              <Button size="sm" variant="ghost">
+                View all
+              </Button>
             </Link>
-          );
-        })}
+          }
+        >
+          {booking ? (
+            <div className="home__booking">
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontWeight: 700 }}>
+                  {booking.workspaceName}{' '}
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
+                    · {booking.workspaceTypeName}
+                  </span>
+                </div>
+                <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
+                  {booking.bookingNumber} · {formatDateTime(booking.startUtc)} –{' '}
+                  {formatTime(booking.endUtc)} IST
+                </div>
+                <div style={{ marginTop: 'var(--space-2)' }}>
+                  <Badge tone={BOOKING_STATUS[booking.status]?.tone ?? 'neutral'}>
+                    {BOOKING_STATUS[booking.status]?.label ?? 'Booked'}
+                  </Badge>
+                </div>
+              </div>
+              <Link to="/qr">
+                <Button>
+                  <QrCode size={16} /> View QR
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="home__empty">
+              <span className="home__empty-icon">
+                <CalendarDays size={22} />
+              </span>
+              <div style={{ fontWeight: 700 }}>No booking today</div>
+              <p>
+                {dashboard?.nextBooking
+                  ? `Next up: ${dashboard.nextBooking.workspaceName}, ${formatDateTime(
+                      dashboard.nextBooking.startUtc,
+                    )} IST`
+                  : 'Nothing scheduled for today.'}
+              </p>
+              <Link to="/book">
+                <Button>
+                  <CalendarPlus size={16} /> Book now
+                </Button>
+              </Link>
+            </div>
+          )}
+        </Card>
+
+        <div className="home__aside">
+          <Card title="Wallet balance">
+            <div className="home__balance">{formatInr(dashboard?.walletBalance ?? 0)}</div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
+              Available credit for bookings, passes and services.
+            </p>
+            <Link to="/wallet" style={{ display: 'block', marginTop: 'var(--space-4)' }}>
+              <Button variant="outline" style={{ width: '100%' }}>
+                <Wallet size={16} /> Add money
+              </Button>
+            </Link>
+          </Card>
+
+          <Card title="At a glance">
+            <ul className="home__glance">
+              <li>
+                <Link to="/passes">
+                  <Ticket size={16} /> Active passes
+                  <Badge tone={(dashboard?.activePasses ?? 0) > 0 ? 'info' : 'neutral'}>
+                    {dashboard?.activePasses ?? 0}
+                  </Badge>
+                </Link>
+              </li>
+              <li>
+                <Link to="/notifications">
+                  <Bell size={16} /> Unread notifications
+                  <Badge tone={(dashboard?.unreadNotifications ?? 0) > 0 ? 'warning' : 'neutral'}>
+                    {dashboard?.unreadNotifications ?? 0}
+                  </Badge>
+                </Link>
+              </li>
+              <li>
+                <Link to="/support">
+                  <LifeBuoy size={16} /> Open tickets
+                  <Badge tone={(dashboard?.openTickets ?? 0) > 0 ? 'warning' : 'neutral'}>
+                    {dashboard?.openTickets ?? 0}
+                  </Badge>
+                </Link>
+              </li>
+            </ul>
+          </Card>
+        </div>
       </div>
     </>
   );
 }
 
-/** Auto-sliding promotional carousel from MST_Banner. Content-first: the banner
- * renders as styled text over the house palette, with the image when it loads. */
+/**
+ * The workspace hero. Slides come from MST_Banner (Admin → Banners), so the
+ * imagery is content the team owns rather than anything hardcoded here: each
+ * row's image path becomes the backdrop. A banner whose image will not load
+ * still reads correctly — the house gradient shows through instead of a broken
+ * frame — and with no banners at all this falls back to one brand slide.
+ */
 function BannerCarousel({ banners }: { banners: Banner[] }) {
   const [index, setIndex] = useState(0);
+  const [broken, setBroken] = useState<Record<number, true>>({});
+  const count = banners.length;
+
+  const go = useCallback((next: number) => setIndex(((next % count) + count) % count), [count]);
 
   useEffect(() => {
-    if (banners.length < 2) return;
-    const timer = setInterval(() => setIndex((i) => (i + 1) % banners.length), 5000);
+    if (count < 2) return;
+    // Two seconds a slide, per the brief.
+    const timer = setInterval(() => setIndex((i) => (i + 1) % count), 2000);
     return () => clearInterval(timer);
-  }, [banners.length]);
+  }, [count]);
 
-  const banner = banners[index];
-  return (
-    <div style={{
-      position: 'relative',
-      background: 'var(--regalis-black, #0B0B0D)',
-      borderRadius: 'var(--radius-lg, 12px)',
-      padding: 'var(--space-6) var(--space-5)',
-      marginBottom: 'var(--space-4)',
-      overflow: 'hidden',
-      color: '#fff',
-    }}>
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        <div style={{ fontWeight: 800, fontSize: 'var(--font-size-lg)', color: 'var(--regalis-gold, #C9A227)' }}>
-          {banner.title}
+  if (count === 0) {
+    return (
+      <section className="hero">
+        <div className="hero__body">
+          <h3 className="hero__title">Your workspace, your success</h3>
+          <p className="hero__subtitle">
+            Premium desks, private cabins and meeting rooms — designed for focus and growth.
+          </p>
+          <Link to="/book">
+            <Button>Book a space</Button>
+          </Link>
         </div>
-        {banner.subtitle && (
-          <div style={{ marginTop: 'var(--space-1)', opacity: 0.85 }}>{banner.subtitle}</div>
-        )}
+      </section>
+    );
+  }
+
+  const banner = banners[Math.min(index, count - 1)];
+  const showImage = Boolean(banner.imagePath) && !broken[banner.bannerId];
+
+  return (
+    <section className="hero" aria-roledescription="carousel" aria-label="Workspace highlights">
+      <div className="hero__body">
+        <h3 className="hero__title">{banner.title}</h3>
+        {banner.subtitle && <p className="hero__subtitle">{banner.subtitle}</p>}
         {banner.promotionalPrice !== null && (
-          <div style={{ marginTop: 'var(--space-2)', fontWeight: 700 }}>
-            {formatInr(banner.promotionalPrice)}
-          </div>
+          <p className="hero__price">{formatInr(banner.promotionalPrice)}</p>
+        )}
+        <Link to={banner.linkUrl?.startsWith('/') ? banner.linkUrl : '/book'}>
+          <Button>Book a space</Button>
+        </Link>
+      </div>
+
+      {/* The image lives in its own column rather than behind the copy, so the
+          two can never overlap however light or busy the picture is. */}
+      <div className="hero__figure">
+        {showImage && (
+          <img
+            className="hero__image"
+            src={banner.imagePath}
+            alt=""
+            onError={() => setBroken((b) => ({ ...b, [banner.bannerId]: true }))}
+          />
         )}
       </div>
-      {banners.length > 1 && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 'var(--space-4)', position: 'relative', zIndex: 1 }}>
-          {banners.map((b, i) => (
-            <button key={b.bannerId} type="button" aria-label={`Banner ${i + 1}`}
-              onClick={() => setIndex(i)}
-              style={{
-                width: i === index ? 18 : 8, height: 8, borderRadius: 4, border: 'none',
-                cursor: 'pointer', transition: 'width .2s',
-                background: i === index ? 'var(--regalis-gold, #C9A227)' : 'rgba(255,255,255,.35)',
-              }} />
-          ))}
+
+      {count > 1 && (
+        <div className="hero__controls">
+          <button
+            type="button"
+            className="hero__arrow"
+            aria-label="Previous slide"
+            onClick={() => go(index - 1)}
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <div className="hero__dots">
+            {banners.map((b, i) => (
+              <button
+                key={b.bannerId}
+                type="button"
+                className={`hero__dot${i === index ? ' hero__dot--active' : ''}`}
+                aria-label={`Slide ${i + 1} of ${count}`}
+                aria-current={i === index}
+                onClick={() => go(i)}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            className="hero__arrow"
+            aria-label="Next slide"
+            onClick={() => go(index + 1)}
+          >
+            <ChevronRight size={18} />
+          </button>
         </div>
       )}
-    </div>
+    </section>
   );
 }

@@ -37,10 +37,14 @@ public static class DependencyInjection
         });
 
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
+        services.Configure<GoogleOptions>(configuration.GetSection(GoogleOptions.SectionName));
 
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<ITokenService, JwtTokenService>();
+        // Singleton: the Google verifier caches Google's signing keys between calls.
+        // An empty client id leaves it reporting "not configured" rather than failing.
+        services.AddSingleton<IGoogleTokenVerifier, GoogleTokenVerifier>();
 
         services.AddMemoryCache();
         services.AddScoped<ISettingService, SettingService>();
@@ -51,9 +55,16 @@ public static class DependencyInjection
         services.AddScoped<IMenuAdminService, MenuAdminService>();
         services.AddScoped<DatabaseSeeder>();
 
-        // Adapter selection by configuration (Invariant 5): only the console
-        // channel exists until SMTP credentials arrive (execution-plan risk #3).
-        services.AddScoped<IOtpSender, ConsoleOtpSender>();
+        // Adapter selection by configuration (Invariant 5): Otp:Channel = "Smtp"
+        // sends real mail; anything else stays on the console sender so a fresh
+        // clone runs without SMTP credentials (execution-plan risk #3).
+        services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.SectionName));
+        services.AddScoped<ConsoleOtpSender>();
+        services.AddScoped<SmtpOtpSender>();
+        services.AddScoped<IOtpSender>(provider =>
+            string.Equals(configuration["Otp:Channel"], "Smtp", StringComparison.OrdinalIgnoreCase)
+                ? provider.GetRequiredService<SmtpOtpSender>()
+                : provider.GetRequiredService<ConsoleOtpSender>());
 
         // Masters
         services.AddScoped<ILocationService, LocationService>();
@@ -77,6 +88,11 @@ public static class DependencyInjection
         services.AddScoped<IInvoiceService, InvoiceService>();
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IPassService, PassService>();
+        services.AddScoped<ISupplierService, SupplierService>();
+        services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+        services.AddScoped<IExpenseService, ExpenseService>();
+        services.AddScoped<IQuotationService, QuotationService>();
+        services.AddScoped<IBankService, BankService>();
 
         // Operations
         services.AddScoped<INotificationService, NotificationService>();
@@ -101,6 +117,13 @@ public static class DependencyInjection
 
         // Payment gateway — chosen by Payments:Provider (Invariant 5). Sandbox is
         // registered alongside so the demo checkout can sign in dev/test.
+        // Quotation delivery — email through the same SMTP account the OTP sender
+        // uses, WhatsApp through the Business API when one is configured and a wa.me
+        // link to send by hand when it is not (Invariant 5, document §3.5).
+        services.Configure<WhatsAppOptions>(configuration.GetSection(WhatsAppOptions.SectionName));
+        services.AddHttpClient(nameof(QuotationDispatcher));
+        services.AddScoped<IQuotationDispatcher, QuotationDispatcher>();
+
         services.AddScoped<SandboxPaymentGateway>();
         services.AddHttpClient<RazorpayPaymentGateway>();
         services.AddScoped<IPaymentGateway>(provider =>

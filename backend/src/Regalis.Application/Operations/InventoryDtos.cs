@@ -16,7 +16,14 @@ public record InventoryItemDto(
     string? Description,
     decimal CurrentStock,
     bool NeedsReorder,
-    bool IsActive);
+    bool IsActive,
+    // 1 Goods, 2 Service. Services hold no stock and stay off the stock screens.
+    byte ItemType = 1,
+    // HSN for goods, SAC for services.
+    string? HsnSacCode = null,
+    decimal SellingRate = 0m,
+    decimal TaxPercent = 0m,
+    bool IsNonTaxable = true);
 
 public record SaveInventoryItemRequest(
     string ItemCode,
@@ -27,7 +34,14 @@ public record SaveInventoryItemRequest(
     decimal ReorderLevel,
     decimal? UnitCost,
     int LocationId,
-    string? Description);
+    string? Description,
+    // Sales details. Null leaves the stored value alone, so a caller that predates
+    // them cannot wipe them; an empty HsnSacCode clears the code.
+    byte? ItemType = null,
+    string? HsnSacCode = null,
+    decimal? SellingRate = null,
+    decimal? TaxPercent = null,
+    bool? IsNonTaxable = null);
 
 /// <summary>Derived stock (Invariant 11): opening + in + adjustments − out − damage.
 /// Never a stored mutable column.</summary>
@@ -97,6 +111,8 @@ public class InventoryItemListRequest : PagedRequest
     public int? LocationId { get; set; }
     /// <summary>true = only items at or under their reorder level.</summary>
     public bool? BelowReorder { get; set; }
+    /// <summary>1 Goods, 2 Service.</summary>
+    public byte? ItemType { get; set; }
 }
 
 public class InventoryTransactionListRequest : PagedRequest
@@ -125,6 +141,13 @@ public class SaveInventoryItemRequestValidator : AbstractValidator<SaveInventory
         RuleFor(x => x.UnitCost).GreaterThanOrEqualTo(0).When(x => x.UnitCost is not null);
         RuleFor(x => x.LocationId).GreaterThan(0);
         RuleFor(x => x.Description).MaximumLength(500);
+        RuleFor(x => x.ItemType).InclusiveBetween((byte)1, (byte)2)
+            .When(x => x.ItemType is not null)
+            .WithMessage("Item type must be Goods or Service.");
+        RuleFor(x => x.HsnSacCode).MaximumLength(20)
+            .Matches("^[0-9]*$").WithMessage("HSN / SAC code has digits only.");
+        RuleFor(x => x.SellingRate).GreaterThanOrEqualTo(0).When(x => x.SellingRate is not null);
+        RuleFor(x => x.TaxPercent).InclusiveBetween(0, 100).When(x => x.TaxPercent is not null);
     }
 }
 
@@ -189,5 +212,9 @@ public interface IInventoryService
 
     /// <summary>CSV of the transaction ledger for the filter window.</summary>
     Task<InventoryExportResult> ExportAsync(InventoryTransactionListRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>The item master as an .xlsx workbook, filtered like the Items screen.</summary>
+    Task<InventoryExportResult> ExportItemsExcelAsync(InventoryItemListRequest request,
         CancellationToken ct = default);
 }

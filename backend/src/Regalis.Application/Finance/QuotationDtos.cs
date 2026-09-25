@@ -37,7 +37,18 @@ public record QuotationLineDto(
     decimal CgstAmount,
     decimal SgstAmount,
     decimal IgstAmount,
-    decimal TotalAmount);
+    decimal TotalAmount,
+    // The item-master row the line was picked from, and what was copied from it.
+    int? InventoryItemId = null,
+    // 1 Goods (HSN), 2 Service (SAC).
+    byte? ItemType = null,
+    string? Unit = null,
+    // Outside GST: shown as "Non-Taxable" rather than 0%.
+    bool IsNonTaxable = false,
+    // "Cabin C-001 · 1 × 3 Month × ₹25,000" — the same text the PDF prints (§2.1).
+    string? Summary = null,
+    // The admin changed the rate from the price configured for the service.
+    bool RateEdited = false);
 
 public record QuotationStatusHistoryDto(
     byte? FromStatus,
@@ -86,7 +97,8 @@ public record QuotationActionsDto(
 public record QuotationDto(
     long QuotationId,
     string QuotationNumber,
-    long CustomerId,
+    // Null when the customer was typed in by hand rather than picked from the accounts.
+    long? CustomerId,
     string CustomerName,
     string CustomerEmail,
     string? CustomerMobile,
@@ -183,6 +195,10 @@ public record QuotationSummaryDto(
     // Count per status byte, for the tab labels. Keys are QuotationStatus.
     Dictionary<byte, int> StatusCounts);
 
+/// <summary>The status tab counts under the list's filters. Keys are QuotationStatus;
+/// a lapsed Sent/Viewed quotation is counted as Expired, as the list shows it.</summary>
+public record QuotationStatusCountsDto(int TotalCount, Dictionary<byte, int> StatusCounts);
+
 /// <summary>One pickable service for the item table, with the price already configured
 /// for it (document §2.1). Grouped client-side by <see cref="Group"/>.</summary>
 public record QuotationServiceOptionDto(
@@ -203,6 +219,16 @@ public record QuotationServiceOptionDto(
     // True for a specific cabin or meeting room: quantity is locked to 1 and a second
     // one goes on its own line (document §3.3).
     bool QuantityLocked);
+
+/// <summary>One earlier price for an item, for the Rate column's Recent Transactions.</summary>
+public record QuotationItemRateDto(
+    long QuotationId,
+    string QuotationNumber,
+    DateOnly QuotationDate,
+    string CustomerName,
+    decimal UnitPrice,
+    byte Status,
+    string? InvoiceNumber);
 
 public record QuotationTdsOptionDto(string Code, string Label, decimal Percent);
 
@@ -246,11 +272,20 @@ public record SaveQuotationLineRequest(
     decimal? StandardRate,
     decimal DiscountAmount,
     // Per-line GST rate; falls back to the configured default when absent.
-    decimal? TaxPercent);
+    decimal? TaxPercent,
+    // Picked from the item master (Assets > Items). Appended with defaults so the
+    // existing positional call sites keep compiling.
+    int? InventoryItemId = null,
+    byte? ItemType = null,
+    string? Unit = null,
+    bool? IsNonTaxable = null);
 
 public record SaveQuotationRequest(
-    long CustomerId,
-    int LocationId,
+    // Optional: the form takes the customer as free text and links an account only when
+    // the admin picks a suggested one. CustomerName is then the one that must be given.
+    long? CustomerId,
+    // Optional: an edit keeps the quotation's location, a new one takes the default.
+    int? LocationId,
     DateOnly? QuotationDate,
     DateOnly? ValidUntil,
     string? ReferenceNumber,
@@ -268,7 +303,11 @@ public record SaveQuotationRequest(
     string? TermsAndConditions,
     string? Remarks,
     string? InternalNote,
-    List<SaveQuotationLineRequest> Lines);
+    List<SaveQuotationLineRequest> Lines,
+    // Typed on the form. For a linked account, a blank one is filled from the profile on send.
+    string? CustomerName = null,
+    string? BillingAddress = null,
+    string? CustomerGstin = null);
 
 /// <summary>The send popup (document §3.5). At least one channel must be ticked; a
 /// send that reaches neither channel leaves the quotation a draft.</summary>
@@ -317,8 +356,9 @@ public class QuotationListRequest : PagedRequest
     public byte? ServiceType { get; set; }
     public DateOnly? From { get; set; }
     public DateOnly? To { get; set; }
-    /// <summary>today | week | month | fy — a shorthand for From/To, which win if both
-    /// are given. Anything else is ignored rather than rejected.</summary>
+    /// <summary>today | week | month | lastmonth | quarter | fy | lastfy — a shorthand
+    /// for From/To, which win if either is given. Anything else is ignored rather than
+    /// rejected. SortBy takes date (default) | number | amount.</summary>
     public string? DatePreset { get; set; }
     /// <summary>The "Expiring in 3 days" card: open quotations lapsing within N days.</summary>
     public int? ExpiringInDays { get; set; }
@@ -330,7 +370,7 @@ public class SaveQuotationLineRequestValidator : AbstractValidator<SaveQuotation
 {
     public SaveQuotationLineRequestValidator()
     {
-        RuleFor(x => x.Description).NotEmpty().WithMessage("Select a service or remove this row.")
+        RuleFor(x => x.Description).NotEmpty().WithMessage("Enter an item name or remove this row.")
             .MaximumLength(300);
         RuleFor(x => x.LineNotes).MaximumLength(500);
         RuleFor(x => x.HsnSacCode).MaximumLength(20);
@@ -342,6 +382,9 @@ public class SaveQuotationLineRequestValidator : AbstractValidator<SaveQuotation
         RuleFor(x => x.DurationValue).GreaterThan(0).WithMessage("Must be greater than 0.")
             .When(x => x.DurationValue is not null);
         RuleFor(x => x.DurationUnit).MaximumLength(20);
+        RuleFor(x => x.Unit).MaximumLength(20);
+        RuleFor(x => x.ItemType).InclusiveBetween((byte)1, (byte)2).When(x => x.ItemType is not null);
+        RuleFor(x => x.InventoryItemId).GreaterThan(0).When(x => x.InventoryItemId is not null);
         RuleFor(x => x.WorkspaceTypeId).GreaterThan(0).When(x => x.WorkspaceTypeId is not null);
         RuleFor(x => x.ServiceItemId).GreaterThan(0).When(x => x.ServiceItemId is not null);
         RuleFor(x => x.WorkspaceId).GreaterThan(0).When(x => x.WorkspaceId is not null);
@@ -365,8 +408,17 @@ public class SaveQuotationRequestValidator : AbstractValidator<SaveQuotationRequ
 
     public SaveQuotationRequestValidator()
     {
-        RuleFor(x => x.CustomerId).GreaterThan(0).WithMessage("Select a customer.");
-        RuleFor(x => x.LocationId).GreaterThan(0);
+        RuleFor(x => x.CustomerId).GreaterThan(0).When(x => x.CustomerId is not null);
+        RuleFor(x => x.CustomerName).NotEmpty().WithMessage("Enter the customer name.")
+            .When(x => x.CustomerId is null);
+        RuleFor(x => x.CustomerName).MaximumLength(150);
+        RuleFor(x => x.BillingAddress).MaximumLength(500);
+        // GSTIN: 2-digit state code, 10-character PAN, entity number, Z, check character.
+        RuleFor(x => x.CustomerGstin)
+            .Matches(@"^\s*[0-9]{2}[A-Za-z]{5}[0-9]{4}[A-Za-z][1-9A-Za-z][Zz][0-9A-Za-z]\s*$")
+            .WithMessage("Enter a valid 15-character GSTIN, e.g. 29ABCDE1234F1Z5.")
+            .When(x => !string.IsNullOrWhiteSpace(x.CustomerGstin));
+        RuleFor(x => x.LocationId).GreaterThan(0).When(x => x.LocationId is not null);
         RuleFor(x => x.ReferenceNumber).MaximumLength(50);
         RuleFor(x => x.Subject).MaximumLength(250);
         RuleFor(x => x.PlaceOfSupplyStateCode).Length(2)
@@ -384,7 +436,7 @@ public class SaveQuotationRequestValidator : AbstractValidator<SaveQuotationRequ
             .WithMessage("A percentage discount cannot be more than 100%.");
         RuleFor(x => x.AdvanceValue).GreaterThanOrEqualTo(0)
             .When(x => x.AdvanceValue is not null);
-        RuleFor(x => x.Lines).NotEmpty().WithMessage("Add at least one service.");
+        RuleFor(x => x.Lines).NotEmpty().WithMessage("Add at least one item.");
         RuleFor(x => x.Lines).Must(lines => lines.Count <= MaxLines)
             .WithMessage($"A quotation carries at most {MaxLines} lines.");
         RuleForEach(x => x.Lines).SetValidator(new SaveQuotationLineRequestValidator());
@@ -476,6 +528,15 @@ public interface IQuotationService
 
     /// <summary>The four summary cards and the status tab counts (document §3.1).</summary>
     Task<QuotationSummaryDto> GetSummaryAsync(CancellationToken ct = default);
+
+    /// <summary>The last prices an item was quoted at, newest first. Drafts and
+    /// cancelled quotations are left out: they were never offered.</summary>
+    Task<List<QuotationItemRateDto>> GetItemRatesAsync(int inventoryItemId, int take,
+        CancellationToken ct = default);
+
+    /// <summary>The status tab counts under the list's filters, ignoring the status.</summary>
+    Task<QuotationStatusCountsDto> GetStatusCountsAsync(QuotationListRequest request,
+        CancellationToken ct = default);
 
     /// <summary>Everything the create form needs, in one call (document §3.2).</summary>
     Task<QuotationFormOptionsDto> GetFormOptionsAsync(CancellationToken ct = default);

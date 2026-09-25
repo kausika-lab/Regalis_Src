@@ -1649,7 +1649,7 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<long>("CustomerId")
+                    b.Property<long?>("CustomerId")
                         .HasColumnType("bigint");
 
                     b.Property<string>("CustomerMobile")
@@ -2013,6 +2013,15 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int?>("InventoryItemId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsNonTaxable")
+                        .HasColumnType("bit");
+
+                    b.Property<byte?>("ItemType")
+                        .HasColumnType("tinyint");
+
                     b.Property<decimal>("LineAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -2070,6 +2079,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("Unit")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -2081,6 +2094,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("QuotationLineId");
+
+                    b.HasIndex("InventoryItemId")
+                        .HasDatabaseName("IX_QuotationLine_InventoryItem")
+                        .HasFilter("[InventoryItemId] IS NOT NULL");
 
                     b.HasIndex("QuotationId");
 
@@ -4129,6 +4146,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("HsnSacCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<string>("ImagePath")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -4137,6 +4158,9 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsNonTaxable")
                         .HasColumnType("bit");
 
                     b.Property<string>("ItemCode")
@@ -4148,6 +4172,9 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
+
+                    b.Property<byte>("ItemType")
+                        .HasColumnType("tinyint");
 
                     b.Property<int>("LocationId")
                         .HasColumnType("int");
@@ -4165,6 +4192,14 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("ReorderLevel")
                         .HasPrecision(18, 3)
                         .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("SellingRate")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("decimal(14,2)");
+
+                    b.Property<decimal>("TaxPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
 
                     b.Property<string>("Unit")
                         .IsRequired()
@@ -4847,8 +4882,7 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.HasOne("Regalis.Domain.Entities.Identity.User", null)
                         .WithMany()
                         .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Regalis.Domain.Entities.Finance.Invoice", null)
                         .WithMany()

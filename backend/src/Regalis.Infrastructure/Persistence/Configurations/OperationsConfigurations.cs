@@ -19,6 +19,11 @@ public class InventoryItemConfiguration : IEntityTypeConfiguration<InventoryItem
         builder.Property(x => x.OpeningQuantity).HasPrecision(18, 3);
         builder.Property(x => x.ReorderLevel).HasPrecision(18, 3);
         builder.Property(x => x.ImagePath).HasMaxLength(500);
+        // No HasDefaultValue here: on a bool it would stop an explicit false from ever
+        // being inserted. Existing rows are backfilled by the migration instead.
+        builder.Property(x => x.HsnSacCode).HasMaxLength(20);
+        builder.Property(x => x.SellingRate).HasPrecision(14, 2);
+        builder.Property(x => x.TaxPercent).HasPrecision(5, 2);
         builder.HasIndex(x => x.ItemCode).IsUnique().HasDatabaseName("UX_InventoryItem_Code");
 
         builder.HasOne<Location>().WithMany()

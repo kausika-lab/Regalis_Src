@@ -212,6 +212,75 @@ public class OperationsTests(RegalisApiFactory factory)
     }
 
     [Fact]
+    public async Task ServiceItem_CarriesSalesDetails_ButNoStock()
+    {
+        var admin = await AdminClientAsync();
+        var code = $"SVC-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}";
+        var created = await admin.PostAsJsonAsync("/api/inventory/items", ItemRequest(code) with
+        {
+            ItemType = (byte)InventoryItemType.Service,
+            HsnSacCode = "998314",
+            SellingRate = 1799m,
+            TaxPercent = 18m,
+            IsNonTaxable = false,
+        });
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        var item = (await created.Content.ReadFromJsonAsync<ApiResponse<InventoryItemDto>>())!.Data!;
+        item.ItemType.Should().Be((byte)InventoryItemType.Service);
+        item.HsnSacCode.Should().Be("998314");
+        item.SellingRate.Should().Be(1799m);
+        item.TaxPercent.Should().Be(18m);
+        item.IsNonTaxable.Should().BeFalse();
+        item.OpeningQuantity.Should().Be(0m, "a service holds no stock");
+
+        // The picker searches the HSN/SAC code too.
+        var found = (await admin.GetFromJsonAsync<ApiResponse<PagedResult<InventoryItemDto>>>(
+            "/api/inventory/items?search=998314&pageSize=20"))!.Data!;
+        found.Items.Should().Contain(i => i.InventoryItemId == item.InventoryItemId);
+
+        var stock = (await admin.GetFromJsonAsync<ApiResponse<List<InventoryStockDto>>>(
+            "/api/inventory/stock"))!.Data!;
+        stock.Should().NotContain(s => s.InventoryItemId == item.InventoryItemId);
+
+        var movement = await admin.PostAsJsonAsync("/api/inventory/transactions",
+            new CreateInventoryTransactionRequest(item.InventoryItemId, 1, 5m,
+                null, "Test", null, null, null, null, null));
+        movement.IsSuccessStatusCode.Should().BeFalse("a service has no stock to move");
+
+        // An edit that does not send the sales fields leaves them alone.
+        var edited = await admin.PutAsJsonAsync($"/api/inventory/items/{item.InventoryItemId}",
+            ItemRequest(code) with { OpeningQuantity = 0m });
+        edited.EnsureSuccessStatusCode();
+        var after = (await edited.Content.ReadFromJsonAsync<ApiResponse<InventoryItemDto>>())!.Data!;
+        after.SellingRate.Should().Be(1799m);
+        after.ItemType.Should().Be((byte)InventoryItemType.Service);
+    }
+
+    [Fact]
+    public async Task InventoryItems_ExportAsAnExcelWorkbook_WithTheScreensFilters()
+    {
+        var admin = await AdminClientAsync();
+        var code = $"INV-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}";
+        (await admin.PostAsJsonAsync("/api/inventory/items", ItemRequest(code)))
+            .StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var response = await admin.GetAsync($"/api/inventory/items/export?search={code}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.MediaType.Should()
+            .Be("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.Content.Headers.ContentDisposition!.FileName.Should().EndWith(".xlsx");
+
+        // An .xlsx is a zip; the item's code lives in its shared strings.
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(bytes));
+        var entry = zip.GetEntry("xl/sharedStrings.xml");
+        entry.Should().NotBeNull();
+        using var reader = new StreamReader(entry!.Open());
+        var strings = await reader.ReadToEndAsync();
+        strings.Should().Contain(code).And.Contain("Current Stock");
+    }
+
+    [Fact]
     public async Task InventoryLedger_NeverGoesNegative_AndAdjustmentCompensates()
     {
         var admin = await AdminClientAsync();

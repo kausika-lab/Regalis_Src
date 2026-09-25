@@ -139,7 +139,7 @@ public class InvoiceService(
 
         var invoice = new Invoice
         {
-            CustomerId = quotation.CustomerId,
+            CustomerId = CustomerOf(quotation),
             QuotationId = quotation.QuotationId,
             LocationId = quotation.LocationId,
             InvoiceDate = invoiceDate,
@@ -275,7 +275,7 @@ public class InvoiceService(
 
         var invoice = new Invoice
         {
-            CustomerId = quotation.CustomerId,
+            CustomerId = CustomerOf(quotation),
             // Deliberately not QuotationId: that slot belongs to the invoice the
             // quotation converts into, and UX_Invoice_Quotation allows only one.
             LocationId = quotation.LocationId,
@@ -323,6 +323,13 @@ public class InvoiceService(
 
         return await GetInvoiceAsync(newId, ct);
     }
+
+    /// <summary>An invoice is always raised to a customer account. A quotation whose
+    /// customer was typed in by hand has none, so it cannot be invoiced as it stands.</summary>
+    private static long CustomerOf(Quotation quotation) =>
+        quotation.CustomerId ?? throw new BusinessRuleException(
+            $"{quotation.QuotationNumber} was raised for {quotation.CustomerName}, who has no " +
+            "customer account. Create the customer, then raise the invoice from Invoices.");
 
     /// <summary>Months of rent, or the flat sum. "A month's rent" is one month of the
     /// lines actually priced by the month; an hourly meeting room is not rent.</summary>

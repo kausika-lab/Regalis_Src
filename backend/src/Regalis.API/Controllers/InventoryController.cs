@@ -18,6 +18,17 @@ public class InventoryController(IInventoryService inventoryService) : ApiContro
         CancellationToken ct) =>
         OkEnvelope(await inventoryService.GetItemsAsync(request, ct));
 
+    /// <summary>The Items screen as an Excel (.xlsx) download, same filters, all rows.</summary>
+    [HttpGet("items/export")]
+    [HasPermission(PermissionCodes.Inventory.Export)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ExportItems([FromQuery] InventoryItemListRequest request,
+        CancellationToken ct)
+    {
+        var export = await inventoryService.ExportItemsExcelAsync(request, ct);
+        return File(export.Content, export.ContentType, export.FileName);
+    }
+
     [HttpGet("items/{id:int}")]
     [HasPermission(PermissionCodes.Inventory.View)]
     [ProducesResponseType(typeof(ApiResponse<InventoryItemDto>), StatusCodes.Status200OK)]

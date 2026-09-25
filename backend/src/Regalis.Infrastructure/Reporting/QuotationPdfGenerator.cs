@@ -169,7 +169,7 @@ public static class QuotationPdfGenerator
                         table.Header(header =>
                         {
                             header.Cell().Element(HeaderCell).Text("#");
-                            header.Cell().Element(HeaderCell).Text("Service");
+                            header.Cell().Element(HeaderCell).Text("Item");
                             header.Cell().Element(HeaderCell).AlignRight().Text("Qty");
                             header.Cell().Element(HeaderCell).AlignRight().Text("Duration");
                             header.Cell().Element(HeaderCell).AlignRight().Text("Rate");
@@ -191,26 +191,28 @@ public static class QuotationPdfGenerator
                             table.Cell().Element(BodyCell).Text(line.LineNumber.ToString());
                             table.Cell().Element(BodyCell).Column(cell =>
                             {
-                                cell.Item().Text(line.Description);
+                                // The spec's line text, e.g. "Cabin C-001 · 1 × 3 Month × ₹25,000".
+                                cell.Item().Text(QuotationLineText.Summary(line) ?? line.Description);
                                 if (!string.IsNullOrWhiteSpace(line.LineNotes))
                                 {
                                     cell.Item().Text(line.LineNotes).FontSize(8).FontColor(Muted);
                                 }
                                 if (!string.IsNullOrWhiteSpace(line.HsnSacCode))
                                 {
-                                    cell.Item().Text($"SAC {line.HsnSacCode}").FontSize(8)
+                                    // Goods carry an HSN code; services (and older lines) a SAC code.
+                                    cell.Item().Text($"{(line.ItemType == InventoryItemType.Goods ? "HSN" : "SAC")} {line.HsnSacCode}").FontSize(8)
                                         .FontColor(Muted);
                                 }
                             });
                             table.Cell().Element(BodyCell).AlignRight()
-                                .Text($"{line.Quantity:0.###}");
+                                .Text($"{line.Quantity:0.###} {line.Unit}".Trim());
                             table.Cell().Element(BodyCell).AlignRight().Text(
                                 line.DurationValue is null
                                     ? "—"
                                     : $"{line.DurationValue:0.###} {line.DurationUnit}".Trim());
                             table.Cell().Element(BodyCell).AlignRight().Text($"{line.UnitPrice:N2}");
                             table.Cell().Element(BodyCell).AlignRight()
-                                .Text($"{line.TaxPercent:0.##}%");
+                                .Text(line.IsNonTaxable ? "Non-Taxable" : $"{line.TaxPercent:0.##}%");
                             table.Cell().Element(BodyCell).AlignRight()
                                 .Text($"{line.LineAmount:N2}").Bold();
                         }

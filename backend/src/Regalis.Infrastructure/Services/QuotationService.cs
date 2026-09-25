@@ -77,6 +77,51 @@ public class QuotationService(
         CancellationToken ct = default) =>
         await PageAsync(ApplyFilters(db.Quotations.AsNoTracking(), request), request, ct);
 
+    public async Task<List<QuotationItemRateDto>> GetItemRatesAsync(int inventoryItemId, int take,
+        CancellationToken ct = default)
+    {
+        take = Math.Clamp(take, 1, 20);
+        return await db.QuotationLines.AsNoTracking()
+            .Where(l => l.InventoryItemId == inventoryItemId
+                        && l.Quotation.Status != QuotationStatus.Draft
+                        && l.Quotation.Status != QuotationStatus.Cancelled)
+            .OrderByDescending(l => l.Quotation.QuotationDate)
+            .ThenByDescending(l => l.QuotationId)
+            .Take(take)
+            .Select(l => new QuotationItemRateDto(
+                l.QuotationId, l.Quotation.QuotationNumber, l.Quotation.QuotationDate,
+                l.Quotation.CustomerName, l.UnitPrice, (byte)l.Quotation.Status,
+                db.Invoices.Where(i => i.InvoiceId == l.Quotation.InvoiceId)
+                    .Select(i => i.InvoiceNumber).FirstOrDefault()))
+            .ToListAsync(ct);
+    }
+
+    public async Task<QuotationStatusCountsDto> GetStatusCountsAsync(
+        QuotationListRequest request, CancellationToken ct = default)
+    {
+        var today = IstClock.IstDateOf(clock.UtcNow);
+        // Every filter on screen except the tab itself, so each tab says how many rows
+        // it would show. A lapsed open quotation counts as Expired, as its pill reads.
+        request.Status = null;
+        var groups = await ApplyFilters(db.Quotations.AsNoTracking(), request)
+            .GroupBy(q => new
+            {
+                q.Status,
+                Lapsed = (q.Status == QuotationStatus.Sent || q.Status == QuotationStatus.Viewed)
+                         && q.ValidUntil < today
+            })
+            .Select(g => new { g.Key.Status, g.Key.Lapsed, Count = g.Count() })
+            .ToListAsync(ct);
+
+        var counts = Enum.GetValues<QuotationStatus>().ToDictionary(s => (byte)s, _ => 0);
+        foreach (var g in groups)
+        {
+            var effective = g.Lapsed ? QuotationStatus.Expired : g.Status;
+            counts[(byte)effective] += g.Count;
+        }
+        return new QuotationStatusCountsDto(groups.Sum(g => g.Count), counts);
+    }
+
     public async Task<QuotationSummaryDto> GetSummaryAsync(CancellationToken ct = default)
     {
         var today = IstClock.IstDateOf(clock.UtcNow);
@@ -205,8 +250,8 @@ public class QuotationService(
     public async Task<byte[]> ExportAsync(QuotationListRequest request,
         CancellationToken ct = default)
     {
-        var rows = await ApplyFilters(db.Quotations.AsNoTracking(), request)
-            .OrderByDescending(q => q.QuotationDate).ThenByDescending(q => q.QuotationId)
+        // The file follows the screen: same filters, same order.
+        var rows = await Sorted(ApplyFilters(db.Quotations.AsNoTracking(), request), request)
             .Include(q => q.Lines)
             .Take(5000)
             .ToListAsync(ct);
@@ -309,7 +354,7 @@ public class QuotationService(
         var quotation = new Quotation
         {
             CustomerId = request.CustomerId,
-            LocationId = request.LocationId,
+            LocationId = await ResolveLocationAsync(request.LocationId, null, ct),
             QuotationDate = quotationDate,
             ValidUntil = request.ValidUntil ?? quotationDate.AddDays(validityDays),
             Status = QuotationStatus.Draft,
@@ -354,7 +399,7 @@ public class QuotationService(
         await GuardHeaderAsync(request, ct);
 
         quotation.CustomerId = request.CustomerId;
-        quotation.LocationId = request.LocationId;
+        quotation.LocationId = await ResolveLocationAsync(request.LocationId, quotation.LocationId, ct);
         quotation.QuotationDate = request.QuotationDate ?? quotation.QuotationDate;
         quotation.ValidUntil = request.ValidUntil ?? quotation.ValidUntil;
         quotation.TermsAndConditions = request.TermsAndConditions?.Trim();
@@ -412,12 +457,19 @@ public class QuotationService(
         }
         if (!quotation.Lines.Any(l => l.LineType != QuotationLineType.Header && l.TotalAmount > 0))
         {
-            throw new BusinessRuleException("Add at least one service before sending.");
+            throw new BusinessRuleException("Add at least one priced item before sending.");
         }
 
         if (!resend)
         {
             await SnapshotAsync(quotation, ct);
+            // A typed-in customer has no account to read contacts from: the send dialog
+            // is where they were given, so that is what the PDF and the record keep.
+            if (quotation.CustomerId is null)
+            {
+                if (request.SendEmail) quotation.CustomerEmail = request.EmailTo!.Trim();
+                if (request.SendWhatsApp) quotation.CustomerMobile = request.WhatsAppTo!.Trim();
+            }
         }
 
         // The PDF is written once and never regenerated, so the customer's copy never
@@ -448,10 +500,14 @@ public class QuotationService(
                 ? await TemplateAsync(AppSettingKeys.Quotation.EmailSubjectTemplate,
                     "Quotation {quote_number} from Regalis WorkSpace", quotation, portalLink, ct)
                 : Fill(request.EmailSubject, quotation, portalLink);
-            var body = string.IsNullOrWhiteSpace(request.EmailMessage)
-                ? await TemplateAsync(AppSettingKeys.Quotation.EmailBodyTemplate,
-                    DefaultEmailBody, quotation, portalLink, ct)
-                : Fill(request.EmailMessage, quotation, portalLink);
+            // Without an account there is no portal to approve in, so the configured
+            // template (which points there) gives way to one that asks for a reply.
+            var body = !string.IsNullOrWhiteSpace(request.EmailMessage)
+                ? Fill(request.EmailMessage, quotation, portalLink)
+                : quotation.CustomerId is null
+                    ? Fill(UnlinkedEmailBody, quotation, portalLink)
+                    : await TemplateAsync(AppSettingKeys.Quotation.EmailBodyTemplate,
+                        DefaultEmailBody, quotation, portalLink, ct);
 
             var result = await dispatcher.SendEmailAsync(new QuotationEmailMessage(
                 request.EmailTo!.Trim(), request.EmailCc?.Trim(),
@@ -474,10 +530,12 @@ public class QuotationService(
 
         if (request.SendWhatsApp)
         {
-            var message = string.IsNullOrWhiteSpace(request.WhatsAppMessage)
-                ? await TemplateAsync(AppSettingKeys.Quotation.WhatsAppTemplate,
-                    DefaultWhatsAppBody, quotation, portalLink, ct)
-                : Fill(request.WhatsAppMessage, quotation, portalLink);
+            var message = !string.IsNullOrWhiteSpace(request.WhatsAppMessage)
+                ? Fill(request.WhatsAppMessage, quotation, portalLink)
+                : quotation.CustomerId is null
+                    ? Fill(UnlinkedWhatsAppBody, quotation, portalLink)
+                    : await TemplateAsync(AppSettingKeys.Quotation.WhatsAppTemplate,
+                        DefaultWhatsAppBody, quotation, portalLink, ct);
 
             var result = await dispatcher.SendWhatsAppAsync(new QuotationWhatsAppMessage(
                 request.WhatsAppTo!.Trim(), message, portalLink,
@@ -512,11 +570,14 @@ public class QuotationService(
             quotation.Status = QuotationStatus.Sent;
             quotation.SentUtc = nowUtc;
 
-            Notify(quotation, quotation.CustomerId, NotificationAudience.SingleUser,
-                "A new quotation is ready",
-                $"Quotation {quotation.QuotationNumber} for Rs {quotation.TotalAmount:N2} " +
-                "is waiting for your approval.",
-                $"/quotations/{quotation.QuotationId}", "View quotation");
+            if (quotation.CustomerId is { } customerId)
+            {
+                Notify(quotation, customerId, NotificationAudience.SingleUser,
+                    "A new quotation is ready",
+                    $"Quotation {quotation.QuotationNumber} for Rs {quotation.TotalAmount:N2} " +
+                    "is waiting for your approval.",
+                    $"/quotations/{quotation.QuotationId}", "View quotation");
+            }
         }
         await db.SaveChangesAsync(ct);
 
@@ -975,6 +1036,20 @@ public class QuotationService(
                          || quotation.PlaceOfSupplyStateCode == homeState;
         quotation.TaxMode = intraState ? QuotationTaxMode.IntraState : QuotationTaxMode.InterState;
 
+        // A picked item must exist; its details are copied onto the line as sent.
+        var itemIds = request.Lines.Where(l => l.InventoryItemId is not null)
+            .Select(l => l.InventoryItemId!.Value).Distinct().ToList();
+        if (itemIds.Count > 0)
+        {
+            var known = await db.InventoryItems.Where(i => itemIds.Contains(i.InventoryItemId))
+                .Select(i => i.InventoryItemId).ToListAsync(ct);
+            var missing = itemIds.Except(known).FirstOrDefault();
+            if (missing != 0)
+            {
+                throw new NotFoundException("InventoryItem", missing);
+            }
+        }
+
         var lineNumber = 0;
         foreach (var source in request.Lines)
         {
@@ -1011,7 +1086,12 @@ public class QuotationService(
                 StandardRate = source.StandardRate,
                 DiscountAmount = lineDiscount,
                 LineAmount = lineAmount,
-                TaxPercent = isHeader ? 0m : source.TaxPercent ?? defaultGst
+                // Outside GST charges nothing, whatever rate came with it.
+                TaxPercent = isHeader || source.IsNonTaxable == true ? 0m : source.TaxPercent ?? defaultGst,
+                IsNonTaxable = !isHeader && source.IsNonTaxable == true,
+                InventoryItemId = isHeader ? null : source.InventoryItemId,
+                ItemType = isHeader || source.ItemType is null ? null : (InventoryItemType)source.ItemType.Value,
+                Unit = isHeader ? null : Trimmed(source.Unit)
             });
         }
 
@@ -1222,31 +1302,66 @@ public class QuotationService(
         return query;
     }
 
-    /// <summary>The Date filter's presets from document §3.1. Explicit From/To win.</summary>
+    /// <summary>The Date filter's presets from document §3.1. Explicit From/To win, and
+    /// both ends are inclusive. Every preset covers the whole period, so a quotation
+    /// dated later this month still counts as "this month".</summary>
     private (DateOnly? From, DateOnly? To) ResolveDateRange(QuotationListRequest request)
     {
         if (request.From is not null || request.To is not null)
         {
+            if (request.From is not null && request.To is not null && request.To < request.From)
+            {
+                throw new BusinessRuleException("The To date cannot be before the From date.");
+            }
             return (request.From, request.To);
         }
         var today = IstClock.IstDateOf(clock.UtcNow);
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+        // Calendar quarters line up with the Indian financial year's (Apr–Jun is Q1).
+        var quarterStart = new DateOnly(today.Year, (today.Month - 1) / 3 * 3 + 1, 1);
+        var yearStart = IndianMoney.FinancialYearStart(today);
+        var lastYearStart = IndianMoney.FinancialYearStart(yearStart.AddDays(-1));
         return request.DatePreset?.Trim().ToLowerInvariant() switch
         {
             "today" => (today, today),
             // The week runs Monday to Sunday, as the calendar screen already does.
-            "week" => (today.AddDays(-(((int)today.DayOfWeek + 6) % 7)), today),
-            "month" => (new DateOnly(today.Year, today.Month, 1), today),
-            "fy" => (IndianMoney.FinancialYearStart(today), IndianMoney.FinancialYearEnd(today)),
+            "week" => (today.AddDays(-(((int)today.DayOfWeek + 6) % 7)),
+                today.AddDays(-(((int)today.DayOfWeek + 6) % 7) + 6)),
+            "month" => (monthStart, monthStart.AddMonths(1).AddDays(-1)),
+            "lastmonth" => (monthStart.AddMonths(-1), monthStart.AddDays(-1)),
+            "quarter" => (quarterStart, quarterStart.AddMonths(3).AddDays(-1)),
+            "fy" => (yearStart, IndianMoney.FinancialYearEnd(today)),
+            "lastfy" => (lastYearStart, yearStart.AddDays(-1)),
             _ => (null, null)
         };
+    }
+
+    /// <summary>The list's sortable columns: date (the default, newest first), quote
+    /// number and amount. Ties fall back to the newest row so paging stays stable.</summary>
+    private static IQueryable<Quotation> Sorted(IQueryable<Quotation> query,
+        QuotationListRequest request)
+    {
+        var ascending = string.Equals(request.SortDir, "asc", StringComparison.OrdinalIgnoreCase);
+        IOrderedQueryable<Quotation> ordered = request.SortBy?.Trim().ToLowerInvariant() switch
+        {
+            "number" => ascending
+                ? query.OrderBy(q => q.QuotationNumber)
+                : query.OrderByDescending(q => q.QuotationNumber),
+            "amount" => ascending
+                ? query.OrderBy(q => q.TotalAmount)
+                : query.OrderByDescending(q => q.TotalAmount),
+            _ => ascending
+                ? query.OrderBy(q => q.QuotationDate)
+                : query.OrderByDescending(q => q.QuotationDate),
+        };
+        return ordered.ThenByDescending(q => q.QuotationId);
     }
 
     private async Task<PagedResult<QuotationDto>> PageAsync(IQueryable<Quotation> query,
         QuotationListRequest request, CancellationToken ct)
     {
         var totalCount = await query.CountAsync(ct);
-        var rows = await query
-            .OrderByDescending(q => q.QuotationDate).ThenByDescending(q => q.QuotationId)
+        var rows = await Sorted(query, request)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
             .Include(q => q.Lines)
@@ -1309,22 +1424,25 @@ public class QuotationService(
         quotation.AdvanceType = (QuotationAdvanceType)(request.AdvanceType
             ?? (byte)QuotationAdvanceType.Months);
         quotation.AdvanceValue = request.AdvanceValue ?? 0m;
+        // Typed on the form, so a draft reads correctly before any snapshot exists.
+        quotation.CustomerName = Trimmed(request.CustomerName) ?? string.Empty;
+        quotation.BillingAddress = Trimmed(request.BillingAddress);
+        quotation.CustomerGstin = Trimmed(request.CustomerGstin)?.ToUpperInvariant();
     }
 
     private async Task GuardHeaderAsync(SaveQuotationRequest request, CancellationToken ct)
     {
-        var customer = await db.Users
-            .Where(u => u.UserId == request.CustomerId)
-            .Select(u => new { u.UserType })
-            .FirstOrDefaultAsync(ct)
-            ?? throw new NotFoundException("Customer", request.CustomerId);
-        if (customer.UserType != UserType.Customer)
+        if (request.CustomerId is { } customerId)
         {
-            throw new BusinessRuleException("A quotation can only be raised for a customer account.");
-        }
-        if (!await db.Locations.AnyAsync(l => l.LocationId == request.LocationId, ct))
-        {
-            throw new NotFoundException("Location", request.LocationId);
+            var customer = await db.Users
+                .Where(u => u.UserId == customerId)
+                .Select(u => new { u.UserType })
+                .FirstOrDefaultAsync(ct)
+                ?? throw new NotFoundException("Customer", customerId);
+            if (customer.UserType != UserType.Customer)
+            {
+                throw new BusinessRuleException("A quotation can only be raised for a customer account.");
+            }
         }
         if (request.SalespersonId is not null
             && !await db.Users.AnyAsync(u => u.UserId == request.SalespersonId
@@ -1334,20 +1452,45 @@ public class QuotationService(
         }
     }
 
+    /// <summary>The form no longer asks for a location, so an edit keeps the one the
+    /// quotation has and a new one takes the default location, as bookings do.</summary>
+    private async Task<int> ResolveLocationAsync(int? requested, int? current,
+        CancellationToken ct)
+    {
+        if (requested is { } locationId)
+        {
+            if (!await db.Locations.AnyAsync(l => l.LocationId == locationId, ct))
+            {
+                throw new NotFoundException("Location", locationId);
+            }
+            return locationId;
+        }
+        return current
+            ?? await db.Locations.OrderByDescending(l => l.IsDefault).ThenBy(l => l.LocationId)
+                .Select(l => l.LocationId).FirstAsync(ct);
+    }
+
     /// <summary>Freezes customer, company and place of supply onto the quotation. Called
-    /// once, on the first send — a resend must not re-snapshot a changed profile.</summary>
+    /// once, on the first send — a resend must not re-snapshot a changed profile. What
+    /// the admin typed on the form wins; a linked account only fills the blanks.</summary>
     private async Task SnapshotAsync(Quotation quotation, CancellationToken ct)
     {
-        var customer = await db.Users
-            .FirstOrDefaultAsync(u => u.UserId == quotation.CustomerId, ct)
-            ?? throw new NotFoundException("Customer", quotation.CustomerId);
+        if (quotation.CustomerId is { } customerId)
+        {
+            var customer = await db.Users
+                .FirstOrDefaultAsync(u => u.UserId == customerId, ct)
+                ?? throw new NotFoundException("Customer", customerId);
 
-        quotation.CustomerName = customer.FullName;
-        quotation.CustomerEmail = customer.Email;
-        quotation.CustomerMobile = customer.MobileNumber;
-        quotation.CustomerGstin = customer.Gstin;
-        quotation.CustomerCompanyName = customer.CompanyName;
-        quotation.BillingAddress = customer.Address;
+            if (string.IsNullOrWhiteSpace(quotation.CustomerName))
+            {
+                quotation.CustomerName = customer.FullName;
+            }
+            quotation.CustomerEmail = customer.Email;
+            quotation.CustomerMobile = customer.MobileNumber;
+            quotation.CustomerGstin ??= customer.Gstin;
+            quotation.CustomerCompanyName = customer.CompanyName;
+            quotation.BillingAddress ??= customer.Address;
+        }
         quotation.CompanyName = await settings.GetStringAsync(
             AppSettingKeys.Company.Name, "Regalis WorkSpace", ct);
         quotation.CompanyGstin = await settings.GetStringAsync(AppSettingKeys.Company.Gstin, "", ct);
@@ -1382,8 +1525,14 @@ public class QuotationService(
     private static string PdfFileName(Quotation quotation) =>
         $"{quotation.QuotationNumber.Replace('/', '-')}.pdf";
 
+    /// <summary>Blank for a typed-in customer: with no account there is nothing to sign
+    /// in to, and the PDF and email leave the link out when it is blank.</summary>
     private async Task<string> PortalLinkAsync(Quotation quotation, CancellationToken ct)
     {
+        if (quotation.CustomerId is null)
+        {
+            return string.Empty;
+        }
         var baseUrl = await settings.GetStringAsync(AppSettingKeys.Quotation.PortalBaseUrl, "", ct);
         return $"{baseUrl.TrimEnd('/')}/quotations/{quotation.QuotationId}";
     }
@@ -1414,28 +1563,47 @@ public class QuotationService(
         "Hello {customer_name}, your Regalis WorkSpace quotation {quote_number} for {total} " +
         "is ready. It is valid until {valid_until}. View and approve: {portal_link}";
 
+    private const string UnlinkedEmailBody =
+        "Dear {customer_name},\n\nPlease find attached quotation {quote_number} for {total}, " +
+        "valid until {valid_until}.\n\nTo accept it, simply reply to this email.\n\n" +
+        "Regards,\nRegalis WorkSpace";
+
+    private const string UnlinkedWhatsAppBody =
+        "Hello {customer_name}, your Regalis WorkSpace quotation {quote_number} for {total} " +
+        "is attached. It is valid until {valid_until}. Reply here to accept it.";
+
     /// <summary>The gold "View &amp; approve quotation" button the document asks for
     /// (§3.5), wrapped around whatever message the admin typed.</summary>
     private static string EmailHtml(string body, string portalLink) =>
         $"""
          <div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;padding:24px;color:#241F19;">
            <div style="white-space:pre-wrap;line-height:1.6;">{System.Net.WebUtility.HtmlEncode(body)}</div>
-           <p style="margin:28px 0;">
-             <a href="{portalLink}" style="background:#CC9A3D;color:#fff;text-decoration:none;
-                padding:12px 22px;border-radius:8px;font-family:Arial,sans-serif;font-weight:bold;">
-               View &amp; approve quotation
-             </a>
-           </p>
+           {(string.IsNullOrEmpty(portalLink) ? "" : ApproveButtonHtml(portalLink))}
            <p style="color:#8C8272;font-size:13px;font-family:Arial,sans-serif;">
              Regalis WorkSpace · This quotation is valid until the date shown above.
            </p>
          </div>
          """;
 
+    /// <summary>Left out for a typed-in customer, who has no portal account.</summary>
+    private static string ApproveButtonHtml(string portalLink) =>
+        $"""
+         <p style="margin:28px 0;">
+           <a href="{portalLink}" style="background:#CC9A3D;color:#fff;text-decoration:none;
+              padding:12px 22px;border-radius:8px;font-family:Arial,sans-serif;font-weight:bold;">
+             View &amp; approve quotation
+           </a>
+         </p>
+         """;
+
     /// <summary>A fresh draft carrying everything but the identity and the history.</summary>
     private static Quotation CopyOf(Quotation source) => new()
     {
         CustomerId = source.CustomerId,
+        // The customer block as typed; for a hand-typed prospect it is the only record.
+        CustomerName = source.CustomerName,
+        BillingAddress = source.BillingAddress,
+        CustomerGstin = source.CustomerGstin,
         LocationId = source.LocationId,
         ReferenceNumber = source.ReferenceNumber,
         Subject = source.Subject,
@@ -1481,6 +1649,10 @@ public class QuotationService(
             Quantity = l.Quantity,
             DurationValue = l.DurationValue,
             DurationUnit = l.DurationUnit,
+            InventoryItemId = l.InventoryItemId,
+            ItemType = l.ItemType,
+            Unit = l.Unit,
+            IsNonTaxable = l.IsNonTaxable,
             UnitPrice = l.UnitPrice,
             StandardRate = l.StandardRate,
             DiscountAmount = l.DiscountAmount,
@@ -1636,8 +1808,9 @@ public class QuotationService(
         // Until it is sent, a quotation has no snapshot yet, so the customer block
         // would read blank on the list and the send dialog would have nothing to
         // prefill. A draft therefore shows the customer's current details; the
-        // moment it is sent, SnapshotAsync freezes them and this falls away.
-        var contact = q.SentUtc is null
+        // moment it is sent, SnapshotAsync freezes them and this falls away. Name,
+        // address and GSTIN typed on the form win over the account, as on send.
+        var contact = q.SentUtc is null && q.CustomerId is not null
             ? await db.Users.AsNoTracking()
                 .Where(u => u.UserId == q.CustomerId)
                 .Select(u => new QuotationContact(u.FullName, u.Email, u.MobileNumber,
@@ -1647,12 +1820,12 @@ public class QuotationService(
 
         return new QuotationDto(
             q.QuotationId, q.QuotationNumber, q.CustomerId,
-            contact?.Name ?? q.CustomerName,
+            Trimmed(q.CustomerName) ?? contact?.Name ?? string.Empty,
             contact?.Email ?? q.CustomerEmail,
             contact?.Mobile ?? q.CustomerMobile,
-            contact?.Gstin ?? q.CustomerGstin,
+            q.CustomerGstin ?? contact?.Gstin,
             contact?.CompanyName ?? q.CustomerCompanyName,
-            contact?.Address ?? q.BillingAddress,
+            q.BillingAddress ?? contact?.Address,
             q.LocationId, names.LocationName,
             q.QuotationDate, q.ValidUntil,
             q.RevisionOfQuotationId, revisionOf, q.RevisionNumber,
@@ -1687,7 +1860,9 @@ public class QuotationService(
                 l.Description, l.LineNotes, l.HsnSacCode, l.Quantity, l.DurationValue, l.DurationUnit,
                 l.UnitPrice, l.StandardRate, l.DiscountAmount, l.DiscountShare, l.LineAmount,
                 l.TaxableAmount, l.TaxPercent, l.TaxAmount, l.CgstAmount, l.SgstAmount, l.IgstAmount,
-                l.TotalAmount)).ToList(),
+                l.TotalAmount, l.InventoryItemId, l.ItemType is null ? null : (byte)l.ItemType,
+                l.Unit, l.IsNonTaxable, QuotationLineText.Summary(l),
+                l.StandardRate is not null && l.UnitPrice != l.StandardRate)).ToList(),
             q.StatusHistory.OrderBy(h => h.ChangedUtc).Select(h => new QuotationStatusHistoryDto(
                 h.FromStatus is null ? null : (byte)h.FromStatus, (byte)h.ToStatus,
                 h.ChangedByUserId, names.UserNames.GetValueOrDefault(h.ChangedByUserId, ""),
@@ -1781,7 +1956,9 @@ public class QuotationService(
             CanEdit: isDraft && currentUser.HasPermission(PermissionCodes.Quotation.Edit),
             CanSend: (isDraft || isOpen) && currentUser.HasPermission(PermissionCodes.Quotation.Edit),
             CanDownloadPdf: currentUser.HasPermission(PermissionCodes.Quotation.Print),
-            CanCopyPortalLink: !isDraft && status != QuotationStatus.Revised,
+            // A typed-in customer has no account, so no portal and nothing to invoice to.
+            CanCopyPortalLink: !isDraft && status != QuotationStatus.Revised
+                               && q.CustomerId is not null,
             CanRevise: (isOpen || status is QuotationStatus.Expired or QuotationStatus.Rejected)
                        && !alreadyRevised
                        && currentUser.HasPermission(PermissionCodes.Quotation.Create),
@@ -1789,6 +1966,7 @@ public class QuotationService(
             CanRecordDecision: isOpen && !alreadyRevised
                                && currentUser.HasPermission(PermissionCodes.Quotation.Edit),
             CanConvertToInvoice: status == QuotationStatus.Approved && q.InvoiceId is null
+                                 && q.CustomerId is not null
                                  && currentUser.HasPermission(PermissionCodes.Invoice.Create),
             CanDelete: isDraft && currentUser.HasPermission(PermissionCodes.Quotation.Delete),
             CanCancel: status is not (QuotationStatus.Approved or QuotationStatus.Rejected

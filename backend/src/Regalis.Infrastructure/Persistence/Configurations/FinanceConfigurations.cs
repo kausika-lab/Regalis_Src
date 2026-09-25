@@ -356,6 +356,10 @@ public class QuotationLineConfiguration : IEntityTypeConfiguration<QuotationLine
         builder.Property(x => x.TaxPercent).HasPrecision(5, 2);
         builder.Property(x => x.LineNotes).HasMaxLength(500);
         builder.Property(x => x.StandardRate).HasPrecision(14, 2);
+        builder.Property(x => x.Unit).HasMaxLength(20);
+        // Snapshot link (no FK): the Recent Transactions lookup reads by item.
+        builder.HasIndex(x => x.InventoryItemId).HasDatabaseName("IX_QuotationLine_InventoryItem")
+            .HasFilter("[InventoryItemId] IS NOT NULL");
 
         builder.HasOne(x => x.Quotation).WithMany(x => x.Lines)
             .HasForeignKey(x => x.QuotationId).OnDelete(DeleteBehavior.Cascade);

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Regalis.Application.Finance;
+using Regalis.Application.Operations;
 using Regalis.Domain.Enums;
 using Regalis.IntegrationTests.Infrastructure;
 using Regalis.Shared.Api;
@@ -335,6 +336,204 @@ public class QuotationTests(RegalisApiFactory factory)
         options.HomeStateCode.Should().Be("29");
         options.States.Should().Contain(s => s.Code == "29" && s.Name == "Karnataka");
         options.TdsOptions.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task TypedInCustomer_NeedsNoAccount_ButCannotBeInvoiced()
+    {
+        var (admin, _, customerId) = await SetUpAsync();
+
+        var quotation = await CreateAsync(admin, WorkedExample(customerId) with
+        {
+            CustomerId = null,
+            LocationId = null,
+            CustomerName = "Acme Prospects LLP",
+            BillingAddress = "12 MG Road\nBengaluru 560001",
+            CustomerGstin = "29abcde1234f1z5",
+        });
+
+        quotation.CustomerId.Should().BeNull();
+        quotation.CustomerName.Should().Be("Acme Prospects LLP");
+        quotation.BillingAddress.Should().Be("12 MG Road\nBengaluru 560001");
+        quotation.CustomerGstin.Should().Be("29ABCDE1234F1Z5");
+        // No location on the form any more: the default one is taken.
+        quotation.LocationId.Should().BeGreaterThan(0);
+
+        var sent = await SendAsync(admin, quotation.QuotationId);
+        sent.Status.Should().Be((byte)QuotationStatus.Sent);
+        // The send dialog is the only place a prospect's email was ever given.
+        sent.CustomerEmail.Should().Be("buyer@example.com");
+        sent.CustomerName.Should().Be("Acme Prospects LLP");
+        sent.Actions.CanCopyPortalLink.Should().BeFalse();
+
+        var decided = await admin.PostAsJsonAsync(
+            $"/api/quotations/{quotation.QuotationId}/record-decision",
+            new RecordQuotationDecisionRequest(true, (byte)QuotationDecisionMode.Email,
+                "Acme purchasing", null, null));
+        decided.EnsureSuccessStatusCode();
+        var approved = (await decided.Content.ReadFromJsonAsync<ApiResponse<QuotationDto>>())!.Data!;
+        approved.Actions.CanConvertToInvoice.Should().BeFalse();
+
+        (await admin.PostAsync($"/api/invoices/from-quotation/{quotation.QuotationId}", null))
+            .IsSuccessStatusCode.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task TypedDetails_WinOverTheLinkedAccount()
+    {
+        var (admin, _, customerId) = await SetUpAsync();
+
+        var quotation = await CreateAsync(admin, WorkedExample(customerId) with
+        {
+            CustomerName = "Registered Name Pvt Ltd",
+            BillingAddress = "Site office, Whitefield",
+        });
+
+        quotation.CustomerId.Should().Be(customerId);
+        quotation.CustomerName.Should().Be("Registered Name Pvt Ltd");
+        quotation.BillingAddress.Should().Be("Site office, Whitefield");
+
+        var sent = await SendAsync(admin, quotation.QuotationId);
+        sent.CustomerName.Should().Be("Registered Name Pvt Ltd");
+        sent.BillingAddress.Should().Be("Site office, Whitefield");
+        sent.Actions.CanCopyPortalLink.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("Acme", "NOT-A-GSTIN")]
+    public async Task CustomerWithoutAName_OrWithABadGstin_IsRefused(string? name, string? gstin)
+    {
+        var (admin, _, customerId) = await SetUpAsync();
+
+        var response = await admin.PostAsJsonAsync("/api/quotations",
+            WorkedExample(customerId) with
+            {
+                CustomerId = null,
+                CustomerName = name,
+                CustomerGstin = gstin,
+            });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task DateRange_IsInclusive_DrivesTheTabCounts_AndTheListSorts()
+    {
+        var (admin, _, customerId) = await SetUpAsync();
+        // Three quotations for a fresh customer, so the filter isolates them.
+        foreach (var (day, discount) in new[] { (1, 0m), (15, 10m), (30, 5m) })
+        {
+            await CreateAsync(admin, WorkedExample(customerId) with
+            {
+                QuotationDate = new DateOnly(2026, 9, day),
+                ValidUntil = new DateOnly(2026, 10, 31),
+                DiscountValue = discount,
+            });
+        }
+        var scope = $"customerId={customerId}&from=2026-09-01&to=2026-09-15";
+
+        var list = (await admin.GetFromJsonAsync<ApiResponse<PagedResult<QuotationDto>>>(
+            $"/api/quotations?{scope}"))!.Data!;
+        list.TotalCount.Should().Be(2, "both the From and the To day are included");
+        list.Items.Select(q => q.QuotationDate).Should().BeInDescendingOrder();
+
+        var counts = (await admin.GetFromJsonAsync<ApiResponse<QuotationStatusCountsDto>>(
+            $"/api/quotations/status-counts?{scope}&status=4"))!.Data!;
+        counts.TotalCount.Should().Be(2, "the tab counts ignore the selected tab");
+        counts.StatusCounts[(byte)QuotationStatus.Draft].Should().Be(2);
+
+        var byAmount = (await admin.GetFromJsonAsync<ApiResponse<PagedResult<QuotationDto>>>(
+            $"/api/quotations?customerId={customerId}&sortBy=amount&sortDir=asc"))!.Data!;
+        byAmount.Items.Select(q => q.TotalAmount).Should().BeInAscendingOrder();
+        byAmount.TotalCount.Should().Be(3);
+
+        (await admin.GetAsync($"/api/quotations?customerId={customerId}&from=2026-09-15&to=2026-09-01"))
+            .IsSuccessStatusCode.Should().BeFalse("To cannot be before From");
+    }
+
+    [Fact]
+    public async Task ItemMasterLines_RoundTrip_NonTaxableChargesNothing_AndRatesAreRecalled()
+    {
+        var (admin, _, customerId) = await SetUpAsync();
+        var code = $"QI-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}";
+        var itemResponse = await admin.PostAsJsonAsync("/api/inventory/items",
+            new SaveInventoryItemRequest(code, "12U Network Rack", "IT", "Nos", 0m, 0m, 6000m, 1,
+                "PDU, tray, fan", (byte)InventoryItemType.Goods, "847330", 8600m, 18m, false));
+        itemResponse.EnsureSuccessStatusCode();
+        var item = (await itemResponse.Content.ReadFromJsonAsync<ApiResponse<InventoryItemDto>>())!.Data!;
+
+        SaveQuotationLineRequest ItemLine(decimal rate, bool nonTaxable) => new(
+            (byte)QuotationLineType.Custom, (byte)QuotationServiceType.Other,
+            null, null, null, null, "12U Network Rack", "PDU, tray, fan, cable manager", "847330",
+            1m, null, null, rate, null, 0m, 18m,
+            item.InventoryItemId, (byte)InventoryItemType.Goods, "Nos", nonTaxable);
+
+        var quotation = await CreateAsync(admin, WorkedExample(customerId) with
+        {
+            DiscountValue = 0m,
+            Lines = [ItemLine(8600m, false), ItemLine(100m, true)],
+        });
+        var line = quotation.Lines[0];
+        line.InventoryItemId.Should().Be(item.InventoryItemId);
+        line.ItemType.Should().Be((byte)InventoryItemType.Goods);
+        line.Unit.Should().Be("Nos");
+        line.LineNotes.Should().Be("PDU, tray, fan, cable manager");
+        line.TaxAmount.Should().Be(1548m, "18% of 8,600");
+        quotation.Lines[1].IsNonTaxable.Should().BeTrue();
+        quotation.Lines[1].TaxAmount.Should().Be(0m, "Non-Taxable ignores the rate sent with it");
+
+        // A draft was never offered; once sent, its rate is recalled.
+        (await admin.GetFromJsonAsync<ApiResponse<List<QuotationItemRateDto>>>(
+            $"/api/quotations/item-rates?inventoryItemId={item.InventoryItemId}"))!.Data!
+            .Should().BeEmpty();
+        await SendAsync(admin, quotation.QuotationId);
+        var rates = (await admin.GetFromJsonAsync<ApiResponse<List<QuotationItemRateDto>>>(
+            $"/api/quotations/item-rates?inventoryItemId={item.InventoryItemId}"))!.Data!;
+        rates.Select(r => r.UnitPrice).Should().BeEquivalentTo([8600m, 100m]);
+
+        var unknown = await admin.PostAsJsonAsync("/api/quotations", WorkedExample(customerId) with
+        {
+            Lines = [ItemLine(1m, false) with { InventoryItemId = int.MaxValue }],
+        });
+        unknown.IsSuccessStatusCode.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ServiceLines_PrintTheSpecificationsLineText_AndAmounts()
+    {
+        var (admin, _, customerId) = await SetUpAsync();
+        SaveQuotationLineRequest Svc(QuotationServiceType type, string name, decimal qty,
+            decimal? duration, string unit, decimal rate, decimal? standard = null) => new(
+            type == QuotationServiceType.Other ? (byte)QuotationLineType.Custom : (byte)QuotationLineType.Service,
+            (byte)type, null, null, null, null, name, null, null,
+            qty, duration, unit, rate, standard ?? rate, 0m, 18m);
+
+        var quotation = await CreateAsync(admin, WorkedExample(customerId) with
+        {
+            DiscountValue = 0m,
+            Lines =
+            [
+                Svc(QuotationServiceType.Cabin, "Cabin C-001", 1m, 3m, "Month", 25000m, 27000m),
+                Svc(QuotationServiceType.Desk, "Dedicated desk", 5m, 1m, "Month", 6000m),
+                Svc(QuotationServiceType.MeetingRoom, "Meeting Room A", 1m, 4m, "Hour", 800m),
+                Svc(QuotationServiceType.Pass, "10-Day Pack", 1m, null, "One-time", 6800m),
+                Svc(QuotationServiceType.Other, "Setup / branding charges", 1m, null, "One-time", 5000m),
+            ],
+        });
+
+        quotation.Lines.Select(l => l.Summary).Should().Equal(
+            "Cabin C-001 · 1 × 3 Month × ₹25,000",
+            "Dedicated desk · 5 × 1 Month × ₹6,000",
+            "Meeting Room A · 1 × 4 Hour × ₹800",
+            "10-Day Pack · 1 × One-time × ₹6,800",
+            "Setup / branding charges · 1 × One-time × ₹5,000");
+        quotation.Lines.Select(l => l.LineAmount).Should().Equal(75000m, 30000m, 3200m, 6800m, 5000m);
+        quotation.Lines[0].RateEdited.Should().BeTrue("25,000 was quoted against a configured 27,000");
+        quotation.Lines[1].RateEdited.Should().BeFalse();
+        quotation.SubTotal.Should().Be(120000m);
+        (quotation.CgstAmount + quotation.SgstAmount).Should().Be(21600m);
+        quotation.TotalAmount.Should().Be(141600m);
     }
 
     [Fact]

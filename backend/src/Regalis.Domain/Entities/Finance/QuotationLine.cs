@@ -38,6 +38,17 @@ public class QuotationLine
     /// <summary>Hour / Day / Month / One-time — free text so a new unit needs no
     /// migration, and so quotations written before the unit enum still read back.</summary>
     public string? DurationUnit { get; set; }
+
+    /// <summary>The item-master row this line was picked from. A snapshot link, like
+    /// WorkspaceId: name, type, code, unit and rate are copied onto the line, so
+    /// editing or retiring the item never changes a quotation already written.</summary>
+    public int? InventoryItemId { get; set; }
+    public InventoryItemType? ItemType { get; set; }
+    /// <summary>The item's unit of measure (Nos, Kg), printed under the quantity.</summary>
+    public string? Unit { get; set; }
+    /// <summary>Outside GST, shown as "Non-Taxable" rather than 0%. TaxPercent is 0.</summary>
+    public bool IsNonTaxable { get; set; }
+
     public decimal UnitPrice { get; set; }
     /// <summary>The configured price for this service when the line was written. Kept
     /// so the form can flag "changed from ₹27,000 (standard price)" (§3.3).</summary>

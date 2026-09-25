@@ -60,6 +60,24 @@ public class QuotationsController(IQuotationService quotationService) : ApiContr
         CancellationToken ct) =>
         OkEnvelope(await quotationService.GetQuotationsAsync(request, ct));
 
+    /// <summary>The last rates an item from Assets > Items was quoted at (newest
+    /// first), for the Rate column's Recent Transactions popup.</summary>
+    [HttpGet("item-rates")]
+    [HasPermission(PermissionCodes.Quotation.View)]
+    [ProducesResponseType(typeof(ApiResponse<List<QuotationItemRateDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetItemRates([FromQuery] int inventoryItemId,
+        [FromQuery] int take = 5, CancellationToken ct = default) =>
+        OkEnvelope(await quotationService.GetItemRatesAsync(inventoryItemId, take, ct));
+
+    /// <summary>How many quotations each status tab holds under the list's current
+    /// filters (search, customer, service and date). The status itself is ignored.</summary>
+    [HttpGet("status-counts")]
+    [HasPermission(PermissionCodes.Quotation.View)]
+    [ProducesResponseType(typeof(ApiResponse<QuotationStatusCountsDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetStatusCounts([FromQuery] QuotationListRequest request,
+        CancellationToken ct) =>
+        OkEnvelope(await quotationService.GetStatusCountsAsync(request, ct));
+
     /// <summary>The four summary cards and the status tab counts (document §3.1).</summary>
     [HttpGet("summary")]
     [HasPermission(PermissionCodes.Quotation.View)]

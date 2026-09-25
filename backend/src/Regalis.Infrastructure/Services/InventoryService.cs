@@ -24,14 +24,15 @@ public class InventoryService(
     ICurrentUser currentUser,
     IDateTimeProvider clock) : IInventoryService
 {
-    public async Task<PagedResult<InventoryItemDto>> GetItemsAsync(InventoryItemListRequest request,
-        CancellationToken ct = default)
+    private IQueryable<InventoryItem> FilterItems(InventoryItemListRequest request)
     {
         var query = db.InventoryItems.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
             var term = request.Search.Trim();
-            query = query.Where(i => i.ItemCode.Contains(term) || i.ItemName.Contains(term));
+            // Name, code (the SKU) or HSN/SAC — the quotation's item picker searches all three.
+            query = query.Where(i => i.ItemCode.Contains(term) || i.ItemName.Contains(term)
+                                     || (i.HsnSacCode != null && i.HsnSacCode.Contains(term)));
         }
         if (!string.IsNullOrWhiteSpace(request.Category))
         {
@@ -41,6 +42,18 @@ public class InventoryService(
         {
             query = query.Where(i => i.LocationId == request.LocationId);
         }
+        if (request.ItemType is not null)
+        {
+            var type = (InventoryItemType)request.ItemType.Value;
+            query = query.Where(i => i.ItemType == type);
+        }
+        return query;
+    }
+
+    public async Task<PagedResult<InventoryItemDto>> GetItemsAsync(InventoryItemListRequest request,
+        CancellationToken ct = default)
+    {
+        var query = FilterItems(request);
 
         // BelowReorder filters on derived stock, so it is applied after aggregation.
         if (request.BelowReorder == true)
@@ -112,6 +125,12 @@ public class InventoryService(
                 "This item has ledger entries. Correct the stock with an Adjustment transaction, " +
                 "not by editing the opening quantity.");
         }
+        if (hasLedger && request.ItemType == (byte)InventoryItemType.Service
+            && item.ItemType != InventoryItemType.Service)
+        {
+            throw new BusinessRuleException(
+                "This item has stock movements, so it cannot become a service.");
+        }
         Apply(item, request);
         await db.SaveChangesAsync(ct);
         return await GetItemAsync(itemId, ct);
@@ -134,7 +153,9 @@ public class InventoryService(
     public async Task<List<InventoryStockDto>> GetStockAsync(int? locationId, bool? belowReorder,
         CancellationToken ct = default)
     {
-        var itemsQuery = db.InventoryItems.AsNoTracking();
+        // Services hold no stock, so they have no place on the stock view.
+        var itemsQuery = db.InventoryItems.AsNoTracking()
+            .Where(i => i.ItemType != InventoryItemType.Service);
         if (locationId is not null)
         {
             itemsQuery = itemsQuery.Where(i => i.LocationId == locationId);
@@ -185,6 +206,11 @@ public class InventoryService(
             var item = await db.InventoryItems
                 .FirstOrDefaultAsync(i => i.InventoryItemId == request.InventoryItemId, ct)
                 ?? throw new NotFoundException("InventoryItem", request.InventoryItemId);
+            if (item.ItemType == InventoryItemType.Service)
+            {
+                throw new BusinessRuleException(
+                    $"{item.ItemName} is a service, so it has no stock to move.");
+            }
 
             var movements = await MovementsByItemAsync([item.InventoryItemId], ct);
             var current = CurrentStock(item, movements);
@@ -276,6 +302,81 @@ public class InventoryService(
         return new InventoryExportResult(content, "text/csv", $"inventory_{todayIst:yyyyMMdd}.csv");
     }
 
+    /// <summary>The item master as an Excel workbook, with the same filters as the Items
+    /// screen (search, category, location, below-reorder) and every matching row —
+    /// not just the page on screen. Status uses the screen's thresholds.</summary>
+    public async Task<InventoryExportResult> ExportItemsExcelAsync(InventoryItemListRequest request,
+        CancellationToken ct = default)
+    {
+        var items = await FilterItems(request).OrderBy(i => i.ItemName).ToListAsync(ct);
+        var movements = await MovementsByItemAsync(items.Select(i => i.InventoryItemId).ToList(), ct);
+        var rows = items.Select(i => ToDto(i, CurrentStock(i, movements)))
+            .Where(d => request.BelowReorder != true || d.NeedsReorder)
+            .ToList();
+        var locationIds = rows.Select(r => r.LocationId).Distinct().ToList();
+        var locations = await db.Locations.AsNoTracking()
+            .Where(l => locationIds.Contains(l.LocationId))
+            .ToDictionaryAsync(l => l.LocationId, l => l.LocationName, ct);
+
+        using var workbook = new ClosedXML.Excel.XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Inventory Items");
+        string[] headers =
+        [
+            "Item Code", "Item Name", "Category", "Location", "Unit", "Unit Cost",
+            "Current Stock", "Reorder Level", "Status", "Stock Value"
+        ];
+        for (var c = 0; c < headers.Length; c++)
+        {
+            var cell = sheet.Cell(1, c + 1);
+            cell.Value = headers[c];
+            cell.Style.Font.SetBold();
+            cell.Style.Fill.SetBackgroundColor(ClosedXML.Excel.XLColor.FromHtml("#0B0B0D"));
+            cell.Style.Font.SetFontColor(ClosedXML.Excel.XLColor.FromHtml("#C9A227"));
+        }
+
+        const string money = "₹ #,##0.00";
+        for (var r = 0; r < rows.Count; r++)
+        {
+            var d = rows[r];
+            var row = r + 2;
+            sheet.Cell(row, 1).Value = d.ItemCode;
+            sheet.Cell(row, 2).Value = d.ItemName;
+            sheet.Cell(row, 3).Value = d.Category ?? "";
+            sheet.Cell(row, 4).Value = locations.GetValueOrDefault(d.LocationId, "");
+            sheet.Cell(row, 5).Value = d.Unit;
+            if (d.UnitCost is { } cost)
+            {
+                sheet.Cell(row, 6).Value = cost;
+                sheet.Cell(row, 6).Style.NumberFormat.Format = money;
+                sheet.Cell(row, 10).Value = cost * d.CurrentStock;
+                sheet.Cell(row, 10).Style.NumberFormat.Format = money;
+            }
+            sheet.Cell(row, 7).Value = d.CurrentStock;
+            sheet.Cell(row, 8).Value = d.ReorderLevel;
+            sheet.Cell(row, 9).Value = StockStatus(d.CurrentStock, d.ReorderLevel);
+        }
+        sheet.SheetView.FreezeRows(1);
+        if (rows.Count > 0)
+        {
+            sheet.Range(1, 1, rows.Count + 1, headers.Length).SetAutoFilter();
+        }
+        sheet.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        var todayIst = IstClock.IstDateOf(clock.UtcNow);
+        return new InventoryExportResult(stream.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"inventory_items_{todayIst:yyyyMMdd}.xlsx");
+    }
+
+    /// <summary>The Items screen's badge: Critical at half the reorder level or less,
+    /// Low Stock at the reorder level or less, otherwise OK.</summary>
+    private static string StockStatus(decimal stock, decimal reorderLevel) =>
+        reorderLevel > 0 && stock <= reorderLevel * 0.5m ? "Critical"
+        : reorderLevel > 0 && stock <= reorderLevel ? "Low Stock"
+        : "OK";
+
     // ── Derivation ──────────────────────────────────────────────────────────
 
     private sealed record Movement(int InventoryItemId, InventoryTransactionType TransactionType, decimal Total);
@@ -365,12 +466,29 @@ public class InventoryService(
         item.UnitCost = request.UnitCost;
         item.LocationId = request.LocationId;
         item.Description = request.Description?.Trim();
+
+        // Sales details: null means "not sent", so the stored value stands.
+        if (request.ItemType is { } type) item.ItemType = (InventoryItemType)type;
+        if (request.HsnSacCode is not null)
+        {
+            item.HsnSacCode = string.IsNullOrWhiteSpace(request.HsnSacCode) ? null : request.HsnSacCode.Trim();
+        }
+        if (request.SellingRate is { } rate) item.SellingRate = rate;
+        if (request.IsNonTaxable is { } nonTaxable) item.IsNonTaxable = nonTaxable;
+        if (request.TaxPercent is { } tax) item.TaxPercent = tax;
+        if (item.IsNonTaxable) item.TaxPercent = 0m;
+        if (item.ItemType == InventoryItemType.Service)
+        {
+            item.OpeningQuantity = 0m;
+            item.ReorderLevel = 0m;
+        }
     }
 
     private static InventoryItemDto ToDto(InventoryItem item, decimal currentStock) => new(
         item.InventoryItemId, item.ItemCode, item.ItemName, item.Category, item.Unit,
         item.OpeningQuantity, item.ReorderLevel, item.UnitCost, item.LocationId, item.Description,
-        currentStock, currentStock <= item.ReorderLevel, item.IsActive);
+        currentStock, currentStock <= item.ReorderLevel, item.IsActive,
+        (byte)item.ItemType, item.HsnSacCode, item.SellingRate, item.TaxPercent, item.IsNonTaxable);
 
     private static string TypeName(byte type) => type switch
     {

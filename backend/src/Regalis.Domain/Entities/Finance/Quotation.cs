@@ -19,7 +19,10 @@ public class Quotation : AuditableEntity
     /// <summary>REG/QTN/{FY}/{00001} — gap-free, from MST_NumberSequence. A revision
     /// keeps the original number and appends -R1, -R2 … so the two read as one thread.</summary>
     public string QuotationNumber { get; set; } = string.Empty;
-    public long CustomerId { get; set; }
+    /// <summary>The customer account, when the admin picked one. Null for a prospect
+    /// typed in by hand: that quotation carries its name, address and GSTIN itself, and
+    /// has no portal link and cannot be converted to an invoice.</summary>
+    public long? CustomerId { get; set; }
     public int LocationId { get; set; }
     public DateOnly QuotationDate { get; set; }
     /// <summary>Validity date from the document; the expiry sweeper reads this.</summary>
@@ -101,7 +104,8 @@ public class Quotation : AuditableEntity
     public QuotationAdvanceType AdvanceType { get; set; } = QuotationAdvanceType.Months;
     public decimal AdvanceValue { get; set; }
 
-    // Snapshotted when sent — mirrors TRN_Invoice.
+    // Snapshotted when sent — mirrors TRN_Invoice. Name, address and GSTIN are typed on
+    // the form and stored from the first save; the snapshot only fills what is blank.
     public string CustomerName { get; set; } = string.Empty;
     public string CustomerEmail { get; set; } = string.Empty;
     public string? CustomerMobile { get; set; }

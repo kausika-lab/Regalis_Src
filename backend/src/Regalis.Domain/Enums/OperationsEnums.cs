@@ -85,3 +85,11 @@ public enum TicketSenderType : byte
     Customer = 1,
     Admin = 2
 }
+
+/// <summary>What an item-master row is sold as. Goods carry an HSN code and stock;
+/// services carry a SAC code and are kept off the stock screens.</summary>
+public enum InventoryItemType : byte
+{
+    Goods = 1,
+    Service = 2
+}

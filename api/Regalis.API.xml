@@ -329,6 +329,9 @@
             <summary>Inventory (API_PLAN §10, M19). The ledger is append-only — there is no
             update or delete route for a transaction, by design (Invariant 11).</summary>
         </member>
+        <member name="M:Regalis.API.Controllers.InventoryController.ExportItems(Regalis.Application.Operations.InventoryItemListRequest,System.Threading.CancellationToken)">
+            <summary>The Items screen as an Excel (.xlsx) download, same filters, all rows.</summary>
+        </member>
         <member name="M:Regalis.API.Controllers.InventoryController.GetStock(System.Nullable{System.Int32},System.Nullable{System.Boolean},System.Threading.CancellationToken)">
             <summary>Derived stock + reorder flags — computed from the ledger, never stored.</summary>
         </member>
@@ -527,6 +530,14 @@
         </member>
         <member name="M:Regalis.API.Controllers.QuotationsController.GetMyById(System.Int64,System.Threading.CancellationToken)">
             <summary>Opening a sent quotation marks it Viewed.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.GetItemRates(System.Int32,System.Int32,System.Threading.CancellationToken)">
+            <summary>The last rates an item from Assets > Items was quoted at (newest
+            first), for the Rate column's Recent Transactions popup.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.QuotationsController.GetStatusCounts(Regalis.Application.Finance.QuotationListRequest,System.Threading.CancellationToken)">
+            <summary>How many quotations each status tab holds under the list's current
+            filters (search, customer, service and date). The status itself is ignored.</summary>
         </member>
         <member name="M:Regalis.API.Controllers.QuotationsController.GetSummary(System.Threading.CancellationToken)">
             <summary>The four summary cards and the status tab counts (document §3.1).</summary>

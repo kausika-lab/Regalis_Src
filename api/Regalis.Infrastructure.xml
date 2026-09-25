@@ -25,6 +25,46 @@
             in IST because the payroll team works in local time; the UTC source stays in
             TRN_Attendance untouched.</summary>
         </member>
+        <member name="T:Regalis.Infrastructure.Adapters.GraphMailOptions">
+             <summary>
+             Bound from the "MicrosoftGraph" configuration section.
+            
+             Only <see cref="P:Regalis.Infrastructure.Adapters.GraphMailOptions.SenderEmail"/> is safe to log or surface — it is the mailbox the
+             OTP is sent from, not a credential. TenantId and ClientId are not secret either,
+             but ClientSecret is: it must arrive from environment variables or user-secrets and
+             never from a committed appsettings file.
+             </summary>
+        </member>
+        <member name="P:Regalis.Infrastructure.Adapters.GraphMailOptions.SenderEmail">
+            <summary>The Microsoft 365 mailbox the OTP is sent from. Must exist in the
+            tenant — app-only Mail.Send posts as a specific user, not as the app.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Adapters.GraphMailOptions.MissingKeys">
+            <summary>Everything except the secret, for a startup log line and for the
+            configuration check. Never include ClientSecret here.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Adapters.GraphOtpSender">
+             <summary>
+             Microsoft 365 mail OTP channel (Otp:Channel = "Graph"), selected by configuration
+             like the other vendor seams (Invariant 5).
+            
+             App-only ("client credentials") Graph: the app authenticates as itself with
+             ClientSecretCredential against the .default scope and posts to
+             POST /users/{senderEmail}/sendMail. No user signs in, and no mailbox password is
+             held anywhere — the tenant grants the app Mail.Send and can revoke it centrally.
+            
+             The credential and the client are built once and reused: ClientSecretCredential
+             caches the access token and refreshes it on expiry, so a new one per email would
+             mean a token request per email.
+            
+             SMS destinations fall back to the log, matching SmtpOtpSender — no SMS vendor
+             exists yet.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Adapters.GraphOtpSender.Mask(System.String)">
+            <summary>"kausika@regalis.in" -> "k******a@regalis.in". The domain is kept because
+            it is what makes a delivery failure diagnosable.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Adapters.MockAccessControlAdapter">
             <summary>
             Phase-1 device adapter (AccessControl:Provider = "Mock", A01): the vendor API is
@@ -262,6 +302,30 @@
         <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddQuotationBillingFields.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.MakeQuotationCustomerOptional">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.MakeQuotationCustomerOptional.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.MakeQuotationCustomerOptional.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.MakeQuotationCustomerOptional.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.AddItemMasterSalesFields">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddItemMasterSalesFields.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddItemMasterSalesFields.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddItemMasterSalesFields.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="T:Regalis.Infrastructure.Persistence.Seed.DatabaseSeeder">
             <summary>
             Idempotent seeding of the state defined by ROLE_PERMISSION_MATRIX.md and
@@ -298,6 +362,24 @@
             <summary>The GST tax invoice as a PDF (QuestPDF, community license), generated on
             demand from the snapshotted invoice — later profile or settings edits never
             change what a customer already received.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.QuotationLineText">
+            <summary>
+            The one-line description of a quoted service (specification §2.1), for example
+            "Cabin C-001 · 1 × 3 Month × ₹25,000" or "10-Day Pack · 1 × One-time × ₹6,800".
+            The quotation screen, the view screen and the PDF all print this same text; the
+            form's preview builds it with the same rules in the browser.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.QuotationLineText.Summary(Regalis.Domain.Entities.Finance.QuotationLine)">
+            <summary>Header lines are captions and have no summary.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.QuotationLineText.IsOneTime(System.String,System.Nullable{System.Decimal})">
+            <summary>A line without a duration (or marked One-time) is charged once:
+            quantity × rate, as the server's arithmetic already treats it.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.QuotationLineText.Rupees(System.Decimal)">
+            <summary>"₹25,000", "₹1,21,292.50" — Indian grouping, paise only when present.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Reporting.QuotationPdfContext">
             <summary>The few things the printed quotation needs that the row does not carry:
@@ -765,6 +847,15 @@
             transaction; a mistake is corrected with a compensating Adjustment row.
             </summary>
         </member>
+        <member name="M:Regalis.Infrastructure.Services.InventoryService.ExportItemsExcelAsync(Regalis.Application.Operations.InventoryItemListRequest,System.Threading.CancellationToken)">
+            <summary>The item master as an Excel workbook, with the same filters as the Items
+            screen (search, category, location, below-reorder) and every matching row —
+            not just the page on screen. Status uses the screen's thresholds.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.InventoryService.StockStatus(System.Decimal,System.Decimal)">
+            <summary>The Items screen's badge: Critical at half the reorder level or less,
+            Low Stock at the reorder level or less, otherwise OK.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Services.InvoiceService">
             <summary>
             Invoices. Reads are row-scoped; writes are deliberately narrow. There is no
@@ -780,6 +871,10 @@
             change one are to cancel it or to let a payment move its status. The one creation
             path is an approved quotation, whose figures are carried across verbatim.
             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.InvoiceService.CustomerOf(Regalis.Domain.Entities.Finance.Quotation)">
+            <summary>An invoice is always raised to a customer account. A quotation whose
+            customer was typed in by hand has none, so it cannot be invoiced as it stands.</summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.InvoiceService.AdvanceAmountOf(Regalis.Domain.Entities.Finance.Quotation)">
             <summary>Months of rent, or the flat sum. "A month's rent" is one month of the
@@ -938,14 +1033,29 @@
             </summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.QuotationService.ResolveDateRange(Regalis.Application.Finance.QuotationListRequest)">
-            <summary>The Date filter's presets from document §3.1. Explicit From/To win.</summary>
+            <summary>The Date filter's presets from document §3.1. Explicit From/To win, and
+            both ends are inclusive. Every preset covers the whole period, so a quotation
+            dated later this month still counts as "this month".</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.Sorted(System.Linq.IQueryable{Regalis.Domain.Entities.Finance.Quotation},Regalis.Application.Finance.QuotationListRequest)">
+            <summary>The list's sortable columns: date (the default, newest first), quote
+            number and amount. Ties fall back to the newest row so paging stays stable.</summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.QuotationService.LoadScopedAsync(System.Int64,System.Threading.CancellationToken,System.Boolean)">
             <summary>Customers read their own quotations only, whatever id they pass.</summary>
         </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.ResolveLocationAsync(System.Nullable{System.Int32},System.Nullable{System.Int32},System.Threading.CancellationToken)">
+            <summary>The form no longer asks for a location, so an edit keeps the one the
+            quotation has and a new one takes the default location, as bookings do.</summary>
+        </member>
         <member name="M:Regalis.Infrastructure.Services.QuotationService.SnapshotAsync(Regalis.Domain.Entities.Finance.Quotation,System.Threading.CancellationToken)">
             <summary>Freezes customer, company and place of supply onto the quotation. Called
-            once, on the first send — a resend must not re-snapshot a changed profile.</summary>
+            once, on the first send — a resend must not re-snapshot a changed profile. What
+            the admin typed on the form wins; a linked account only fills the blanks.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.PortalLinkAsync(Regalis.Domain.Entities.Finance.Quotation,System.Threading.CancellationToken)">
+            <summary>Blank for a typed-in customer: with no account there is nothing to sign
+            in to, and the PDF and email leave the link out when it is blank.</summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.QuotationService.Fill(System.String,Regalis.Domain.Entities.Finance.Quotation,System.String)">
             <summary>The placeholders document §3.5 names, substituted in both templates.</summary>
@@ -953,6 +1063,9 @@
         <member name="M:Regalis.Infrastructure.Services.QuotationService.EmailHtml(System.String,System.String)">
             <summary>The gold "View &amp; approve quotation" button the document asks for
             (§3.5), wrapped around whatever message the admin typed.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.QuotationService.ApproveButtonHtml(System.String)">
+            <summary>Left out for a typed-in customer, who has no portal account.</summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.QuotationService.CopyOf(Regalis.Domain.Entities.Finance.Quotation)">
             <summary>A fresh draft carrying everything but the identity and the history.</summary>

@@ -221,6 +221,11 @@
             <summary>REG/QTN/{FY}/{00001} — gap-free, from MST_NumberSequence. A revision
             keeps the original number and appends -R1, -R2 … so the two read as one thread.</summary>
         </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Quotation.CustomerId">
+            <summary>The customer account, when the admin picked one. Null for a prospect
+            typed in by hand: that quotation carries its name, address and GSTIN itself, and
+            has no portal link and cannot be converted to an invoice.</summary>
+        </member>
         <member name="P:Regalis.Domain.Entities.Finance.Quotation.ValidUntil">
             <summary>Validity date from the document; the expiry sweeper reads this.</summary>
         </member>
@@ -337,6 +342,17 @@
         <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.DurationUnit">
             <summary>Hour / Day / Month / One-time — free text so a new unit needs no
             migration, and so quotations written before the unit enum still read back.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.InventoryItemId">
+            <summary>The item-master row this line was picked from. A snapshot link, like
+            WorkspaceId: name, type, code, unit and rate are copied onto the line, so
+            editing or retiring the item never changes a quotation already written.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.Unit">
+            <summary>The item's unit of measure (Nos, Kg), printed under the quantity.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.IsNonTaxable">
+            <summary>Outside GST, shown as "Non-Taxable" rather than 0%. TaxPercent is 0.</summary>
         </member>
         <member name="P:Regalis.Domain.Entities.Finance.QuotationLine.StandardRate">
             <summary>The configured price for this service when the line was written. Kept
@@ -563,6 +579,18 @@
         <member name="P:Regalis.Domain.Entities.Operations.InventoryItem.Unit">
             <summary>Nos, Kg, Ltr, Box.</summary>
         </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryItem.HsnSacCode">
+            <summary>HSN for goods, SAC for services.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryItem.SellingRate">
+            <summary>The price it is quoted at; UnitCost is what it costs to buy.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryItem.TaxPercent">
+            <summary>Default GST rate. Ignored when <see cref="P:Regalis.Domain.Entities.Operations.InventoryItem.IsNonTaxable"/>.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryItem.IsNonTaxable">
+            <summary>Outside GST altogether, which is not the same as a 0% rate.</summary>
+        </member>
         <member name="T:Regalis.Domain.Entities.Operations.InventoryTransaction">
             <summary>TRN_InventoryTransaction — append-only. There is no update or delete
             endpoint; a mistake is corrected with a compensating Adjustment row.</summary>
@@ -689,6 +717,10 @@
         <member name="F:Regalis.Domain.Enums.InventoryTransactionType.Adjustment">
             <summary>A mistake is corrected with a compensating Adjustment row —
             there is no update or delete path (Invariant 11).</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.InventoryItemType">
+            <summary>What an item-master row is sold as. Goods carry an HSN code and stock;
+            services carry a SAC code and are kept off the stock screens.</summary>
         </member>
     </members>
 </doc>

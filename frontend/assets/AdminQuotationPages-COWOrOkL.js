@@ -77,12 +77,34 @@ const DURATION_UNITS = ["Hour", "Day", "Month", "One-time"];
 const DISCOUNT_TYPE = { Percentage: 1, Amount: 2 };
 const DECISION_MODE = { Portal: 1, Phone: 2, InPerson: 3, Email: 4, WhatsApp: 5 };
 
+/* The list's Date filter. The server resolves each preset to a whole period
+   (inclusive); "custom" sends the From / To the admin picked instead. */
 const DATE_PRESETS = [
   { value: "today", label: "Today" },
   { value: "week", label: "This week" },
   { value: "month", label: "This month" },
+  { value: "lastmonth", label: "Last month" },
+  { value: "quarter", label: "This quarter" },
   { value: "fy", label: "This financial year" },
+  { value: "lastfy", label: "Last financial year" },
+  { value: "custom", label: "Custom range" },
 ];
+
+const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "23 Sep 2026" for the list. formatDate follows the browser's locale, which
+ *  prints "Sept" for en-IN, so the list formats its own dates. */
+function formatListDate(value) {
+  if (!value) return "";
+  const [year, month, day] = String(value).slice(0, 10).split("-");
+  return `${day} ${MONTHS_SHORT[Number(month) - 1] ?? month} ${year}`;
+}
+
+/* Long references and customer names wrap to two lines, then ellipsis. */
+const CLAMP_2 = {
+  display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+  overflow: "hidden", overflowWrap: "anywhere",
+};
 
 /* SS3.7: the fixed reasons a customer may pick when rejecting. */
 const REJECT_REASONS = [
@@ -106,6 +128,7 @@ async function downloadBlob(url, filename, params) {
 const quotationsApi = {
   list: (query = {}) => unwrap(api.get("/quotations", { params: query })),
   summary: () => unwrap(api.get("/quotations/summary")),
+  statusCounts: (query = {}) => unwrap(api.get("/quotations/status-counts", { params: query })),
   formOptions: () => unwrap(api.get("/quotations/form-options")),
   get: (id) => unwrap(api.get(`/quotations/${id}`)),
   create: (payload) => unwrap(api.post("/quotations", payload)),
@@ -134,6 +157,8 @@ const quotationsApi = {
 
   pdf: (id, quotationNumber) =>
     downloadBlob(`/quotations/${id}/pdf`, `${quotationNumber.replace(/[\\/]/g, "-")}.pdf`),
+  itemRates: (inventoryItemId) =>
+    unwrap(api.get("/quotations/item-rates", { params: { inventoryItemId, take: 5 } })),
   exportCsv: (query) =>
     downloadBlob("/quotations/export", "quotations.csv", query),
 };
@@ -155,14 +180,20 @@ function StatusPill({ quotation, forCustomer = false }) {
   });
 }
 
-/** "in 8 days" under the valid-until date, amber once it is 3 days or less. */
-function ValidUntil({ quotation }) {
+/** "in 8 days" / "today" / "expired" for an open quotation, else null. */
+function validityHint(quotation) {
   const days = quotation.daysToExpiry;
   const open = effectiveStatus(quotation) === QUOTATION_STATUS.Sent
     || effectiveStatus(quotation) === QUOTATION_STATUS.Viewed;
-  let hint = null;
-  if (quotation.isExpired) hint = "expired";
-  else if (open && days >= 0) hint = days === 0 ? "today" : `in ${days} day${days === 1 ? "" : "s"}`;
+  if (quotation.isExpired) return "expired";
+  if (open && days >= 0) return days === 0 ? "today" : `in ${days} day${days === 1 ? "" : "s"}`;
+  return null;
+}
+
+/** "in 8 days" under the valid-until date, amber once it is 3 days or less. */
+function ValidUntil({ quotation }) {
+  const days = quotation.daysToExpiry;
+  const hint = validityHint(quotation);
   return e.jsxs("div", {
     children: [
       e.jsx("div", { children: formatDate(quotation.validUntil) }),
@@ -218,7 +249,13 @@ function RowMenu({ items }) {
       open && e.jsx("div", {
         className: "qtn-menu__list",
         role: "menu",
-        children: visible.map((item) => e.jsx("button", {
+        /* An `info` item is a read-only line (e.g. the valid-until date). */
+        children: visible.map((item) => item.info ? e.jsx("div", {
+          role: "none",
+          className: "qtn-menu__item",
+          style: { color: "var(--text-muted)", cursor: "default", fontSize: "var(--font-size-xs)" },
+          children: item.label,
+        }, item.label) : e.jsx("button", {
           type: "button",
           role: "menuitem",
           className: `qtn-menu__item${item.danger ? " qtn-menu__item--danger" : ""}`,
@@ -249,54 +286,149 @@ function errorMessage(error, fallback) {
 
 /* ── 1. List (SS3.1) ────────────────────────────────────────────────────── */
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Tab and date filter as the URL holds them, so a refresh or a shared link
+ *  reopens the same view: ?status=2&date=month or ?from=2026-09-01&to=2026-09-30. */
+function readListParams() {
+  const params = new URLSearchParams(window.location.search);
+  const status = params.get("status") ?? "";
+  const from = params.get("from") ?? "";
+  const to = params.get("to") ?? "";
+  const preset = params.get("date") ?? "";
+  const custom = ISO_DATE.test(from) || ISO_DATE.test(to);
+  return {
+    status: STATUS_TABS.some((t) => t.value === status) ? status : "",
+    datePreset: custom ? "custom"
+      : DATE_PRESETS.some((p) => p.value === preset && p.value !== "custom") ? preset : "",
+    from: ISO_DATE.test(from) ? from : "",
+    to: ISO_DATE.test(to) ? to : "",
+  };
+}
+
+function writeListParams({ status, datePreset, from, to }) {
+  const params = new URLSearchParams(window.location.search);
+  const set = (key, value) => (value ? params.set(key, value) : params.delete(key));
+  set("status", status);
+  set("date", datePreset && datePreset !== "custom" ? datePreset : "");
+  set("from", datePreset === "custom" ? from : "");
+  set("to", datePreset === "custom" ? to : "");
+  const search = params.toString();
+  window.history.replaceState(null, "", window.location.pathname + (search ? `?${search}` : ""));
+}
+
+/* Newest date first by default; a quote number reads naturally A→Z. */
+const DEFAULT_SORT_DIR = { date: "desc", number: "asc", amount: "desc" };
+
+/** A column header that sorts the list. Clicking the active column flips it. */
+function SortHeader({ label, field, sort, onSort, align = "left" }) {
+  const active = sort.by === field;
+  return e.jsxs("button", {
+    type: "button",
+    onClick: () => onSort(field),
+    "aria-label": `Sort by ${label}${active ? `, currently ${sort.dir === "asc" ? "ascending" : "descending"}` : ""}`,
+    style: {
+      background: "none", border: 0, padding: 0, margin: 0, cursor: "pointer",
+      font: "inherit", color: "inherit", fontWeight: "inherit", whiteSpace: "nowrap",
+      display: "block", width: "100%", textAlign: align,
+    },
+    children: [
+      label,
+      e.jsx("span", {
+        "aria-hidden": true,
+        style: { marginLeft: "4px", color: active ? "inherit" : "var(--text-muted)", opacity: active ? 1 : 0.5 },
+        children: active ? (sort.dir === "asc" ? "▲" : "▼") : "↕",
+      }),
+    ],
+  });
+}
+
 function AdminQuotationsPage() {
   const toast = useToast();
   const navigate = useNavigate();
   const canCreate = usePermission("QUOTATION.CREATE");
   const canExport = usePermission("QUOTATION.EXPORT");
 
-  /* The active tab lives in the URL so a filtered list can be linked and the
-     back button behaves (SS3.1). */
-  const initialStatus = new URLSearchParams(window.location.search).get("status") ?? "";
-  const [status, setStatus] = React.useState(
-    STATUS_TABS.some((t) => t.value === initialStatus) ? initialStatus : "",
-  );
+  /* The active tab and the date filter live in the URL so a filtered list can
+     be linked, survives a refresh, and the back button behaves (SS3.1). */
+  const initial = React.useMemo(readListParams, []);
+  const [status, setStatus] = React.useState(initial.status);
   const [result, setResult] = React.useState(null);
   const [summary, setSummary] = React.useState(null);
+  const [counts, setCounts] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [page, setPage] = React.useState(1);
   const [search, setSearch] = React.useState("");
   const [searchTerm, setSearchTerm] = React.useState("");
   const [customerId, setCustomerId] = React.useState("");
   const [serviceType, setServiceType] = React.useState("");
-  const [datePreset, setDatePreset] = React.useState("");
+  const [datePreset, setDatePreset] = React.useState(initial.datePreset);
+  const [from, setFrom] = React.useState(initial.from);
+  const [to, setTo] = React.useState(initial.to);
+  const [sort, setSort] = React.useState({ by: "date", dir: "desc" });
   const [expiringInDays, setExpiringInDays] = React.useState("");
   const [customers, setCustomers] = React.useState([]);
+  const [selected, setSelected] = React.useState(() => new Set());
   const [busy, setBusy] = React.useState(false);
   const [sendFor, setSendFor] = React.useState(null);
   const [confirming, setConfirming] = React.useState(null);
 
-  const query = React.useMemo(() => ({
-    page,
-    pageSize: 20,
-    status: status ? Number(status) : undefined,
+  const custom = datePreset === "custom";
+  const rangeError = custom && from && to && to < from
+    ? "“To” date cannot be before “From” date." : null;
+
+  React.useEffect(() => {
+    writeListParams({ status, datePreset, from, to });
+  }, [status, datePreset, from, to]);
+
+  /* One set of filters drives the table, the tab counts and the export, so
+     the three can never disagree. The tab itself is added only to the list. */
+  const filters = React.useMemo(() => ({
     search: searchTerm || undefined,
     customerId: customerId ? Number(customerId) : undefined,
     serviceType: serviceType ? Number(serviceType) : undefined,
-    datePreset: datePreset || undefined,
+    datePreset: datePreset && !custom ? datePreset : undefined,
+    from: custom && from ? from : undefined,
+    to: custom && to ? to : undefined,
     expiringInDays: expiringInDays ? Number(expiringInDays) : undefined,
-  }), [page, status, searchTerm, customerId, serviceType, datePreset, expiringInDays]);
+  }), [searchTerm, customerId, serviceType, datePreset, custom, from, to, expiringInDays]);
+
+  const listQuery = React.useMemo(() => ({
+    ...filters,
+    status: status ? Number(status) : undefined,
+    sortBy: sort.by,
+    sortDir: sort.dir,
+  }), [filters, status, sort]);
+
+  /* Typing a range fires a request per change; only the newest may land, or a
+     slower earlier answer would overwrite the table with stale rows. */
+  const listSeq = React.useRef(0);
+  const countSeq = React.useRef(0);
 
   const load = React.useCallback(async () => {
+    if (rangeError) return; // keep the last good result until the range is fixed
+    const seq = ++listSeq.current;
     setLoading(true);
     try {
-      setResult(await quotationsApi.list(query));
+      const next = await quotationsApi.list({ ...listQuery, page, pageSize: 20 });
+      if (seq === listSeq.current) setResult(next);
     } catch (error) {
-      toast.error(errorMessage(error, "Failed to load quotations."));
+      if (seq === listSeq.current) toast.error(errorMessage(error, "Failed to load quotations."));
     } finally {
-      setLoading(false);
+      if (seq === listSeq.current) setLoading(false);
     }
-  }, [query]);
+  }, [listQuery, page, rangeError]);
+
+  const loadCounts = React.useCallback(async () => {
+    if (rangeError) return;
+    const seq = ++countSeq.current;
+    try {
+      const next = await quotationsApi.statusCounts(filters);
+      if (seq === countSeq.current) setCounts(next);
+    } catch {
+      if (seq === countSeq.current) setCounts(null); // the tabs still work without their numbers
+    }
+  }, [filters, rangeError]);
 
   const loadSummary = React.useCallback(async () => {
     try {
@@ -308,7 +440,10 @@ function AdminQuotationsPage() {
   }, []);
 
   React.useEffect(() => { void load(); }, [load]);
+  React.useEffect(() => { void loadCounts(); }, [loadCounts]);
   React.useEffect(() => { void loadSummary(); }, [loadSummary]);
+  /* A selection belongs to the page it was made on. */
+  React.useEffect(() => { setSelected(new Set()); }, [result]);
 
   React.useEffect(() => {
     void (async () => {
@@ -331,15 +466,23 @@ function AdminQuotationsPage() {
     setStatus(value);
     setPage(1);
     setExpiringInDays("");
-    const params = new URLSearchParams(window.location.search);
-    if (value) params.set("status", value); else params.delete("status");
-    const search2 = params.toString();
-    window.history.replaceState(
-      null, "", window.location.pathname + (search2 ? `?${search2}` : ""),
-    );
   };
 
-  const refresh = async () => { await load(); await loadSummary(); };
+  const clearDate = () => {
+    setDatePreset("");
+    setFrom("");
+    setTo("");
+    setPage(1);
+  };
+
+  const sortBy = (field) => {
+    setPage(1);
+    setSort((current) => (current.by === field
+      ? { by: field, dir: current.dir === "asc" ? "desc" : "asc" }
+      : { by: field, dir: DEFAULT_SORT_DIR[field] }));
+  };
+
+  const refresh = async () => { await load(); await loadCounts(); await loadSummary(); };
 
   const runAction = async (label, action) => {
     setBusy(true);
@@ -355,48 +498,79 @@ function AdminQuotationsPage() {
 
   const openQuotation = (q) => navigate(`/admin/billing/quotations/${q.quotationId}`);
 
+  const pageIds = (result?.items ?? []).map((q) => q.quotationId);
+  const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const someSelected = pageIds.some((id) => selected.has(id));
+  const toggleOne = (id) => setSelected((current) => {
+    const next = new Set(current);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
   const columns = [
     {
-      key: "number",
-      header: "Quotation",
-      render: (q) => e.jsxs("div", {
-        children: [
-          e.jsx("div", { className: "qtn-cell__strong", children: q.quotationNumber }),
-          e.jsx("div", { className: "qtn-cell__muted", children: formatDate(q.quotationDate) }),
-        ],
+      key: "select",
+      width: "40px",
+      header: e.jsx("input", {
+        type: "checkbox",
+        "aria-label": "Select all quotations on this page",
+        checked: allSelected,
+        ref: (el) => { if (el) el.indeterminate = someSelected && !allSelected; },
+        onChange: () => setSelected(allSelected ? new Set() : new Set(pageIds)),
+      }),
+      render: (q) => e.jsx("input", {
+        type: "checkbox",
+        "aria-label": `Select ${q.quotationNumber}`,
+        checked: selected.has(q.quotationId),
+        onChange: () => toggleOne(q.quotationId),
       }),
     },
     {
+      key: "date",
+      width: "120px",
+      header: e.jsx(SortHeader, { label: "Date", field: "date", sort, onSort: sortBy }),
+      render: (q) => e.jsx("span", { style: { whiteSpace: "nowrap" }, children: formatListDate(q.quotationDate) }),
+    },
+    {
+      key: "number",
+      header: e.jsx(SortHeader, { label: "Quote Number", field: "number", sort, onSort: sortBy }),
+      render: (q) => e.jsx("button", {
+        type: "button",
+        className: "qtn-link",
+        style: { textAlign: "left", whiteSpace: "nowrap" },
+        onClick: (ev) => { ev.stopPropagation(); openQuotation(q); },
+        children: q.quotationNumber,
+      }),
+    },
+    {
+      key: "reference",
+      header: "Reference Number",
+      render: (q) => {
+        const reference = q.referenceNumber || q.subject || "";
+        return e.jsx("div", { style: { ...CLAMP_2, maxWidth: "220px" }, title: reference || undefined, children: reference });
+      },
+    },
+    {
       key: "customer",
-      header: "Customer",
+      header: "Customer Name",
       render: (q) => e.jsxs("div", {
+        style: { maxWidth: "240px" },
         children: [
-          e.jsx("div", { children: q.customerName || "—" }),
+          e.jsx("div", { style: CLAMP_2, title: q.customerName || undefined, children: q.customerName || "—" }),
           q.customerCompanyName && e.jsx("div", {
-            className: "qtn-cell__muted", children: q.customerCompanyName,
+            className: "qtn-cell__muted", style: CLAMP_2, children: q.customerCompanyName,
           }),
         ],
       }),
     },
-    { key: "lines", header: "Lines", render: (q) => q.lines.length },
-    {
-      key: "total",
-      header: "Total",
-      render: (q) => e.jsx("strong", { children: formatInr(q.totalAmount) }),
-    },
-    { key: "valid", header: "Valid until", render: (q) => e.jsx(ValidUntil, { quotation: q }) },
     { key: "status", header: "Status", render: (q) => e.jsx(StatusPill, { quotation: q }) },
     {
-      key: "invoice",
-      header: "Invoice",
-      render: (q) => q.invoiceNumber
-        ? e.jsx("button", {
-          type: "button",
-          className: "qtn-link",
-          onClick: (ev) => { ev.stopPropagation(); navigate("/admin/billing/invoices"); },
-          children: q.invoiceNumber,
-        })
-        : "—",
+      key: "amount",
+      header: e.jsx(SortHeader, { label: "Amount", field: "amount", sort, onSort: sortBy, align: "right" }),
+      render: (q) => e.jsx("div", {
+        style: { textAlign: "right", whiteSpace: "nowrap" },
+        children: e.jsx("strong", { children: formatInr(q.totalAmount) }),
+      }),
     },
     {
       key: "actions",
@@ -413,6 +587,11 @@ function AdminQuotationsPage() {
           e.jsx(RowMenu, {
             items: [
               { label: "View", onSelect: () => openQuotation(q) },
+              /* Valid-until and the invoice left the table; they live here now. */
+              {
+                label: `Open invoice ${q.invoiceNumber}`, show: Boolean(q.invoiceNumber),
+                onSelect: () => navigate("/admin/billing/invoices"),
+              },
               {
                 label: "Edit", show: q.actions.canEdit,
                 onSelect: () => navigate(`/admin/billing/quotations/${q.quotationId}/edit`),
@@ -449,6 +628,10 @@ function AdminQuotationsPage() {
                 label: "Delete", danger: true, show: q.actions.canDelete,
                 onSelect: () => setConfirming(q),
               },
+              {
+                info: true,
+                label: `Valid until ${formatListDate(q.validUntil)}${validityHint(q) ? ` · ${validityHint(q)}` : ""}`,
+              },
             ],
           }),
         ],
@@ -457,10 +640,12 @@ function AdminQuotationsPage() {
   ];
 
   const tabCount = (value) => {
-    if (!summary) return null;
-    if (!value) return summary.totalCount;
-    return summary.statusCounts?.[value] ?? 0;
+    if (!counts) return null;
+    if (!value) return counts.totalCount;
+    return counts.statusCounts?.[value] ?? 0;
   };
+
+  const filtered = Boolean(status || searchTerm || customerId || serviceType || datePreset || expiringInDays);
 
   return e.jsxs(e.Fragment, {
     children: [
@@ -471,7 +656,8 @@ function AdminQuotationsPage() {
           children: [
             canExport && e.jsx(Button, {
               variant: "outline",
-              onClick: () => void quotationsApi.exportCsv(query).catch(
+              disabled: Boolean(rangeError),
+              onClick: () => void quotationsApi.exportCsv({ ...listQuery }).catch(
                 (error) => toast.error(errorMessage(error, "Could not export.")),
               ),
               children: "Export",
@@ -568,11 +754,40 @@ function AdminQuotationsPage() {
                 onChange: (ev) => { setPage(1); setServiceType(ev.target.value); },
               }),
               e.jsx(Select, {
-                label: "Date",
+                /* Clear sits in the label so the toolbar fields stay aligned. */
+                label: datePreset
+                  ? e.jsxs(e.Fragment, {
+                    children: [
+                      "Date ",
+                      e.jsx("button", {
+                        type: "button",
+                        className: "qtn-link",
+                        style: { marginLeft: "6px", fontSize: "var(--font-size-xs)", fontWeight: 400 },
+                        onClick: (ev) => { ev.preventDefault(); clearDate(); },
+                        children: "Clear",
+                      }),
+                    ],
+                  })
+                  : "Date",
                 value: datePreset,
                 placeholder: "Any date",
                 options: DATE_PRESETS,
                 onChange: (ev) => { setPage(1); setDatePreset(ev.target.value); },
+              }),
+              custom && e.jsx(Input, {
+                label: "From",
+                type: "date",
+                value: from,
+                max: to || undefined,
+                onChange: (ev) => { setPage(1); setFrom(ev.target.value); },
+              }),
+              custom && e.jsx(Input, {
+                label: "To",
+                type: "date",
+                value: to,
+                min: from || undefined,
+                error: rangeError ?? undefined,
+                onChange: (ev) => { setPage(1); setTo(ev.target.value); },
               }),
             ],
           }),
@@ -590,6 +805,19 @@ function AdminQuotationsPage() {
             ],
           }),
 
+          selected.size > 0 && e.jsxs("div", {
+            className: "qtn-filternote",
+            children: [
+              `${selected.size} selected on this page. `,
+              e.jsx("button", {
+                type: "button",
+                className: "qtn-link",
+                onClick: () => setSelected(new Set()),
+                children: "Clear selection",
+              }),
+            ],
+          }),
+
           e.jsx(DataTable, {
             columns,
             result,
@@ -597,8 +825,10 @@ function AdminQuotationsPage() {
             rowKey: (q) => q.quotationId,
             onRowClick: openQuotation,
             onPageChange: setPage,
-            emptyTitle: "No quotations yet",
-            emptyDescription: "Create your first quotation for a cabin, desk or meeting room.",
+            emptyTitle: filtered ? "No quotations found for the selected filters." : "No quotations yet",
+            emptyDescription: filtered
+              ? undefined
+              : "Create your first quotation for a cabin, desk or meeting room.",
           }),
         ],
       }),
@@ -643,28 +873,330 @@ function AdminQuotationsPage() {
 
 /* ── 2. Create / edit / revise (SS3.2–SS3.4) ────────────────────────────── */
 
-const emptyLine = () => ({
+/* ── Services line table (specification §2.1 "Services That Can Be Quoted") ──
+   One row = one quoted service. Cabins, desks and meeting rooms come from
+   Workspaces, passes from Passes (form-options already carries them with every
+   configured price), and a Custom line is typed by the admin. Nothing here is
+   hard-coded except which units each service type may be sold in. */
+
+const ONE_TIME = "One-time";
+
+/* Service type → allowed units (first = default). The value is the line's
+   ServiceType byte; Custom line is saved as Other (5). */
+const SERVICE_KINDS = [
+  { value: "1", label: "Cabin", units: ["Month", "Day"] },
+  { value: "2", label: "Desk", units: ["Month", "Day"] },
+  { value: "3", label: "Meeting Room", units: ["Hour", "Day"] },
+  { value: "4", label: "Pass", units: [ONE_TIME] },
+  { value: "5", label: "Custom line", units: ["Hour", "Day", "Month", ONE_TIME] },
+];
+const CUSTOM_KIND = "5";
+const kindOf = (value) => SERVICE_KINDS.find((k) => k.value === String(value)) ?? SERVICE_KINDS[4];
+
+const emptyLine = (kind = "1") => ({
   key: Math.random().toString(36).slice(2),
-  lineType: LINE_TYPE.Service,
-  serviceType: String(SERVICE_TYPE.Other),
+  lineType: kind === CUSTOM_KIND ? LINE_TYPE.Custom : LINE_TYPE.Service,
+  serviceType: kind,
   workspaceId: "",
   passPlanId: "",
   workspaceTypeId: "",
-  serviceKey: "",
   description: "",
-  lineNotes: "",
-  hsnSacCode: "",
   quantity: "1",
   durationValue: "1",
-  durationUnit: "Month",
-  unitPrice: "0",
+  durationUnit: kindOf(kind).units[0],
+  unitPrice: "",
   standardRate: null,
   discountAmount: "0",
   taxPercent: "18",
+  nonTaxable: false,
+  // Carried through untouched for lines written by earlier versions of the form.
+  lineNotes: "",
+  hsnSacCode: "",
+  inventoryItemId: "",
+  itemType: "",
+  unit: "",
 });
 
-const serviceKeyOf = (option) =>
-  `${option.serviceType}:${option.workspaceId ?? ""}:${option.passPlanId ?? ""}:${option.code}`;
+/** A row with nothing picked or typed yet — never saved. */
+const isBlankLine = (l) => Number(l.lineType) !== LINE_TYPE.Header
+  && !String(l.description ?? "").trim();
+
+const isOneTime = (l) => !l.durationUnit || l.durationUnit === ONE_TIME;
+
+/** Non-Taxable charges nothing, whatever rate the row last had. */
+const taxOf = (l) => (l.nonTaxable ? 0 : Number(l.taxPercent) || 0);
+
+/** Qty × Duration × Rate; a one-time line is Qty × Rate (§2.1). */
+const lineAmountOf = (l) => round2(
+  (Number(l.quantity) || 0) * (isOneTime(l) ? 1 : Number(l.durationValue) || 1) * (Number(l.unitPrice) || 0)
+  - (Number(l.discountAmount) || 0),
+);
+
+/** "8,600.00" in the Amount column. */
+const formatAmount = (value) => new Intl.NumberFormat("en-IN", {
+  minimumFractionDigits: 2, maximumFractionDigits: 2,
+}).format(value || 0);
+
+/** "₹25,000" / "₹1,21,292.50" — paise only when present, as the PDF prints it. */
+const rupees = (value) => {
+  const v = Number(value) || 0;
+  const digits = v % 1 === 0 ? 0 : 2;
+  return `₹${new Intl.NumberFormat("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v)}`;
+};
+const plainNumber = (value) => String(Number((Number(value) || 0).toFixed(3)));
+
+/** "Cabin C-001 · 1 × 3 Month × ₹25,000" — the same rules as QuotationLineText
+ *  on the server, so the preview is exactly what the PDF will print. */
+const lineSummary = (l) => {
+  const term = isOneTime(l) ? ONE_TIME : `${plainNumber(l.durationValue || 1)} ${l.durationUnit}`;
+  return `${String(l.description).trim()} · ${plainNumber(l.quantity)} × ${term} × ${rupees(l.unitPrice)}`;
+};
+
+/** The configured price of a service in a unit, or null when none is set. */
+const rateFor = (option, unit) => {
+  if (!option) return null;
+  const rate = unit === "Hour" ? option.ratePerHour
+    : unit === "Day" ? option.ratePerDay
+      : unit === "Month" ? option.ratePerMonth
+        : option.rateOneTime;
+  return rate === undefined || rate === null ? null : Number(rate);
+};
+
+/** The catalogue entry a row points at (a cabin, desk, room or pass). */
+const optionOf = (services, line) => services.find((o) => String(o.serviceType) === String(line.serviceType)
+  && String(o.workspaceId ?? "") === String(line.workspaceId ?? "")
+  && String(o.passPlanId ?? "") === String(line.passPlanId ?? ""));
+
+/** An existing line back into a row. A line the catalogue can place becomes a
+ *  typed row; anything else (typed text, old item-table lines) opens as a
+ *  Custom line with its figures unchanged, so nothing breaks. */
+function rowFromLine(l, services) {
+  const base = {
+    key: `l${l.quotationLineId}`,
+    lineType: l.lineType,
+    workspaceId: l.workspaceId ? String(l.workspaceId) : "",
+    passPlanId: l.passPlanId ? String(l.passPlanId) : "",
+    workspaceTypeId: l.workspaceTypeId ? String(l.workspaceTypeId) : "",
+    description: l.description,
+    quantity: String(l.quantity),
+    durationValue: l.durationValue === null ? "1" : String(l.durationValue),
+    durationUnit: l.durationValue === null ? ONE_TIME : (l.durationUnit || ONE_TIME),
+    unitPrice: String(l.unitPrice),
+    standardRate: l.standardRate,
+    discountAmount: String(l.discountAmount),
+    taxPercent: String(l.taxPercent),
+    nonTaxable: Boolean(l.isNonTaxable),
+    lineNotes: l.lineNotes ?? "",
+    hsnSacCode: l.hsnSacCode ?? "",
+    inventoryItemId: l.inventoryItemId ? String(l.inventoryItemId) : "",
+    itemType: l.itemType ? String(l.itemType) : "",
+    unit: l.unit ?? "",
+  };
+  if (l.lineType === LINE_TYPE.Header) return { ...base, serviceType: CUSTOM_KIND };
+  const typed = l.serviceType >= 1 && l.serviceType <= 4
+    && optionOf(services, { ...base, serviceType: String(l.serviceType) });
+  /* A draft saved with "No price set" stored 0; reopen it empty so it still
+     says so and still blocks Save and send. */
+  return typed
+    ? { ...base, serviceType: String(l.serviceType), lineType: LINE_TYPE.Service,
+      unitPrice: l.standardRate === null && Number(l.unitPrice) === 0 ? "" : base.unitPrice }
+    : { ...base, serviceType: CUSTOM_KIND, lineType: LINE_TYPE.Custom, workspaceId: "", passPlanId: "", workspaceTypeId: "" };
+}
+
+/** Searchable picker over the catalogue for one service type. Type to filter,
+ *  ↑/↓ + Enter to choose, Esc to close. The list floats (position: fixed) so
+ *  the table's scroll box cannot clip it, and opens upwards near the bottom. */
+function ServicePicker({ options, value, unit, placeholder, rowNumber, onPick }) {
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const [active, setActive] = React.useState(0);
+  const [rect, setRect] = React.useState(null);
+  const inputRef = React.useRef(null);
+  const listRef = React.useRef(null);
+
+  const term = query.trim().toLowerCase();
+  const shown = term
+    ? options.filter((o) => `${o.name} ${o.code}`.toLowerCase().includes(term))
+    : options;
+
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const place = () => {
+      const r = inputRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const below = window.innerHeight - r.bottom - 8;
+      const above = r.top - 8;
+      const up = below < 240 && above > below;
+      setRect({
+        left: r.left, width: Math.max(r.width, 300),
+        top: up ? undefined : r.bottom + 4,
+        bottom: up ? window.innerHeight - r.top + 4 : undefined,
+        room: Math.max(120, (up ? above : below) - 8),
+      });
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open]);
+
+  React.useEffect(() => { setActive(0); }, [query]);
+  React.useEffect(() => {
+    listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [active]);
+
+  const choose = (option) => { setOpen(false); setQuery(""); onPick(option); };
+  const onKeyDown = (ev) => {
+    if (ev.key === "ArrowDown") { ev.preventDefault(); if (!open) setOpen(true); else setActive((a) => Math.min(a + 1, shown.length - 1)); }
+    else if (ev.key === "ArrowUp") { ev.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
+    else if (ev.key === "Enter" && open) { ev.preventDefault(); if (shown[active]) choose(shown[active]); }
+    else if (ev.key === "Escape" && open) { ev.preventDefault(); setOpen(false); setQuery(""); }
+  };
+
+  return e.jsxs("div", {
+    children: [
+      e.jsx("input", {
+        ref: inputRef,
+        className: "field__input",
+        value: open ? query : value,
+        placeholder: value || placeholder,
+        "aria-label": `Item ${rowNumber}`,
+        role: "combobox",
+        "aria-expanded": open,
+        "aria-autocomplete": "list",
+        autoComplete: "off",
+        onFocus: () => { setQuery(""); setOpen(true); },
+        onClick: () => setOpen(true),
+        onBlur: () => { setOpen(false); setQuery(""); },
+        onChange: (ev) => { setQuery(ev.target.value); setOpen(true); },
+        onKeyDown,
+      }),
+      open && rect && e.jsx("div", {
+        role: "listbox",
+        "aria-label": "Services",
+        onMouseDown: (ev) => ev.preventDefault(),
+        style: {
+          position: "fixed", left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width, zIndex: 1000,
+          background: "var(--surface-card)", color: "var(--text-primary)",
+          border: "1px solid var(--border-strong)", borderRadius: "var(--radius-md)",
+          boxShadow: "var(--shadow-lg)", overflow: "hidden",
+        },
+        children: e.jsx("div", {
+          ref: listRef,
+          style: { maxHeight: `${Math.min(280, rect.room)}px`, overflowY: "auto" },
+          children: shown.length === 0
+            ? e.jsx("div", {
+              style: { padding: "10px 12px", color: "var(--text-muted)", fontSize: "var(--font-size-sm)" },
+              children: options.length ? "Nothing matches." : "None configured yet.",
+            })
+            : shown.map((o, i) => {
+              const rate = rateFor(o, unit);
+              return e.jsxs("div", {
+                role: "option",
+                "data-index": i,
+                "aria-selected": i === active,
+                onMouseEnter: () => setActive(i),
+                onClick: () => choose(o),
+                style: {
+                  padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid var(--border-subtle)",
+                  background: i === active ? "rgb(var(--accent-rgb) / 16%)" : "transparent",
+                },
+                children: [
+                  e.jsx("div", { style: { fontWeight: 600 }, children: o.name }),
+                  e.jsx("div", {
+                    style: { fontSize: "var(--font-size-xs)", color: rate === null ? "var(--color-danger)" : "var(--text-muted)" },
+                    children: [o.code, o.capacity ? `${o.capacity} seat${o.capacity === 1 ? "" : "s"}` : null,
+                      rate === null ? `No ${unit === ONE_TIME ? "" : `${unit.toLowerCase()} `}price set` : `${rupees(rate)}${unit === ONE_TIME ? "" : ` / ${unit}`}`]
+                      .filter(Boolean).join(" · "),
+                  }),
+                ],
+              }, `${o.serviceType}:${o.workspaceId ?? ""}:${o.passPlanId ?? ""}:${o.code}`);
+            }),
+        }),
+      }),
+    ],
+  });
+}
+
+/** "+ Add Items in Bulk": tick services of any type, set each quantity, add. */
+function BulkServicesModal({ services, onClose, onAdd }) {
+  const [term, setTerm] = React.useState("");
+  const [picked, setPicked] = React.useState({});
+  const keyOf = (o) => `${o.serviceType}:${o.workspaceId ?? ""}:${o.passPlanId ?? ""}`;
+  const catalogue = services.filter((o) => o.serviceType >= 1 && o.serviceType <= 4);
+  const needle = term.trim().toLowerCase();
+  const shown = needle ? catalogue.filter((o) => `${o.name} ${o.code}`.toLowerCase().includes(needle)) : catalogue;
+  const chosen = Object.values(picked);
+  const toggle = (o) => setPicked((p) => {
+    const next = { ...p };
+    if (next[keyOf(o)]) delete next[keyOf(o)]; else next[keyOf(o)] = { option: o, quantity: "1" };
+    return next;
+  });
+  return e.jsx(Modal, {
+    open: true,
+    title: "Add services in bulk",
+    onClose,
+    footer: e.jsxs(e.Fragment, {
+      children: [
+        e.jsx(Button, { variant: "ghost", onClick: onClose, children: "Cancel" }),
+        e.jsx(Button, {
+          disabled: chosen.length === 0,
+          onClick: () => onAdd(chosen.map((c) => ({ option: c.option, quantity: Number(c.quantity) > 0 ? Number(c.quantity) : 1 }))),
+          children: chosen.length ? `Add ${chosen.length} line${chosen.length === 1 ? "" : "s"}` : "Add lines",
+        }),
+      ],
+    }),
+    children: e.jsxs("div", {
+      className: "form-stack",
+      children: [
+        e.jsx(Input, { label: "Search", placeholder: "Cabin, desk, meeting room or pass", value: term, onChange: (ev) => setTerm(ev.target.value) }),
+        shown.length === 0
+          ? e.jsx("p", { className: "field__hint", children: "Nothing matches." })
+          : e.jsx("div", {
+            style: { maxHeight: "340px", overflowY: "auto", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)" },
+            children: shown.map((o) => {
+              const sel = picked[keyOf(o)];
+              const unit = kindOf(o.serviceType).units[0];
+              const rate = rateFor(o, unit);
+              return e.jsxs("div", {
+                style: { display: "flex", alignItems: "center", gap: "10px", padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)" },
+                children: [
+                  e.jsxs("label", {
+                    style: { display: "flex", alignItems: "center", gap: "10px", flex: 1, cursor: "pointer" },
+                    children: [
+                      e.jsx("input", { type: "checkbox", checked: Boolean(sel), onChange: () => toggle(o) }),
+                      e.jsxs("span", {
+                        children: [
+                          e.jsx("div", { style: { fontWeight: 600 }, children: o.name }),
+                          e.jsx("div", {
+                            className: "qtn-cell__muted",
+                            children: `${kindOf(o.serviceType).label} · ${rate === null ? `No ${unit === ONE_TIME ? "" : `${unit.toLowerCase()} `}price set` : `${rupees(rate)}${unit === ONE_TIME ? "" : ` / ${unit}`}`}`,
+                          }),
+                        ],
+                      }),
+                    ],
+                  }),
+                  e.jsx("input", {
+                    className: "field__input",
+                    type: "number", min: "0", step: "1",
+                    "aria-label": `Quantity of ${o.name}`,
+                    disabled: !sel,
+                    value: sel ? sel.quantity : "",
+                    placeholder: "Qty",
+                    style: { width: "80px", textAlign: "right" },
+                    onChange: (ev) => setPicked((p) => ({ ...p, [keyOf(o)]: { ...p[keyOf(o)], quantity: ev.target.value } })),
+                  }),
+                ],
+              }, keyOf(o));
+            }),
+          }),
+      ],
+    }),
+  });
+}
 
 /** Amounts shown while typing. The server recalculates and stores the real
  *  numbers on save — these exist only so the admin sees the total move. */
@@ -689,7 +1221,7 @@ function previewTotals(lines, discountType, discountValue, tdsPercent, adjustmen
     allocated += share;
     const lineTaxable = round2(amount - share);
     taxable += lineTaxable;
-    tax += round2((lineTaxable * (Number(paying[index].taxPercent) || 0)) / 100);
+    tax += round2((lineTaxable * taxOf(paying[index])) / 100);
   });
   taxable = round2(taxable);
   tax = round2(tax);
@@ -715,14 +1247,13 @@ function AdminQuotationFormPage() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState("");
   const [customers, setCustomers] = React.useState([]);
-  const [locations, setLocations] = React.useState([]);
   const [salespeople, setSalespeople] = React.useState([]);
   const [dirty, setDirty] = React.useState(false);
   const [discardOpen, setDiscardOpen] = React.useState(false);
   const [sendAfterSave, setSendAfterSave] = React.useState(null);
 
   const [header, setHeader] = React.useState({
-    customerId: "", locationId: "", quotationDate: new Date().toISOString().slice(0, 10),
+    customerId: "", customerName: "", billingAddress: "", customerGstin: "", quotationDate: new Date().toISOString().slice(0, 10),
     validUntil: "", referenceNumber: "", subject: "", salespersonId: "",
     placeOfSupplyStateCode: "", discountType: String(DISCOUNT_TYPE.Percentage),
     discountValue: "0", tdsCode: "", adjustmentLabel: "Adjustment", adjustmentAmount: "0",
@@ -730,6 +1261,10 @@ function AdminQuotationFormPage() {
     termsAndConditions: "", remarks: "", internalNote: "",
   });
   const [lines, setLines] = React.useState([emptyLine()]);
+  const [dragFrom, setDragFrom] = React.useState(null);
+  const [dragOver, setDragOver] = React.useState(null);
+  const [bulkOpen, setBulkOpen] = React.useState(false);
+  const [itemsError, setItemsError] = React.useState("");
 
   const patchHeader = (patch) => { setDirty(true); setHeader((h) => ({ ...h, ...patch })); };
   const patchLine = (index, patch) => {
@@ -741,18 +1276,17 @@ function AdminQuotationFormPage() {
     void (async () => {
       setLoading(true);
       try {
-        const [formOptions, customerPage, locationPage] = await Promise.all([
+        const [formOptions, customerPage] = await Promise.all([
           quotationsApi.formOptions(),
           customersApi.list({ page: 1, pageSize: 200 }),
-          locationsApi.list({ page: 1, pageSize: 100 }),
         ]);
         setOptions(formOptions);
+        /* Suggestions for the free-text customer box. Picking one links the
+           account (portal approval, invoicing); a new name stays unlinked. */
         setCustomers(customerPage.items.map((c) => ({
           value: c.userId,
+          name: c.fullName,
           label: [c.fullName, c.companyName, c.mobileNumber].filter(Boolean).join(" · "),
-        })));
-        setLocations(locationPage.items.map((l) => ({
-          value: l.locationId, label: l.locationName,
         })));
 
         /* The salesperson is an employee, never a customer. A staff list the
@@ -771,8 +1305,10 @@ function AdminQuotationFormPage() {
           const quotation = await quotationsApi.get(Number(id));
           setExisting(quotation);
           setHeader({
-            customerId: String(quotation.customerId),
-            locationId: String(quotation.locationId),
+            customerId: quotation.customerId ? String(quotation.customerId) : "",
+            customerName: quotation.customerName ?? "",
+            billingAddress: quotation.billingAddress ?? "",
+            customerGstin: quotation.customerGstin ?? "",
             quotationDate: quotation.quotationDate,
             validUntil: quotation.validUntil,
             referenceNumber: quotation.referenceNumber ?? "",
@@ -791,25 +1327,9 @@ function AdminQuotationFormPage() {
             remarks: quotation.remarks ?? "",
             internalNote: quotation.internalNote ?? "",
           });
-          setLines(quotation.lines.map((l) => ({
-            key: `l${l.quotationLineId}`,
-            lineType: l.lineType,
-            serviceType: String(l.serviceType),
-            workspaceId: l.workspaceId ? String(l.workspaceId) : "",
-            passPlanId: l.passPlanId ? String(l.passPlanId) : "",
-            workspaceTypeId: l.workspaceTypeId ? String(l.workspaceTypeId) : "",
-            serviceKey: "",
-            description: l.description,
-            lineNotes: l.lineNotes ?? "",
-            hsnSacCode: l.hsnSacCode ?? "",
-            quantity: String(l.quantity),
-            durationValue: l.durationValue === null ? "" : String(l.durationValue),
-            durationUnit: l.durationUnit ?? "",
-            unitPrice: String(l.unitPrice),
-            standardRate: l.standardRate,
-            discountAmount: String(l.discountAmount),
-            taxPercent: String(l.taxPercent),
-          })));
+          setLines(quotation.lines.length
+            ? quotation.lines.map((l) => rowFromLine(l, formOptions.services))
+            : [{ ...emptyLine(), taxPercent: String(formOptions.defaultGstPercent) }]);
         } else {
           const today = new Date();
           const validUntil = new Date(today);
@@ -821,11 +1341,10 @@ function AdminQuotationFormPage() {
             termsAndConditions: formOptions.defaultTermsAndConditions ?? "",
             remarks: formOptions.defaultCustomerNotes ?? "",
             advanceValue: String(formOptions.defaultAdvanceMonths),
-            locationId: locationPage.items.length === 1
-              ? String(locationPage.items[0].locationId) : "",
           }));
           setLines([{ ...emptyLine(), taxPercent: String(formOptions.defaultGstPercent) }]);
         }
+
       } catch (error) {
         toast.error(errorMessage(error, "Could not open the quotation form."));
       } finally {
@@ -834,45 +1353,26 @@ function AdminQuotationFormPage() {
     })();
   }, [id]);
 
-  const serviceOptions = React.useMemo(() => {
-    if (!options) return [];
-    const groups = new Map();
-    for (const service of options.services) {
-      if (!groups.has(service.group)) groups.set(service.group, []);
-      groups.get(service.group).push(service);
-    }
-    return [...groups.entries()];
-  }, [options]);
-
-  const findService = (key) => options?.services.find((s) => serviceKeyOf(s) === key);
-
-  /** Picking a service fills the rate, the unit and the quantity lock from the
-   *  price already configured for it — nothing is hard-coded (SS2.1). */
-  const applyService = (index, key) => {
-    const service = findService(key);
-    if (!service) {
-      patchLine(index, { serviceKey: key });
+  /** The customer is typed freely. Choosing one of the suggestions links that
+   *  account and fills a blank address from its profile; editing the name
+   *  afterwards unlinks it again, so what is on screen is what gets saved. */
+  const typeCustomer = (text) => {
+    clearField("customerName");
+    clearField("customerId");
+    const match = customers.find((c) => c.label === text || c.name === text);
+    if (!match) {
+      patchHeader({ customerName: text, customerId: "" });
       return;
     }
-    const unit = service.defaultDurationUnit;
-    const rate = unit === "Hour" ? service.ratePerHour
-      : unit === "Day" ? service.ratePerDay
-        : unit === "Month" ? service.ratePerMonth
-          : service.rateOneTime;
-    patchLine(index, {
-      serviceKey: key,
-      serviceType: String(service.serviceType),
-      workspaceId: service.workspaceId ? String(service.workspaceId) : "",
-      passPlanId: service.passPlanId ? String(service.passPlanId) : "",
-      workspaceTypeId: service.workspaceTypeId ? String(service.workspaceTypeId) : "",
-      description: service.name,
-      durationUnit: unit,
-      durationValue: unit === "One-time" ? "" : "1",
-      unitPrice: rate === null || rate === undefined ? "0" : String(rate),
-      standardRate: rate ?? null,
-      quantity: service.quantityLocked ? "1" : "1",
-    });
+    const id = String(match.value);
+    patchHeader({ customerName: match.name, customerId: id });
+    void customersApi.get(match.value).then((detail) => {
+      if (!detail?.address) return;
+      setHeader((h) => (h.customerId === id && !h.billingAddress.trim()
+        ? { ...h, billingAddress: detail.address } : h));
+    }).catch(() => { /* the address stays blank for the admin to type */ });
   };
+  const linkedCustomer = customers.find((c) => String(c.value) === header.customerId);
 
   const tdsPercent = React.useMemo(() => {
     const option = options?.tdsOptions.find((t) => t.code === header.tdsCode);
@@ -887,9 +1387,17 @@ function AdminQuotationFormPage() {
   const intraState = !header.placeOfSupplyStateCode
     || header.placeOfSupplyStateCode === options?.homeStateCode;
 
+  /* Rows that go to the server (the blank trailing row never does). The API
+     reports errors as lines[i] of this list; payloadRows maps i back. */
+  const payloadRows = lines.map((l, i) => (isBlankLine(l) ? -1 : i)).filter((i) => i >= 0);
+
   const buildPayload = () => ({
-    customerId: Number(header.customerId),
-    locationId: Number(header.locationId),
+    customerId: header.customerId ? Number(header.customerId) : null,
+    customerName: header.customerName.trim() || null,
+    billingAddress: header.billingAddress.trim() || null,
+    customerGstin: header.customerGstin.trim() || null,
+    // No location on the form: an edit keeps its own, a new one gets the default.
+    locationId: null,
     quotationDate: header.quotationDate || null,
     validUntil: header.validUntil || null,
     referenceNumber: header.referenceNumber || null,
@@ -907,29 +1415,56 @@ function AdminQuotationFormPage() {
     termsAndConditions: header.termsAndConditions || null,
     remarks: header.remarks || null,
     internalNote: header.internalNote || null,
-    lines: lines.map((l) => ({
-      lineType: Number(l.lineType),
-      serviceType: Number(l.serviceType),
-      workspaceTypeId: l.workspaceTypeId ? Number(l.workspaceTypeId) : null,
-      serviceItemId: null,
-      workspaceId: l.workspaceId ? Number(l.workspaceId) : null,
-      passPlanId: l.passPlanId ? Number(l.passPlanId) : null,
-      description: l.description.trim(),
-      lineNotes: l.lineNotes || null,
-      hsnSacCode: l.hsnSacCode || null,
-      quantity: Number(l.quantity || 0),
-      durationValue: l.durationValue ? Number(l.durationValue) : null,
-      durationUnit: l.durationUnit || null,
-      unitPrice: Number(l.unitPrice || 0),
-      standardRate: l.standardRate,
-      discountAmount: Number(l.discountAmount || 0),
-      taxPercent: Number(l.taxPercent || 0),
-    })),
+    lines: payloadRows.map((i) => {
+      const l = lines[i];
+      const header = Number(l.lineType) === LINE_TYPE.Header;
+      const custom = l.serviceType === CUSTOM_KIND;
+      const oneTime = isOneTime(l);
+      return {
+        lineType: header ? LINE_TYPE.Header : custom ? LINE_TYPE.Custom : LINE_TYPE.Service,
+        serviceType: custom ? SERVICE_TYPE.Other : Number(l.serviceType),
+        workspaceTypeId: !custom && l.workspaceTypeId ? Number(l.workspaceTypeId) : null,
+        serviceItemId: null,
+        workspaceId: !custom && l.workspaceId ? Number(l.workspaceId) : null,
+        passPlanId: !custom && l.passPlanId ? Number(l.passPlanId) : null,
+        description: l.description.trim(),
+        lineNotes: l.lineNotes?.trim() || null,
+        hsnSacCode: l.hsnSacCode || null,
+        quantity: Number(l.quantity || 0),
+        // One-time is charged once: no duration, so the server multiplies by 1.
+        durationValue: header || oneTime ? null : Number(l.durationValue || 1),
+        durationUnit: header ? null : l.durationUnit || ONE_TIME,
+        unitPrice: Number(l.unitPrice || 0),
+        // The configured price; the server reports RateEdited when it differs.
+        standardRate: custom ? null : l.standardRate,
+        discountAmount: Number(l.discountAmount || 0),
+        taxPercent: taxOf(l),
+        inventoryItemId: l.inventoryItemId ? Number(l.inventoryItemId) : null,
+        itemType: l.itemType ? Number(l.itemType) : null,
+        unit: l.unit || null,
+        isNonTaxable: Boolean(l.nonTaxable),
+      };
+    }),
   });
 
   const save = async (mode) => {
-    setSaving(mode);
     clear();
+    setItemsError("");
+    /* At least one row with an item; quantity > 0 and rate >= 0 (the server
+       checks the same, this just says so before the round trip). */
+    const filled = payloadRows.filter((i) => Number(lines[i].lineType) !== LINE_TYPE.Header);
+    const problem = filled.length === 0 ? "Add at least one service."
+      : filled.some((i) => !(Number(lines[i].quantity) > 0)) ? "Every line needs a quantity greater than 0."
+        : filled.some((i) => !isOneTime(lines[i]) && !(Number(lines[i].durationValue) > 0)) ? "Every line needs a duration greater than 0."
+          : filled.some((i) => !(Number(lines[i].unitPrice || 0) >= 0)) ? "A rate cannot be negative."
+            : mode === "send" && filled.some((i) => String(lines[i].unitPrice).trim() === "")
+              ? "No price set on one or more lines — enter a rate before sending. You can still save a draft." : "";
+    if (problem) {
+      setItemsError(problem);
+      toast.error(problem);
+      return;
+    }
+    setSaving(mode);
     try {
       const payload = buildPayload();
       const saved = existing
@@ -974,36 +1509,116 @@ function AdminQuotationFormPage() {
   if (loading) return e.jsx(Spinner, { center: true });
   if (!options) return null;
 
-  const gstOptions = options.gstRateOptions.map((rate) => ({
-    value: String(rate), label: `${rate}%`,
-  }));
   const isRevision = existing && existing.revisionNumber > 0;
   const title = existing
     ? (isRevision ? `Revise — ${existing.quotationNumber}` : `Edit — ${existing.quotationNumber}`)
     : "New quotation";
 
-  const addLine = (patch = {}) => {
+  const blankRow = (kind = "1") => ({ ...emptyLine(kind), taxPercent: String(options.defaultGstPercent) });
+  const services = options.services;
+
+  /* Tax choices: the configured GST rates (plus Non-Taxable, and the line's own
+     rate should the settings no longer list it). */
+  const taxOptions = (line) => {
+    const rates = options.gstRateOptions.map((rate) => String(rate));
+    if (!line.nonTaxable && line.taxPercent !== "" && !rates.includes(String(Number(line.taxPercent)))) {
+      rates.push(String(Number(line.taxPercent)));
+    }
+    return [{ value: "nt", label: "Non-Taxable" },
+      ...rates.map((rate) => ({ value: rate, label: `${rate}%` }))];
+  };
+
+  const insertLineAt = (index, rows = [blankRow()]) => {
     setDirty(true);
-    setLines((current) => [...current, {
-      ...emptyLine(), taxPercent: String(options.defaultGstPercent), ...patch,
-    }]);
+    setLines((current) => [...current.slice(0, index), ...rows, ...current.slice(index)]);
   };
 
   const removeLine = (index) => {
     setDirty(true);
-    setLines((current) => (current.length === 1
-      ? [{ ...emptyLine(), taxPercent: String(options.defaultGstPercent) }]
-      : current.filter((_, i) => i !== index)));
+    setLines((current) => (current.length === 1 ? [blankRow()] : current.filter((_, i) => i !== index)));
   };
 
-  const moveLine = (index, delta) => {
-    const target = index + delta;
-    if (target < 0 || target >= lines.length) return;
+  /** Drag-and-drop reordering. */
+  const moveLine = (from, to) => {
+    if (from === to || from < 0 || to < 0) return;
     setDirty(true);
     setLines((current) => {
       const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
+      const [row] = next.splice(from, 1);
+      next.splice(Math.min(to, next.length), 0, row);
       return next;
+    });
+  };
+
+  /** Changing the service type clears the item and the rate and resets the
+   *  unit to that type's default (§2.1 behaviour rules). */
+  const changeKind = (index, kind) => {
+    setDirty(true);
+    setItemsError("");
+    setLines((current) => current.map((l, i) => (i === index
+      ? { ...blankRow(kind), key: l.key, quantity: l.quantity, taxPercent: l.taxPercent, nonTaxable: l.nonTaxable }
+      : l)));
+  };
+
+  /** Picking an item fills the rate from its configured price in the row's unit. */
+  const pickService = (index, option) => {
+    clearField(`lines[${payloadRows.indexOf(index)}].description`);
+    setItemsError("");
+    setDirty(true);
+    setLines((current) => current.map((l, i) => {
+      if (i !== index) return l;
+      const rate = rateFor(option, l.durationUnit);
+      return {
+        ...l,
+        lineType: LINE_TYPE.Service,
+        description: option.name,
+        workspaceId: option.workspaceId ? String(option.workspaceId) : "",
+        workspaceTypeId: option.workspaceTypeId ? String(option.workspaceTypeId) : "",
+        passPlanId: option.passPlanId ? String(option.passPlanId) : "",
+        standardRate: rate,
+        unitPrice: rate === null ? "" : String(rate),
+      };
+    }));
+  };
+
+  /** Changing the unit re-fills the rate with that unit's configured price. */
+  const changeUnit = (index, unit) => {
+    setDirty(true);
+    setLines((current) => current.map((l, i) => {
+      if (i !== index) return l;
+      const next = { ...l, durationUnit: unit, durationValue: unit === ONE_TIME ? "1" : l.durationValue || "1" };
+      if (l.serviceType === CUSTOM_KIND) return next;
+      const option = optionOf(services, l);
+      if (!option) return next;
+      const rate = rateFor(option, unit);
+      return { ...next, standardRate: rate, unitPrice: rate === null ? "" : String(rate) };
+    }));
+  };
+
+  const resetRate = (index) => patchLine(index, { unitPrice: String(lines[index].standardRate) });
+
+  /** Bulk add: each picked service becomes a line at its default unit and price. */
+  const addServicesInBulk = (picks) => {
+    if (picks.length === 0) return;
+    setDirty(true);
+    setLines((current) => {
+      const body = current.filter((l) => !isBlankLine(l));
+      const rows = picks.map(({ option, quantity }) => {
+        const kind = String(option.serviceType);
+        const row = blankRow(kind);
+        const rate = rateFor(option, row.durationUnit);
+        return {
+          ...row,
+          description: option.name,
+          workspaceId: option.workspaceId ? String(option.workspaceId) : "",
+          workspaceTypeId: option.workspaceTypeId ? String(option.workspaceTypeId) : "",
+          passPlanId: option.passPlanId ? String(option.passPlanId) : "",
+          quantity: String(quantity),
+          standardRate: rate,
+          unitPrice: rate === null ? "" : String(rate),
+        };
+      });
+      return [...body, ...rows].slice(0, 100);
     });
   };
 
@@ -1026,14 +1641,38 @@ function AdminQuotationFormPage() {
         children: e.jsxs("div", {
           className: "form-grid",
           children: [
-            e.jsx(Select, {
+            e.jsx(Input, {
               label: "Customer",
               required: true,
-              value: header.customerId,
-              placeholder: "Search by name, company or mobile",
-              options: customers,
-              error: fieldErrors.customerId,
-              onChange: (ev) => { clearField("customerId"); patchHeader({ customerId: ev.target.value }); },
+              maxLength: 150,
+              autoComplete: "off",
+              list: "qtn-customer-suggestions",
+              placeholder: "Type the customer name",
+              value: header.customerName,
+              hint: linkedCustomer
+                ? `Linked to ${linkedCustomer.label} — portal approval and invoicing available`
+                : header.customerName.trim()
+                  ? "Not linked to a customer account — pick a suggestion to link one"
+                  : "Existing customers are suggested as you type",
+              error: fieldErrors.customerName || fieldErrors.customerId,
+              onChange: (ev) => typeCustomer(ev.target.value),
+            }),
+            e.jsx("datalist", {
+              id: "qtn-customer-suggestions",
+              children: customers.map((c) => e.jsx("option", { value: c.label }, c.value)),
+            }),
+            e.jsx(Input, {
+              label: "GSTIN",
+              maxLength: 15,
+              autoComplete: "off",
+              placeholder: "e.g. 29ABCDE1234F1Z5",
+              value: header.customerGstin,
+              hint: "Optional; printed on the quotation",
+              error: fieldErrors.customerGstin,
+              onChange: (ev) => {
+                clearField("customerGstin");
+                patchHeader({ customerGstin: ev.target.value.toUpperCase().replace(/\s/g, "") });
+              },
             }),
             e.jsx(Select, {
               label: "Place of supply",
@@ -1048,14 +1687,24 @@ function AdminQuotationFormPage() {
                 patchHeader({ placeOfSupplyStateCode: ev.target.value });
               },
             }),
-            e.jsx(Select, {
-              label: "Location",
-              required: true,
-              value: header.locationId,
-              placeholder: "Select a location",
-              options: locations,
-              error: fieldErrors.locationId,
-              onChange: (ev) => { clearField("locationId"); patchHeader({ locationId: ev.target.value }); },
+            e.jsxs("div", {
+              className: "field",
+              style: { gridColumn: "1 / -1" },
+              children: [
+                e.jsx("label", { className: "field__label", htmlFor: "qtn-billing-address", children: "Address" }),
+                e.jsx("textarea", {
+                  id: "qtn-billing-address",
+                  className: `field__input${fieldErrors.billingAddress ? " field__input--error" : ""}`,
+                  rows: 3,
+                  maxLength: 500,
+                  placeholder: "Street, area, city, state and PIN code",
+                  value: header.billingAddress,
+                  onChange: (ev) => { clearField("billingAddress"); patchHeader({ billingAddress: ev.target.value }); },
+                }),
+                fieldErrors.billingAddress
+                  ? e.jsx("span", { className: "field__error", role: "alert", children: fieldErrors.billingAddress })
+                  : e.jsx("span", { className: "field__hint", children: "The customer's complete address, as printed on the quotation." }),
+              ],
             }),
           ],
         }),
@@ -1131,186 +1780,321 @@ function AdminQuotationFormPage() {
         }),
       }),
 
-      /* Item table */
+      /* Services (specification §2.1). One CSS grid template drives the header
+         and every row, so the columns cannot drift apart; header text starts
+         where the text inside the control below it starts (8px padding + 1px
+         border). Below 768px each row becomes a card with its own labels. */
       e.jsxs(Card, {
         title: "Services",
-        actions: e.jsxs("div", {
-          className: "row-actions",
-          children: [
-            e.jsx(Button, { size: "sm", variant: "outline", onClick: () => addLine(), children: "Add row" }),
-            e.jsx(Button, {
-              size: "sm", variant: "ghost",
-              onClick: () => addLine({ lineType: LINE_TYPE.Header, description: "Section" }),
-              children: "Add header",
-            }),
-          ],
-        }),
         children: [
-          e.jsx("div", {
-            className: "qtn-lines",
-            children: lines.map((line, index) => {
-              const isHeader = Number(line.lineType) === LINE_TYPE.Header;
-              const service = findService(line.serviceKey);
-              const rateChanged = line.standardRate !== null
-                && line.standardRate !== undefined
-                && Number(line.unitPrice) !== Number(line.standardRate);
-              const amount = isHeader ? 0 : round2(
-                (Number(line.quantity) || 0)
-                * (Number(line.durationValue) || 1)
-                * (Number(line.unitPrice) || 0)
-                - (Number(line.discountAmount) || 0),
-              );
-
-              return e.jsxs("div", {
-                className: `qtn-line${isHeader ? " qtn-line--header" : ""}`,
+          e.jsx("style", {
+            children: [
+              ".qtn-grid{--qtn-cols:16px 150px minmax(120px,1fr) 56px 60px 112px 92px 100px 100px 32px;--qtn-pad:9px;overflow-x:auto}",
+              /* The same floor for header and rows: the column minimums + 9 gaps of 6. */
+              ".qtn-grid__head,.qtn-grid__row{display:grid;grid-template-columns:var(--qtn-cols);column-gap:6px;align-items:start;min-width:892px}",
+              ".qtn-grid__head{padding:0 0 10px;border-bottom:2px solid var(--border-subtle);font-size:var(--font-size-sm);font-weight:700;color:var(--text-secondary);white-space:nowrap}",
+              ".qtn-grid__head>.qtn-col{padding:0 var(--qtn-pad)}",
+              ".qtn-grid__row{padding:12px 0 10px;border-bottom:1px solid var(--border-subtle);row-gap:6px;transition:background var(--transition-fast)}",
+              ".qtn-grid__row:hover{background:var(--surface-hover)}",
+              /* Fixed 38px controls with no vertical padding, so descenders are never clipped. */
+              ".qtn-grid__row input.field__input,.qtn-grid__row select.field__input{height:38px;padding:0 8px;line-height:36px}",
+              ".qtn-grid__row select.field__input{padding-right:4px}",
+              ".qtn-grid__row .field__input:disabled{opacity:.6;cursor:not-allowed}",
+              ".qtn-grid .qtn-num,.qtn-grid .qtn-num input{text-align:right}",
+              ".qtn-grid__amount{padding:0 var(--qtn-pad);line-height:38px;text-align:right;font-weight:700;white-space:nowrap}",
+              ".qtn-grid__handle{display:block;line-height:38px;text-align:center;color:var(--text-muted);cursor:grab;user-select:none;opacity:0;transition:opacity var(--transition-fast)}",
+              ".qtn-grid__row:hover .qtn-grid__handle,.qtn-grid__handle:focus-visible{opacity:1}",
+              ".qtn-grid__actions{display:flex;align-items:center;justify-content:center;height:38px}",
+              ".qtn-grid__sub{margin-top:4px;padding:0 var(--qtn-pad);font-size:var(--font-size-xs);color:var(--text-muted);white-space:nowrap}",
+              ".qtn-grid__sub.qtn-num{text-align:right}",
+              ".qtn-grid__warn{margin-top:4px;font-size:var(--font-size-xs);color:var(--color-danger);white-space:normal;text-align:right;line-height:1.3}",
+              ".qtn-grid__summary{grid-column:2/-1;padding:0 var(--qtn-pad);font-size:var(--font-size-xs);color:var(--text-muted)}",
+              ".qtn-grid__footer{display:flex;gap:var(--space-2);flex-wrap:wrap;margin-top:var(--space-3);padding-left:22px}",
+              ".qtn-grid__hint{padding-left:22px}",
+              ".qtn-grid .qtn-col--label{display:none}",
+              "@media (max-width:767px){",
+              ".qtn-grid__head{display:none}",
+              ".qtn-grid__row{grid-template-columns:1fr 1fr;row-gap:12px;min-width:0;border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px;margin-bottom:12px}",
+              ".qtn-grid__row>.qtn-col--handle{display:none}",
+              ".qtn-grid__row>.qtn-col--wide,.qtn-grid__row>.qtn-grid__summary{grid-column:1/-1}",
+              ".qtn-grid__actions{justify-content:flex-end}",
+              ".qtn-grid .qtn-col--label{display:block;margin-bottom:4px;font-size:var(--font-size-xs);font-weight:700;color:var(--text-secondary)}",
+              ".qtn-grid__amount{line-height:1.4;padding-top:10px}",
+              ".qtn-grid__summary{padding:0}",
+              ".qtn-grid__footer,.qtn-grid__hint{padding-left:0}",
+              "}",
+            ].join(""),
+          }),
+          e.jsxs("div", {
+            className: "qtn-grid",
+            role: "table",
+            "aria-label": "Quoted services",
+            children: [
+              e.jsxs("div", {
+                className: "qtn-grid__head",
+                role: "row",
                 children: [
-                  e.jsxs("div", {
-                    className: "qtn-line__bar",
-                    children: [
-                      e.jsx("span", { className: "qtn-line__no", children: index + 1 }),
-                      e.jsxs("div", {
-                        className: "row-actions",
-                        children: [
-                          e.jsx("button", {
-                            type: "button", className: "qtn-iconbtn", "aria-label": "Move up",
-                            onClick: () => moveLine(index, -1), children: "↑",
-                          }),
-                          e.jsx("button", {
-                            type: "button", className: "qtn-iconbtn", "aria-label": "Move down",
-                            onClick: () => moveLine(index, 1), children: "↓",
-                          }),
-                          e.jsx("button", {
-                            type: "button", className: "qtn-iconbtn", "aria-label": "Duplicate row",
-                            onClick: () => {
-                              setDirty(true);
-                              setLines((current) => [
-                                ...current.slice(0, index + 1),
-                                { ...current[index], key: Math.random().toString(36).slice(2) },
-                                ...current.slice(index + 1),
-                              ]);
-                            },
-                            children: "⧉",
-                          }),
-                          e.jsx("button", {
-                            type: "button", className: "qtn-iconbtn qtn-iconbtn--danger",
-                            "aria-label": "Remove row",
-                            onClick: () => removeLine(index), children: "✕",
-                          }),
-                        ],
-                      }),
-                    ],
+                  e.jsx("div", { role: "columnheader", "aria-label": "Reorder" }),
+                  e.jsx("div", { className: "qtn-col", role: "columnheader", children: "Service type" }),
+                  e.jsx("div", { className: "qtn-col", role: "columnheader", children: "Item" }),
+                  e.jsx("div", { className: "qtn-col qtn-num", role: "columnheader", children: "Qty" }),
+                  e.jsx("div", { className: "qtn-col qtn-num", role: "columnheader", children: "Duration" }),
+                  e.jsx("div", { className: "qtn-col", role: "columnheader", children: "Unit" }),
+                  e.jsx("div", { className: "qtn-col qtn-num", role: "columnheader", children: "Rate (₹)" }),
+                  e.jsx("div", { className: "qtn-col", role: "columnheader", children: "Tax" }),
+                  e.jsx("div", { className: "qtn-col qtn-num", role: "columnheader", children: "Amount" }),
+                  e.jsx("div", { role: "columnheader", "aria-label": "Delete" }),
+                ],
+              }),
+              ...lines.map((line, index) => {
+                const isHeader = Number(line.lineType) === LINE_TYPE.Header;
+                const onlyRow = lines.length === 1;
+                const pi = payloadRows.indexOf(index);
+                const err = (field) => (pi >= 0 ? fieldErrors[`lines[${pi}].${field}`] : undefined);
+                const label = (text) => e.jsx("span", { className: "qtn-col--label", children: text });
+                const kind = kindOf(line.serviceType);
+                const custom = line.serviceType === CUSTOM_KIND;
+                const oneTime = isOneTime(line);
+                const picked = !custom && Boolean(String(line.description).trim());
+                const rateEmpty = String(line.unitPrice).trim() === "";
+                const noPrice = picked && line.standardRate === null && rateEmpty;
+                const edited = !custom && line.standardRate !== null && !rateEmpty
+                  && Number(line.unitPrice) !== Number(line.standardRate);
+                const rowStyle = {
+                  boxShadow: dragOver === index && dragFrom !== null && dragFrom !== index
+                    ? "inset 0 2px 0 var(--accent-strong)" : undefined,
+                  opacity: dragFrom === index ? 0.5 : 1,
+                };
+                const dragProps = {
+                  onDragOver: (ev) => { if (dragFrom !== null) { ev.preventDefault(); setDragOver(index); } },
+                  onDrop: (ev) => { ev.preventDefault(); if (dragFrom !== null) moveLine(dragFrom, index); setDragFrom(null); setDragOver(null); },
+                };
+                const handle = e.jsx("div", {
+                  className: "qtn-col--handle",
+                  role: "cell",
+                  children: e.jsx("span", {
+                    className: "qtn-grid__handle",
+                    draggable: true,
+                    role: "button",
+                    tabIndex: 0,
+                    "aria-label": `Drag row ${index + 1} to reorder`,
+                    title: "Drag to reorder",
+                    onDragStart: (ev) => { setDragFrom(index); ev.dataTransfer.effectAllowed = "move"; ev.dataTransfer.setData("text/plain", String(index)); },
+                    onDragEnd: () => { setDragFrom(null); setDragOver(null); },
+                    children: "⋮⋮",
                   }),
+                });
+                const del = e.jsx("div", {
+                  role: "cell",
+                  children: e.jsx("div", {
+                    className: "qtn-grid__actions",
+                    children: e.jsx("button", {
+                      type: "button",
+                      className: "qtn-iconbtn qtn-iconbtn--danger",
+                      "aria-label": `Delete row ${index + 1}`,
+                      title: onlyRow ? "A quotation keeps at least one row" : "Delete row",
+                      disabled: onlyRow,
+                      style: onlyRow ? { opacity: 0.35, cursor: "not-allowed" } : undefined,
+                      onClick: () => removeLine(index),
+                      children: "✕",
+                    }),
+                  }),
+                });
 
-                  isHeader
-                    ? e.jsx(Input, {
-                      label: "Section heading",
-                      value: line.description,
-                      onChange: (ev) => patchLine(index, { description: ev.target.value }),
-                    })
-                    : e.jsxs("div", {
-                      className: "qtn-line__grid",
-                      children: [
-                        e.jsxs("div", {
-                          className: "field qtn-line__service",
-                          children: [
-                            e.jsx("label", { className: "field__label", children: "Service" }),
-                            e.jsxs("select", {
-                              className: "field__input",
-                              value: line.serviceKey,
-                              onChange: (ev) => applyService(index, ev.target.value),
-                              children: [
-                                e.jsx("option", { value: "", children: "Custom line" }),
-                                ...serviceOptions.map(([group, items]) => e.jsx("optgroup", {
-                                  label: group,
-                                  children: items.map((option) => e.jsx("option", {
-                                    value: serviceKeyOf(option),
-                                    children: option.capacity
-                                      ? `${option.name} · ${option.capacity} seat${option.capacity === 1 ? "" : "s"}`
-                                      : option.name,
-                                  }, serviceKeyOf(option))),
-                                }, group)),
-                              ],
-                            }),
-                          ],
-                        }),
-                        e.jsx(Input, {
-                          label: "Description",
-                          required: true,
+                /* A section heading saved by an older form stays editable. */
+                if (isHeader) {
+                  return e.jsxs("div", {
+                    className: "qtn-grid__row", role: "row", style: rowStyle, ...dragProps,
+                    children: [
+                      handle,
+                      e.jsx("div", {
+                        className: "qtn-col--wide", role: "cell", style: { gridColumn: "2 / 10" },
+                        children: e.jsx("input", {
+                          className: "field__input", style: { fontWeight: 700 },
+                          "aria-label": `Section heading ${index + 1}`,
                           value: line.description,
-                          error: fieldErrors[`lines[${index}].description`],
                           onChange: (ev) => patchLine(index, { description: ev.target.value }),
                         }),
-                        e.jsx(Input, {
-                          label: "Qty",
-                          type: "number", min: "0", step: "0.001",
-                          readOnly: Boolean(service && service.quantityLocked),
-                          hint: service && service.quantityLocked
-                            ? "One per line — add another line for a second one" : undefined,
-                          value: line.quantity,
-                          error: fieldErrors[`lines[${index}].quantity`],
-                          onChange: (ev) => patchLine(index, { quantity: ev.target.value }),
-                        }),
-                        e.jsx(Input, {
-                          label: "Duration",
-                          type: "number", min: "0", step: "0.001",
-                          value: line.durationValue,
-                          error: fieldErrors[`lines[${index}].durationValue`],
-                          onChange: (ev) => patchLine(index, { durationValue: ev.target.value }),
-                        }),
-                        e.jsx(Select, {
-                          label: "Unit",
-                          value: line.durationUnit,
-                          placeholder: "—",
-                          options: DURATION_UNITS.map((u) => ({ value: u, label: u })),
-                          error: fieldErrors[`lines[${index}].durationUnit`],
-                          onChange: (ev) => patchLine(index, { durationUnit: ev.target.value }),
-                        }),
-                        e.jsx(Input, {
-                          label: "Rate",
-                          type: "number", min: "0", step: "0.01",
-                          value: line.unitPrice,
-                          hint: rateChanged
-                            ? `Changed from ${formatInr(line.standardRate)} (standard price)`
-                            : undefined,
-                          error: fieldErrors[`lines[${index}].unitPrice`],
-                          onChange: (ev) => patchLine(index, { unitPrice: ev.target.value }),
-                        }),
-                        e.jsx(Select, {
-                          label: "GST",
-                          value: line.taxPercent,
-                          options: gstOptions,
-                          hint: intraState ? "CGST + SGST" : "IGST",
-                          onChange: (ev) => patchLine(index, { taxPercent: ev.target.value }),
-                        }),
-                        e.jsx(Input, {
-                          label: "Line discount",
-                          type: "number", min: "0", step: "0.01",
-                          value: line.discountAmount,
-                          error: fieldErrors[`lines[${index}].discountAmount`],
-                          onChange: (ev) => patchLine(index, { discountAmount: ev.target.value }),
-                        }),
-                        e.jsx(Input, {
-                          label: "HSN / SAC",
-                          value: line.hsnSacCode,
-                          onChange: (ev) => patchLine(index, { hsnSacCode: ev.target.value }),
-                        }),
-                        e.jsxs("div", {
-                          className: "qtn-line__amount",
-                          children: [
-                            e.jsx("div", { className: "qtn-detail__label", children: "Amount" }),
-                            e.jsx("strong", { children: formatInr(amount) }),
-                          ],
+                      }),
+                      del,
+                    ],
+                  }, line.key);
+                }
+
+                return e.jsxs("div", {
+                  className: "qtn-grid__row", role: "row", style: rowStyle, ...dragProps,
+                  children: [
+                    handle,
+                    e.jsxs("div", {
+                      className: "qtn-col--wide", role: "cell",
+                      children: [
+                        label("Service type"),
+                        e.jsx("select", {
+                          className: "field__input",
+                          "aria-label": `Service type ${index + 1}`,
+                          value: line.serviceType,
+                          onChange: (ev) => changeKind(index, ev.target.value),
+                          children: SERVICE_KINDS.map((k) => e.jsx("option", { value: k.value, children: k.label }, k.value)),
                         }),
                       ],
                     }),
-                ],
-              }, line.key);
-            }),
+                    e.jsxs("div", {
+                      className: "qtn-col--wide", role: "cell", style: { minWidth: 0 },
+                      children: [
+                        label("Item"),
+                        custom
+                          ? e.jsx("input", {
+                            className: `field__input${err("description") ? " field__input--error" : ""}`,
+                            "aria-label": `Item ${index + 1}`,
+                            placeholder: "e.g. Setup / branding charges",
+                            maxLength: 300,
+                            value: line.description,
+                            onChange: (ev) => { clearField(`lines[${pi}].description`); patchLine(index, { description: ev.target.value }); },
+                          })
+                          : e.jsx(ServicePicker, {
+                            options: services.filter((o) => String(o.serviceType) === line.serviceType),
+                            value: line.description,
+                            unit: line.durationUnit,
+                            rowNumber: index + 1,
+                            placeholder: `Select a ${kind.label.toLowerCase()}`,
+                            onPick: (option) => pickService(index, option),
+                          }),
+                        err("description") && e.jsx("div", { className: "field__error", role: "alert", children: err("description") }),
+                      ],
+                    }),
+                    e.jsxs("div", {
+                      className: "qtn-num", role: "cell",
+                      children: [
+                        label("Qty"),
+                        e.jsx("input", {
+                          className: `field__input${err("quantity") ? " field__input--error" : ""}`,
+                          "aria-label": `Quantity ${index + 1}`,
+                          type: "number", min: "0", step: "1",
+                          value: line.quantity,
+                          onChange: (ev) => { clearField(`lines[${pi}].quantity`); patchLine(index, { quantity: ev.target.value }); },
+                        }),
+                        err("quantity") && e.jsx("div", { className: "field__error", role: "alert", children: err("quantity") }),
+                      ],
+                    }),
+                    e.jsxs("div", {
+                      className: "qtn-num", role: "cell",
+                      children: [
+                        label("Duration"),
+                        e.jsx("input", {
+                          className: `field__input${err("durationValue") ? " field__input--error" : ""}`,
+                          "aria-label": `Duration ${index + 1}`,
+                          type: "number", min: "0", step: "1",
+                          disabled: oneTime,
+                          title: oneTime ? "One-time: charged once, so the duration is 1" : undefined,
+                          value: oneTime ? "1" : line.durationValue,
+                          onChange: (ev) => { clearField(`lines[${pi}].durationValue`); patchLine(index, { durationValue: ev.target.value }); },
+                        }),
+                        err("durationValue") && e.jsx("div", { className: "field__error", role: "alert", children: err("durationValue") }),
+                      ],
+                    }),
+                    e.jsxs("div", {
+                      role: "cell",
+                      children: [
+                        label("Unit"),
+                        e.jsx("select", {
+                          className: "field__input",
+                          "aria-label": `Unit ${index + 1}`,
+                          value: line.durationUnit || ONE_TIME,
+                          disabled: kind.units.length === 1,
+                          onChange: (ev) => changeUnit(index, ev.target.value),
+                          /* An older line may carry a unit this type no longer offers. */
+                          children: [...new Set([...kind.units, line.durationUnit || ONE_TIME])]
+                            .map((u) => e.jsx("option", { value: u, children: u }, u)),
+                        }),
+                      ],
+                    }),
+                    e.jsxs("div", {
+                      className: "qtn-num", role: "cell",
+                      children: [
+                        label("Rate (₹)"),
+                        e.jsx("input", {
+                          className: `field__input${err("unitPrice") || noPrice ? " field__input--error" : ""}`,
+                          "aria-label": `Rate ${index + 1}`,
+                          type: "number", min: "0", step: "0.01",
+                          placeholder: noPrice ? "Enter rate" : undefined,
+                          value: line.unitPrice,
+                          onChange: (ev) => { clearField(`lines[${pi}].unitPrice`); patchLine(index, { unitPrice: ev.target.value }); },
+                        }),
+                        noPrice && e.jsx("div", { className: "qtn-grid__warn", role: "status", children: "No price set – enter rate" }),
+                        edited && e.jsxs("div", {
+                          className: "qtn-grid__sub qtn-num",
+                          title: `Configured price ${rupees(line.standardRate)}`,
+                          children: [
+                            e.jsx("span", { style: { color: "var(--regalis-gold-dark)", fontWeight: 600 }, children: "edited" }),
+                            " ",
+                            e.jsx("button", {
+                              type: "button",
+                              "aria-label": `Reset row ${index + 1} to the configured price ${rupees(line.standardRate)}`,
+                              title: `Reset to ${rupees(line.standardRate)}`,
+                              onClick: () => resetRate(index),
+                              style: { background: "none", border: 0, padding: 0, cursor: "pointer", color: "var(--regalis-gold-dark)", font: "inherit" },
+                              children: "↺",
+                            }),
+                          ],
+                        }),
+                        err("unitPrice") && e.jsx("div", { className: "field__error", role: "alert", children: err("unitPrice") }),
+                      ],
+                    }),
+                    e.jsxs("div", {
+                      role: "cell",
+                      children: [
+                        label("Tax"),
+                        e.jsx("select", {
+                          className: "field__input",
+                          "aria-label": `Tax ${index + 1}`,
+                          value: line.nonTaxable ? "nt" : line.taxPercent,
+                          onChange: (ev) => patchLine(index, ev.target.value === "nt"
+                            ? { nonTaxable: true }
+                            : { nonTaxable: false, taxPercent: ev.target.value }),
+                          children: taxOptions(line).map((o) => e.jsx("option", { value: o.value, children: o.label }, o.value)),
+                        }),
+                      ],
+                    }),
+                    e.jsxs("div", {
+                      role: "cell",
+                      children: [
+                        label("Amount"),
+                        e.jsx("div", { className: "qtn-grid__amount", children: formatAmount(lineAmountOf(line)) }),
+                      ],
+                    }),
+                    del,
+                    /* The §2.1 line text, exactly as the PDF will print it. */
+                    String(line.description).trim() && e.jsx("div", {
+                      className: "qtn-grid__summary", role: "cell",
+                      children: lineSummary(line),
+                    }),
+                  ],
+                }, line.key);
+              }),
+            ],
           }),
-          lines.length >= 100 && e.jsx("p", {
-            className: "field__error", children: "A quotation carries at most 100 lines.",
+          e.jsxs("div", {
+            className: "qtn-grid__footer",
+            children: [
+              e.jsx(Button, { size: "sm", variant: "outline", disabled: lines.length >= 100, onClick: () => insertLineAt(lines.length), children: "+ Add New Row" }),
+              e.jsx(Button, { size: "sm", variant: "outline", disabled: lines.length >= 100, onClick: () => setBulkOpen(true), children: "+ Add Items in Bulk" }),
+            ],
+          }),
+          e.jsx("p", {
+            className: "field__hint qtn-grid__hint",
+            children: `Rates are auto-filled from prices configured in the app. You can change the rate on any line. Tax is charged as ${intraState ? "CGST + SGST (intra-state)" : "IGST (inter-state)"}.`,
+          }),
+          itemsError && e.jsx("p", { className: "field__error qtn-grid__hint", role: "alert", children: itemsError }),
+          payloadRows.length >= 100 && e.jsx("p", {
+            className: "field__error qtn-grid__hint", children: "A quotation carries at most 100 lines.",
           }),
         ],
+      }),
+
+      bulkOpen && e.jsx(BulkServicesModal, {
+        services,
+        onClose: () => setBulkOpen(false),
+        onAdd: (picks) => { addServicesInBulk(picks); setBulkOpen(false); },
       }),
 
       /* Notes beside the totals box, as in the document */
@@ -2017,8 +2801,25 @@ function QuotationSummaryCard({ quotation }) {
         className: "qtn-details",
         children: [
           e.jsx(Detail, { label: "Status", children: e.jsx(StatusPill, { quotation }) }),
-          e.jsx(Detail, { label: "Customer", children: quotation.customerName }),
+          e.jsx(Detail, {
+            label: "Customer",
+            children: quotation.customerId
+              ? quotation.customerName
+              : e.jsxs(e.Fragment, {
+                children: [
+                  quotation.customerName,
+                  e.jsx("div", { className: "qtn-cell__muted", children: "No customer account" }),
+                ],
+              }),
+          }),
           e.jsx(Detail, { label: "Company", children: quotation.customerCompanyName }),
+          e.jsx(Detail, { label: "GSTIN", children: quotation.customerGstin }),
+          e.jsx(Detail, {
+            label: "Address",
+            children: quotation.billingAddress
+              ? e.jsx("span", { style: { whiteSpace: "pre-line" }, children: quotation.billingAddress })
+              : null,
+          }),
           e.jsx(Detail, { label: "Reference", children: quotation.referenceNumber }),
           e.jsx(Detail, { label: "Quote date", children: formatDate(quotation.quotationDate) }),
           e.jsx(Detail, { label: "Valid until", children: e.jsx(ValidUntil, { quotation }) }),
@@ -2044,7 +2845,7 @@ function QuotationSummaryCard({ quotation }) {
 function QuotationLinesCard({ quotation }) {
   const intra = quotation.taxMode === 1;
   return e.jsxs(Card, {
-    title: "Services",
+    title: "Items",
     children: [
       e.jsx("div", {
         className: "table-scroll",
@@ -2053,7 +2854,7 @@ function QuotationLinesCard({ quotation }) {
           children: [
             e.jsx("thead", {
               children: e.jsx("tr", {
-                children: ["#", "Service", "Qty", "Duration", "Rate", "GST", "Amount"].map(
+                children: ["#", "Item", "Qty", "Duration", "Rate", "Tax", "Amount"].map(
                   (h) => e.jsx("th", { children: h }, h),
                 ),
               }),
@@ -2073,22 +2874,37 @@ function QuotationLinesCard({ quotation }) {
                     e.jsxs("td", {
                       children: [
                         e.jsx("div", { children: line.description }),
+                        /* The §2.1 line text, as printed on the PDF. */
+                        line.summary && e.jsx("div", { className: "qtn-cell__muted", children: line.summary }),
+                        line.lineNotes && e.jsx("div", {
+                          className: "qtn-cell__muted", style: { whiteSpace: "pre-line" }, children: line.lineNotes,
+                        }),
                         e.jsx("div", {
                           className: "qtn-cell__muted",
                           children: [
-                            SERVICE_TYPE_LABEL[line.serviceType],
-                            line.hsnSacCode ? `SAC ${line.hsnSacCode}` : null,
+                            line.itemType ? (line.itemType === 2 ? "Service" : "Goods")
+                              : line.lineType === LINE_TYPE.Custom ? "Custom line" : SERVICE_TYPE_LABEL[line.serviceType],
+                            /* Goods carry an HSN code; services (and older lines) a SAC code. */
+                            line.hsnSacCode ? `${line.itemType === 1 ? "HSN" : "SAC"} ${line.hsnSacCode}` : null,
                           ].filter(Boolean).join(" · "),
                         }),
                       ],
                     }),
-                    e.jsx("td", { children: line.quantity }),
+                    e.jsx("td", { children: line.unit ? `${line.quantity} ${line.unit}` : line.quantity }),
                     e.jsx("td", {
                       children: line.durationValue
                         ? `${line.durationValue} ${line.durationUnit ?? ""}`.trim() : "—",
                     }),
-                    e.jsx("td", { children: formatInr(line.unitPrice) }),
-                    e.jsx("td", { children: `${line.taxPercent}%` }),
+                    e.jsxs("td", {
+                      children: [
+                        formatInr(line.unitPrice),
+                        line.rateEdited && e.jsx("div", {
+                          className: "qtn-cell__muted",
+                          children: `edited · configured ${formatInr(line.standardRate)}`,
+                        }),
+                      ],
+                    }),
+                    e.jsx("td", { children: line.isNonTaxable ? "Non-Taxable" : `${line.taxPercent}%` }),
                     e.jsx("td", { children: e.jsx("strong", { children: formatInr(line.lineAmount) }) }),
                   ],
                 }, line.quotationLineId))),

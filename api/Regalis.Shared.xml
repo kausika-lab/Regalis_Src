@@ -75,6 +75,11 @@
         <member name="T:Regalis.Shared.Constants.ErrorCodes">
             <summary>Machine-readable error codes carried in <c>ApiError.Code</c> (API_PLAN §1).</summary>
         </member>
+        <member name="F:Regalis.Shared.Constants.ErrorCodes.EmailNotVerified">
+            <summary>Credentials were right but the email has never been verified. Distinct
+            from ACCOUNT_INACTIVE so the SPA can send the member to OTP verification instead
+            of telling a deactivated account to check their inbox.</summary>
+        </member>
         <member name="F:Regalis.Shared.Constants.ErrorCodes.ProfileIncomplete">
             <summary>Authenticated, but onboarding is unfinished. Distinct from a plain 403
             so the SPA can route to the onboarding form rather than say "not allowed".</summary>

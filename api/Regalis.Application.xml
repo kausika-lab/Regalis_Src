@@ -711,6 +711,14 @@
             <summary>The four summary cards and the status tab counts (document §3.1).
             Scoped to the current financial year, which is what "Total quotes" means there.</summary>
         </member>
+        <member name="T:Regalis.Application.Finance.QuotationStatusCountsDto">
+            <summary>The status tab counts under the list's filters. Keys are QuotationStatus;
+            a lapsed Sent/Viewed quotation is counted as Expired, as the list shows it.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.QuotationStatusCountsDto.#ctor(System.Int32,System.Collections.Generic.Dictionary{System.Byte,System.Int32})">
+            <summary>The status tab counts under the list's filters. Keys are QuotationStatus;
+            a lapsed Sent/Viewed quotation is counted as Expired, as the list shows it.</summary>
+        </member>
         <member name="T:Regalis.Application.Finance.QuotationServiceOptionDto">
             <summary>One pickable service for the item table, with the price already configured
             for it (document §2.1). Grouped client-side by <see cref="P:Regalis.Application.Finance.QuotationServiceOptionDto.Group"/>.</summary>
@@ -718,6 +726,12 @@
         <member name="M:Regalis.Application.Finance.QuotationServiceOptionDto.#ctor(System.Byte,System.String,System.Nullable{System.Int32},System.Nullable{System.Int32},System.Nullable{System.Int32},System.String,System.String,System.Nullable{System.Int32},System.String,System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.Boolean)">
             <summary>One pickable service for the item table, with the price already configured
             for it (document §2.1). Grouped client-side by <see cref="P:Regalis.Application.Finance.QuotationServiceOptionDto.Group"/>.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.QuotationItemRateDto">
+            <summary>One earlier price for an item, for the Rate column's Recent Transactions.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.QuotationItemRateDto.#ctor(System.Int64,System.String,System.DateOnly,System.String,System.Decimal,System.Byte,System.String)">
+            <summary>One earlier price for an item, for the Rate column's Recent Transactions.</summary>
         </member>
         <member name="T:Regalis.Application.Finance.QuotationStateOptionDto">
             <summary>GST state for the place-of-supply picker. Code 29 is Karnataka, the one
@@ -771,8 +785,9 @@
             <summary>Cabin / Desk / MeetingRoom / Pass / Other — matches any line (§3.1).</summary>
         </member>
         <member name="P:Regalis.Application.Finance.QuotationListRequest.DatePreset">
-            <summary>today | week | month | fy — a shorthand for From/To, which win if both
-            are given. Anything else is ignored rather than rejected.</summary>
+            <summary>today | week | month | lastmonth | quarter | fy | lastfy — a shorthand
+            for From/To, which win if either is given. Anything else is ignored rather than
+            rejected. SortBy takes date (default) | number | amount.</summary>
         </member>
         <member name="P:Regalis.Application.Finance.QuotationListRequest.ExpiringInDays">
             <summary>The "Expiring in 3 days" card: open quotations lapsing within N days.</summary>
@@ -794,6 +809,13 @@
         </member>
         <member name="M:Regalis.Application.Finance.IQuotationService.GetSummaryAsync(System.Threading.CancellationToken)">
             <summary>The four summary cards and the status tab counts (document §3.1).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.GetItemRatesAsync(System.Int32,System.Int32,System.Threading.CancellationToken)">
+            <summary>The last prices an item was quoted at, newest first. Drafts and
+            cancelled quotations are left out: they were never offered.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IQuotationService.GetStatusCountsAsync(Regalis.Application.Finance.QuotationListRequest,System.Threading.CancellationToken)">
+            <summary>The status tab counts under the list's filters, ignoring the status.</summary>
         </member>
         <member name="M:Regalis.Application.Finance.IQuotationService.GetFormOptionsAsync(System.Threading.CancellationToken)">
             <summary>Everything the create form needs, in one call (document §3.2).</summary>
@@ -920,12 +942,18 @@
         <member name="P:Regalis.Application.Operations.InventoryItemListRequest.BelowReorder">
             <summary>true = only items at or under their reorder level.</summary>
         </member>
+        <member name="P:Regalis.Application.Operations.InventoryItemListRequest.ItemType">
+            <summary>1 Goods, 2 Service.</summary>
+        </member>
         <member name="T:Regalis.Application.Operations.IInventoryService">
             <summary>The inventory module (M19). The ledger is append-only: there is no update
             or delete endpoint; a mistake is corrected with a compensating Adjustment row.</summary>
         </member>
         <member name="M:Regalis.Application.Operations.IInventoryService.ExportAsync(Regalis.Application.Operations.InventoryTransactionListRequest,System.Threading.CancellationToken)">
             <summary>CSV of the transaction ledger for the filter window.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IInventoryService.ExportItemsExcelAsync(Regalis.Application.Operations.InventoryItemListRequest,System.Threading.CancellationToken)">
+            <summary>The item master as an .xlsx workbook, filtered like the Items screen.</summary>
         </member>
         <member name="M:Regalis.Application.Operations.INotificationService.BroadcastAsync(Regalis.Application.Operations.BroadcastNotificationRequest,System.Threading.CancellationToken)">
             <summary>Fans a broadcast out to one row per recipient so read-state stays personal.</summary>

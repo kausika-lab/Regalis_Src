@@ -42,6 +42,25 @@ if (string.IsNullOrWhiteSpace(signingKey))
     builder.Configuration["Jwt:SigningKey"] = signingKey;
 }
 
+// ── Microsoft Graph mail: fail fast at boot rather than at the first OTP, and
+//    only when Graph is the selected channel, so Console and Smtp deployments
+//    need none of it. Key NAMES only in the message — the secret must never
+//    reach a log, an exception or a response. ─────────────────────────────────
+if (string.Equals(builder.Configuration["Otp:Channel"], "Graph", StringComparison.OrdinalIgnoreCase))
+{
+    var graphMissing = new[] { "TenantId", "ClientId", "ClientSecret", "SenderEmail" }
+        .Where(key => string.IsNullOrWhiteSpace(builder.Configuration[$"MicrosoftGraph:{key}"]))
+        .Select(key => $"MicrosoftGraph:{key}")
+        .ToList();
+    if (graphMissing.Count > 0)
+    {
+        throw new InvalidOperationException(
+            "Otp:Channel is 'Graph' but the Microsoft Graph configuration is incomplete. " +
+            $"Missing: {string.Join(", ", graphMissing)}. " +
+            "Set them via environment variables or user-secrets.");
+    }
+}
+
 // ── MVC + validation ────────────────────────────────────────────────────────
 builder.Services.AddScoped<ValidationActionFilter>();
 builder.Services.AddControllers(options => options.Filters.AddService<ValidationActionFilter>())

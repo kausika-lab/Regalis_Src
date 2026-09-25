@@ -43,6 +43,26 @@ Secrets (connection string, JWT key, Razorpay keys) come from user-secrets or
 environment variables — see `documentation/ARCHITECTURE.md` §4. `appsettings.json`
 ships with empty placeholders and is safe to commit.
 
+#### OTP delivery
+
+`Otp:Channel` picks the one-time-code channel: `Console` (default — the code goes to
+the log, so a fresh clone runs without a mail account), `Smtp`, or `Graph` for a
+Microsoft 365 mailbox through Microsoft Graph app-only `Mail.Send`:
+
+```
+Otp__Channel=Graph
+MicrosoftGraph__TenantId=<directory (tenant) id>
+MicrosoftGraph__ClientId=<application (client) id>
+MicrosoftGraph__ClientSecret=<client secret VALUE, not the secret id>
+MicrosoftGraph__SenderEmail=noreply@yourdomain.com
+```
+
+`SenderEmail` must be a real licensed mailbox in the tenant — app-only `sendMail` posts
+as a specific user, not as the application. The app refuses to start when the channel is
+`Graph` and any of these is missing, so a typo fails at boot rather than at someone's
+registration. Entra setup and the recommended application access policy are in
+`docs/microsoft-365-otp.md` of the deployment repo.
+
 ### Frontend
 
 ```bash

@@ -59,12 +59,19 @@ public static class DependencyInjection
         // sends real mail; anything else stays on the console sender so a fresh
         // clone runs without SMTP credentials (execution-plan risk #3).
         services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.SectionName));
+        services.Configure<GraphMailOptions>(configuration.GetSection(GraphMailOptions.SectionName));
         services.AddScoped<ConsoleOtpSender>();
         services.AddScoped<SmtpOtpSender>();
-        services.AddScoped<IOtpSender>(provider =>
-            string.Equals(configuration["Otp:Channel"], "Smtp", StringComparison.OrdinalIgnoreCase)
-                ? provider.GetRequiredService<SmtpOtpSender>()
-                : provider.GetRequiredService<ConsoleOtpSender>());
+        // Singleton: it holds a ClientSecretCredential, which caches the Graph access
+        // token and refreshes it on expiry. A scoped sender would re-authenticate per
+        // request. It is stateless apart from that cache, so sharing it is safe.
+        services.AddSingleton<GraphOtpSender>();
+        services.AddScoped<IOtpSender>(provider => configuration["Otp:Channel"]?.ToLowerInvariant() switch
+        {
+            "graph" => provider.GetRequiredService<GraphOtpSender>(),
+            "smtp" => provider.GetRequiredService<SmtpOtpSender>(),
+            _ => provider.GetRequiredService<ConsoleOtpSender>()
+        });
 
         // Masters
         services.AddScoped<ILocationService, LocationService>();

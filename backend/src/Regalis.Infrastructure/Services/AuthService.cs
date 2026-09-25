@@ -63,9 +63,11 @@ public class AuthService(
         if (user.Status == UserStatus.PendingVerification)
         {
             await RecordLoginAttemptAsync(user.UserId, email, false, "PendingVerification", ct);
+            // Its own code, not ACCOUNT_INACTIVE: the SPA routes this one to the OTP
+            // screen, and a genuinely deactivated account must not be sent there.
             throw new UnauthorizedException(
-                "Your account is not verified yet. Complete OTP verification first.",
-                ErrorCodes.AccountInactive);
+                "Your email is not verified yet. Enter the code we just sent you.",
+                ErrorCodes.EmailNotVerified);
         }
 
         if (user.Status == UserStatus.Inactive || !user.IsActive)

@@ -9,6 +9,10 @@ public static class ErrorCodes
     public const string TokenRevoked = "TOKEN_REVOKED";
     public const string AccountLocked = "ACCOUNT_LOCKED";
     public const string AccountInactive = "ACCOUNT_INACTIVE";
+    /// <summary>Credentials were right but the email has never been verified. Distinct
+    /// from ACCOUNT_INACTIVE so the SPA can send the member to OTP verification instead
+    /// of telling a deactivated account to check their inbox.</summary>
+    public const string EmailNotVerified = "EMAIL_NOT_VERIFIED";
     public const string AuthorizationFailed = "AUTHORIZATION_FAILED";
     /// <summary>Authenticated, but onboarding is unfinished. Distinct from a plain 403
     /// so the SPA can route to the onboarding form rather than say "not allowed".</summary>

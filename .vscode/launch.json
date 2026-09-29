@@ -10,7 +10,13 @@
             "request": "launch",
             "name": "Launch Chrome against localhost",
             "url": "http://localhost:8080",
-            "webRoot": "${workspaceFolder}"
+            "webRoot": "${workspaceFolder}",
+            // Keep the debug browser profile on a SHORT path. The default one lives under
+            // %APPDATA%\Code\User\workspaceStorage\<hash>\ms-vscode.js-debug\.profile, and the
+            // service-worker cache files inside it pass Windows' 260-character path limit
+            // (LongPathsEnabled is off on this server), so caches.open() fails with
+            // "Failed to execute 'open' on 'CacheStorage': Unexpected internal error".
+            "userDataDir": "C:\\ChromeDebug\\Regalis"
         }
     ]
 }

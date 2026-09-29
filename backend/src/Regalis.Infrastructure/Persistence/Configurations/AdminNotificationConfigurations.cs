@@ -65,6 +65,7 @@ public class AnnouncementConfiguration : IEntityTypeConfiguration<Announcement>
         builder.HasKey(x => x.AnnouncementId);
         builder.Property(x => x.Title).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Message).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.DeliveryNote).HasMaxLength(300);
         builder.HasIndex(x => new { x.Status, x.ScheduledForUtc }).HasDatabaseName("IX_Announcement_Status_Scheduled");
         builder.HasOne<User>().WithMany().HasForeignKey(x => x.TargetCustomerId)
             .OnDelete(DeleteBehavior.Restrict);

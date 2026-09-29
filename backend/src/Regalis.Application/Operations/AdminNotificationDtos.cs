@@ -89,3 +89,88 @@ public interface IAdminNotificationService
     Task<List<AdminNotificationSettingDto>> SaveSettingsAsync(SaveAdminNotificationSettingsRequest request,
         CancellationToken ct = default);
 }
+
+// ── Announcements ───────────────────────────────────────────────────────────
+
+/// <summary>One announcement, as the Announcements tab and its View screen show it.</summary>
+public record AnnouncementDto(
+    long AnnouncementId,
+    string Title,
+    string Message,
+    // 1 AllCustomers, 2 CompaniesOnly, 3 IndividualMembers, 4 OneCustomer.
+    byte Audience,
+    long? TargetCustomerId,
+    string? TargetCustomerName,
+    bool SendEmail,
+    bool SendWhatsApp,
+    // 1 Draft, 2 Scheduled, 3 Sent.
+    byte Status,
+    DateTime? ScheduledForUtc,
+    DateTime? SentUtc,
+    string? SentByName,
+    int RecipientCount,
+    int ReadCount,
+    int EmailSentCount,
+    int WhatsAppSentCount,
+    // WhatsApp was chosen but no provider is configured: it did NOT go out.
+    bool WhatsAppManualShare,
+    // Email / WhatsApp copies not handled yet (the worker sends them).
+    bool ChannelsPending,
+    string? DeliveryNote,
+    DateTime CreatedUtc);
+
+public class AnnouncementListRequest : PagedRequest
+{
+    public byte? Status { get; set; }
+    public byte? Audience { get; set; }
+    /// <summary>IST dates, inclusive, on when it was sent / is scheduled / was created.</summary>
+    public DateOnly? From { get; set; }
+    public DateOnly? To { get; set; }
+}
+
+/// <summary>What the form saves. Action: "draft" keeps it editable, "send" sends it now,
+/// "schedule" sends it at ScheduledForUtc.</summary>
+public record SaveAnnouncementRequest(
+    string Title,
+    string Message,
+    byte Audience,
+    long? TargetCustomerId,
+    bool SendEmail,
+    bool SendWhatsApp,
+    DateTime? ScheduledForUtc,
+    string Action);
+
+public class SaveAnnouncementRequestValidator : AbstractValidator<SaveAnnouncementRequest>
+{
+    public SaveAnnouncementRequestValidator()
+    {
+        RuleFor(x => x.Title).NotEmpty().WithMessage("Give the announcement a title.").MaximumLength(200);
+        RuleFor(x => x.Message).NotEmpty().WithMessage("Write the message customers will see.")
+            .MaximumLength(500).WithMessage("Keep the message to 500 characters.");
+        RuleFor(x => x.Audience).InclusiveBetween((byte)1, (byte)4).WithMessage("Pick who it goes to.");
+        RuleFor(x => x.TargetCustomerId).NotNull().GreaterThan(0)
+            .When(x => x.Audience == 4).WithMessage("Pick the customer.");
+        RuleFor(x => x.Action).Must(a => a is "draft" or "send" or "schedule")
+            .WithMessage("Action must be draft, send or schedule.");
+        RuleFor(x => x.ScheduledForUtc).NotNull().When(x => x.Action == "schedule")
+            .WithMessage("Pick when to send it.");
+    }
+}
+
+/// <summary>Which extra channels can really deliver on this server, so the form can say
+/// so before sending instead of failing silently.</summary>
+public record AnnouncementChannelsDto(bool EmailConfigured, bool WhatsAppConfigured);
+
+public interface IAnnouncementService
+{
+    Task<PagedResult<AnnouncementDto>> ListAsync(AnnouncementListRequest request, CancellationToken ct = default);
+    Task<Dictionary<byte, int>> StatusCountsAsync(CancellationToken ct = default);
+    Task<AnnouncementDto> GetAsync(long announcementId, CancellationToken ct = default);
+    Task<AnnouncementDto> CreateAsync(SaveAnnouncementRequest request, CancellationToken ct = default);
+    /// <summary>Drafts and scheduled announcements only: a sent one is never edited.</summary>
+    Task<AnnouncementDto> UpdateAsync(long announcementId, SaveAnnouncementRequest request, CancellationToken ct = default);
+    /// <summary>Drafts and scheduled announcements only.</summary>
+    Task DeleteAsync(long announcementId, CancellationToken ct = default);
+    Task<int> AudienceCountAsync(byte audience, long? customerId, CancellationToken ct = default);
+    AnnouncementChannelsDto Channels();
+}

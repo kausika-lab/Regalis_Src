@@ -113,6 +113,8 @@ public static class DependencyInjection
         // worker sends the email / WhatsApp copies and raises overdue invoices.
         services.AddScoped<IAdminNotificationService, AdminNotificationService>();
         services.AddScoped<AdminNotificationJobs>();
+        services.AddScoped<AnnouncementService>();
+        services.AddScoped<IAnnouncementService>(sp => sp.GetRequiredService<AnnouncementService>());
         services.AddHostedService<AdminNotificationWorker>();
         services.AddScoped<IHousekeepingService, HousekeepingService>();
         services.AddScoped<IMaintenanceService, MaintenanceService>();

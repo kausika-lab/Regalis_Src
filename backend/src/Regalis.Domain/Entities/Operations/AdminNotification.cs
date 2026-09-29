@@ -82,4 +82,9 @@ public class Announcement : AuditableEntity
     /// <summary>No WhatsApp provider was configured when it was sent, so the WhatsApp
     /// copies were NOT delivered — the admin shares the message by hand.</summary>
     public bool WhatsAppManualShare { get; set; }
+    /// <summary>Set once the email / WhatsApp copies have been handled (at once when
+    /// only in-app was chosen). Until then the worker picks it up.</summary>
+    public DateTime? ChannelsDeliveredUtc { get; set; }
+    /// <summary>What the channels did, e.g. "Email NOT sent: no mail server configured".</summary>
+    public string? DeliveryNote { get; set; }
 }

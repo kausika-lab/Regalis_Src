@@ -4343,6 +4343,9 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<byte>("Audience")
                         .HasColumnType("tinyint");
 
+                    b.Property<DateTime?>("ChannelsDeliveredUtc")
+                        .HasColumnType("datetime2(3)");
+
                     b.Property<long?>("CreatedBy")
                         .HasColumnType("bigint");
 
@@ -4354,6 +4357,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime?>("DeletedDate")
                         .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("DeliveryNote")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
 
                     b.Property<int>("EmailSentCount")
                         .HasColumnType("int");

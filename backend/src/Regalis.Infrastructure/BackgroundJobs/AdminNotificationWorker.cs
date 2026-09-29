@@ -54,7 +54,7 @@ public class AdminNotificationJobs(
                 row.DeliveryNote = "Not sent: older than a day when picked up.";
                 continue;
             }
-            int emails = 0, emailFailures = 0, whatsApp = 0, whatsAppManual = 0, whatsAppFailures = 0;
+            int emails = 0, emailFailures = 0, emailNotSent = 0, whatsApp = 0, whatsAppManual = 0, whatsAppFailures = 0;
             foreach (var admin in admins)
             {
                 var own = settings.FirstOrDefault(s => s.UserId == admin.UserId && s.Type == row.Type);
@@ -66,7 +66,10 @@ public class AdminNotificationJobs(
                 {
                     var result = await dispatcher.SendEmailAsync(new QuotationEmailMessage(
                         admin.Email, null, null, $"Regalis WorkSpace — {row.Title}", EmailHtml(row), []), ct);
-                    if (result.Succeeded) emails++; else emailFailures++;
+                    // With no mail server the sender reports success with a "not sent" note.
+                    if (!result.Succeeded) emailFailures++;
+                    else if (NotSent(result.Note)) emailNotSent++;
+                    else emails++;
                 }
                 if (wantsWhatsApp && !string.IsNullOrWhiteSpace(admin.MobileNumber))
                 {
@@ -80,7 +83,7 @@ public class AdminNotificationJobs(
                 }
             }
             row.DeliveredUtc = nowUtc;
-            row.DeliveryNote = Note(emails, emailFailures, whatsApp, whatsAppManual, whatsAppFailures);
+            row.DeliveryNote = Note(emails, emailFailures, emailNotSent, whatsApp, whatsAppManual, whatsAppFailures);
         }
         await db.SaveChangesAsync(ct);
         return pending.Count;
@@ -121,11 +124,17 @@ public class AdminNotificationJobs(
         return overdue.Count;
     }
 
-    private static string? Note(int emails, int emailFailures, int whatsApp, int manual, int whatsAppFailures)
+    /// <summary>The dispatcher reports "no mail server configured" as a success with a
+    /// note; that is not a delivery.</summary>
+    internal static bool NotSent(string? note) =>
+        note?.Contains("not sent", StringComparison.OrdinalIgnoreCase) == true;
+
+    private static string? Note(int emails, int emailFailures, int emailNotSent, int whatsApp, int manual, int whatsAppFailures)
     {
         var parts = new List<string>();
         if (emails > 0 || emailFailures > 0)
             parts.Add($"Email to {emails} admin{(emails == 1 ? "" : "s")}" + (emailFailures > 0 ? $", {emailFailures} failed" : ""));
+        if (emailNotSent > 0) parts.Add($"Email NOT sent to {emailNotSent}: no mail server configured");
         if (whatsApp > 0) parts.Add($"WhatsApp to {whatsApp}");
         if (manual > 0) parts.Add($"WhatsApp NOT sent to {manual}: no provider configured (manual share)");
         if (whatsAppFailures > 0) parts.Add($"WhatsApp failed for {whatsAppFailures}");
@@ -144,8 +153,8 @@ public class AdminNotificationJobs(
          """;
 }
 
-/// <summary>Runs <see cref="AdminNotificationJobs"/>: delivery every minute, the
-/// overdue-invoice scan every hour.</summary>
+/// <summary>Runs <see cref="AdminNotificationJobs"/> and the announcement jobs: delivery
+/// and scheduled announcements every minute, the overdue-invoice scan every hour.</summary>
 public class AdminNotificationWorker(IServiceScopeFactory scopeFactory, ILogger<AdminNotificationWorker> logger)
     : BackgroundService
 {
@@ -165,6 +174,10 @@ public class AdminNotificationWorker(IServiceScopeFactory scopeFactory, ILogger<
                     lastScan = DateTime.UtcNow;
                 }
                 await jobs.DeliverPendingAsync(stoppingToken);
+                // Scheduled announcements whose time has come, then their email / WhatsApp copies.
+                var announcements = scope.ServiceProvider.GetRequiredService<AnnouncementService>();
+                await announcements.PublishDueAsync(stoppingToken);
+                await announcements.DeliverChannelsAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

@@ -237,9 +237,19 @@
         <member name="M:Regalis.Application.Access.IAttendanceService.ExportPayrollAsync(System.DateOnly,System.DateOnly,System.Nullable{System.Int32},System.Threading.CancellationToken)">
             <summary>The payroll hand-off file (A03) via IPayrollExporter.</summary>
         </member>
+        <member name="T:Regalis.Application.Administration.AuditUserDto">
+            <summary>Who did it. <see cref="P:Regalis.Application.Administration.AuditUserDto.IsSystem"/> is true for automated jobs (no user and
+            no name on the row); a failed sign-in for an unknown address carries only the email
+            tried, as <see cref="P:Regalis.Application.Administration.AuditUserDto.Name"/>.</summary>
+        </member>
+        <member name="M:Regalis.Application.Administration.AuditUserDto.#ctor(System.Nullable{System.Int64},System.String,System.String,System.Boolean)">
+            <summary>Who did it. <see cref="P:Regalis.Application.Administration.AuditUserDto.IsSystem"/> is true for automated jobs (no user and
+            no name on the row); a failed sign-in for an unknown address carries only the email
+            tried, as <see cref="P:Regalis.Application.Administration.AuditUserDto.Name"/>.</summary>
+        </member>
         <member name="T:Regalis.Application.Administration.IAuditService">
-            <summary>The audit trail screen (API_PLAN §13). TRN_AuditLog is append-only —
-            this service only ever reads it.</summary>
+            <summary>The audit trail screen. TRN_AuditLog is append-only — this service only
+            reads it, apart from recording that an export happened.</summary>
         </member>
         <member name="T:Regalis.Application.Administration.RolePermissionRowDto">
             <summary>One row of the permission-matrix editor: a permission with its grant flag.</summary>
@@ -662,6 +672,20 @@
             <summary>The payment receipt as a PDF. The payment number is the receipt
             reference -- there is no second numbered document.</summary>
         </member>
+        <member name="T:Regalis.Application.Finance.PurchaseOrderHistoryDto">
+            <summary>One workflow step: who did what, when, and why.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.PurchaseOrderHistoryDto.#ctor(System.String,System.Nullable{System.Byte},System.Byte,System.String,System.DateTime,System.String)">
+            <summary>One workflow step: who did what, when, and why.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.SavePurchaseOrderRequest">
+            <summary>Everything after <c>Lines</c> is optional, so a client that only knows the
+            original fields keeps working unchanged.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.SavePurchaseOrderRequest.#ctor(System.Nullable{System.DateOnly},System.Int32,System.Int32,System.Nullable{System.DateOnly},System.String,System.Collections.Generic.List{Regalis.Application.Finance.SavePurchaseOrderLineRequest},System.String,System.String,System.Boolean,System.String,System.Nullable{System.Byte},System.Nullable{System.Decimal},System.String,System.String,System.Nullable{System.Decimal},System.String)">
+            <summary>Everything after <c>Lines</c> is optional, so a client that only knows the
+            original fields keeps working unchanged.</summary>
+        </member>
         <member name="T:Regalis.Application.Finance.ReceiveGoodsRequest">
             <summary>Goods received against a purchase order. Each line writes one incoming
             TRN_InventoryTransaction, and the PO status follows from the received totals —
@@ -674,16 +698,44 @@
             there is no separate "IncomingGoods" table, because stock is derived from the one
             append-only ledger (Invariant 11).</summary>
         </member>
+        <member name="T:Regalis.Application.Finance.PurchaseOrderDecisionRequest">
+            <summary>Approve (comment optional) or reject (reason required).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.PurchaseOrderDecisionRequest.#ctor(System.String)">
+            <summary>Approve (comment optional) or reject (reason required).</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.PurchaseOrderFormOptionsDto">
+            <summary>Everything the purchase-order form needs in one call, all from settings
+            and masters so nothing is hard-coded in the client.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.PurchaseOrderFormOptionsDto.#ctor(System.String,System.Boolean,System.Decimal,System.Collections.Generic.IReadOnlyList{System.Decimal},System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.IReadOnlyList{System.String},System.String,System.String,System.Collections.Generic.IReadOnlyList{Regalis.Application.Finance.QuotationTdsOptionDto},System.Collections.Generic.IReadOnlyList{Regalis.Application.Finance.QuotationStateOptionDto},System.Int32,System.Int64)">
+            <summary>Everything the purchase-order form needs in one call, all from settings
+            and masters so nothing is hard-coded in the client.</summary>
+        </member>
         <member name="T:Regalis.Application.Finance.IPurchaseOrderService">
             <summary>Purchase orders (document §4). Totals are always recomputed server-side
-            from quantity, rate, discount and the supplier's tax percent — a client-sent total
-            is never trusted. A PO is editable only while Draft.</summary>
+            from quantity, rate, discount, TDS and adjustment — a client-sent total is never
+            trusted. A PO is editable only while Draft; from Sent onwards it is frozen and can
+            only be received or cancelled.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPurchaseOrderService.GetFormOptionsAsync(System.Threading.CancellationToken)">
+            <summary>Settings-driven options for the form, and a preview of the next number.</summary>
         </member>
         <member name="M:Regalis.Application.Finance.IPurchaseOrderService.UpdateAsync(System.Int64,Regalis.Application.Finance.SavePurchaseOrderRequest,System.Threading.CancellationToken)">
             <summary>Draft only — a PO that has been sent to a supplier is frozen.</summary>
         </member>
+        <member name="M:Regalis.Application.Finance.IPurchaseOrderService.SubmitAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Draft to PendingApproval, after the submit-time checks (expected
+            delivery, terms, a delivery address).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPurchaseOrderService.ApproveAsync(System.Int64,System.String,System.Threading.CancellationToken)">
+            <summary>PendingApproval to Approved; Draft to Approved when approval is not required.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPurchaseOrderService.RejectAsync(System.Int64,System.String,System.Threading.CancellationToken)">
+            <summary>PendingApproval back to Draft, with the approver's reason.</summary>
+        </member>
         <member name="M:Regalis.Application.Finance.IPurchaseOrderService.SendAsync(System.Int64,System.Threading.CancellationToken)">
-            <summary>Draft to Sent. Recorded with a timestamp so the supplier copy is dated.</summary>
+            <summary>Approved to Sent — the point after which the PO is frozen.</summary>
         </member>
         <member name="M:Regalis.Application.Finance.IPurchaseOrderService.ReceiveAsync(System.Int64,Regalis.Application.Finance.ReceiveGoodsRequest,System.Threading.CancellationToken)">
             <summary>Receipt writes the incoming inventory rows and the PO status in one
@@ -888,6 +940,83 @@
             INSUFFICIENT_WALLET_BALANCE when the balance cannot cover the amount —
             and the database CHECK constraint refuses an overdraft regardless.</summary>
         </member>
+        <member name="T:Regalis.Application.Finance.WalletListRequest">
+            <summary>GET /api/admin/wallets. Search matches name, email or mobile.</summary>
+        </member>
+        <member name="P:Regalis.Application.Finance.WalletListRequest.Filter">
+            <summary>"all" (default), "with-balance", "zero", "low" (below Wallet.LowBalanceThreshold).</summary>
+        </member>
+        <member name="P:Regalis.Application.Finance.WalletListRequest.Sort">
+            <summary>"balance-desc" (default), "balance-asc", "name", "last-activity", "spent".</summary>
+        </member>
+        <member name="P:Regalis.Application.Finance.WalletListRequest.Activity">
+            <summary>"all" (default), "30d" / "90d" (activity in that many days), "inactive-90d".</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.WalletListItemDto">
+            <summary>One customer's wallet. Credit, debit and balance are summed from the
+            append-only ledger (TRN_WalletTransaction), never read from stored counters, so
+            Balance is always TotalCredit − TotalDebit.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.WalletListItemDto.#ctor(System.Int64,System.String,System.String,System.String,System.Decimal,System.Decimal,System.Decimal,System.Nullable{System.DateTime},System.Boolean)">
+            <summary>One customer's wallet. Credit, debit and balance are summed from the
+            append-only ledger (TRN_WalletTransaction), never read from stored counters, so
+            Balance is always TotalCredit − TotalDebit.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.WalletSummaryDto">
+            <summary>The four cards: every wallet, whatever the filters.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.WalletSummaryDto.#ctor(System.Decimal,System.Decimal,System.Decimal,System.Int32,System.Int32,System.Decimal)">
+            <summary>The four cards: every wallet, whatever the filters.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.WalletTotalsDto">
+            <summary>The table's totals row: every wallet matching the current filters, across all pages.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.WalletTotalsDto.#ctor(System.Int32,System.Decimal,System.Decimal,System.Decimal)">
+            <summary>The table's totals row: every wallet matching the current filters, across all pages.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IWalletLedgerQueries.ExportWalletsAsync(Regalis.Application.Finance.WalletListRequest,System.Threading.CancellationToken)">
+            <summary>The filtered list as CSV (every page), for the Export button.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.WalletLedgerRequest">
+            <summary>GET /api/admin/wallets/{customerId}. Search matches the txn number or narration.</summary>
+        </member>
+        <member name="P:Regalis.Application.Finance.WalletLedgerRequest.Direction">
+            <summary>"credit" or "debit"; empty for both.</summary>
+        </member>
+        <member name="P:Regalis.Application.Finance.WalletLedgerRequest.Category">
+            <summary>"recharge", "booking", "refund", "day-pass", "monthly-pass", "service",
+            "deposit" or "adjustment"; empty for all.</summary>
+        </member>
+        <member name="P:Regalis.Application.Finance.WalletLedgerRequest.From">
+            <summary>IST calendar dates, inclusive.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.WalletDetailDto">
+            <summary>Totals are the whole wallet, summed from the ledger; the transaction page
+            follows the filters. LedgerVerified compares the ledger to the stored wallet balance.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.WalletDetailDto.#ctor(Regalis.Application.Finance.WalletCustomerDto,System.Decimal,System.Decimal,System.Decimal,System.Boolean,System.Decimal,System.Boolean,Regalis.Shared.Api.PagedResult{Regalis.Application.Finance.WalletLedgerEntryDto},System.String)">
+            <summary>Totals are the whole wallet, summed from the ledger; the transaction page
+            follows the filters. LedgerVerified compares the ledger to the stored wallet balance.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.AdminAddMoneyRequest">
+            <summary>Money collected at the desk. Creates the PAY- payment and the Recharge
+            credit in one database transaction.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.AdminAddMoneyRequest.#ctor(System.Decimal,System.Byte,System.String,System.Nullable{System.DateOnly},System.String,System.Boolean,System.String)">
+            <summary>Money collected at the desk. Creates the PAY- payment and the Recharge
+            credit in one database transaction.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.AdminAdjustRequest">
+            <summary>A correction entry. Reason goes to the audit trail with the admin's name;
+            Narration is what the customer reads on their statement.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.AdminAdjustRequest.#ctor(System.String,System.Decimal,System.String,System.String)">
+            <summary>A correction entry. Reason goes to the audit trail with the admin's name;
+            Narration is what the customer reads on their statement.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IWalletDeskService.ExportStatementAsync(System.Int64,Regalis.Application.Finance.WalletLedgerRequest,System.String,System.Threading.CancellationToken)">
+            <summary>"pdf" or "csv"; honours the From/To dates (a statement is a period).</summary>
+        </member>
         <member name="P:Regalis.Application.Masters.ServiceItemListRequest.IncludeUnavailable">
             <summary>Admin grids pass true; the customer catalogue sees available only.</summary>
         </member>
@@ -909,6 +1038,44 @@
         </member>
         <member name="P:Regalis.Application.Masters.WorkspaceListRequest.Status">
             <summary>1 Available, 2 Occupied, 3 Maintenance, 4 Disabled.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.AdminNotificationDto">
+            <summary>One row of the admin Notifications feed, with this admin's read state.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AdminNotificationDto.#ctor(System.Int64,System.Byte,System.String,System.Byte,System.String,System.String,System.Nullable{System.Int64},System.String,System.String,System.Nullable{System.Int64},System.String,System.String,System.String,System.DateTime,System.Boolean,System.Boolean)">
+            <summary>One row of the admin Notifications feed, with this admin's read state.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.AdminNotificationSummaryDto">
+            <summary>The four summary cards.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AdminNotificationSummaryDto.#ctor(System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Nullable{System.DateTime})">
+            <summary>The four summary cards.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.AdminNotificationFeedDto">
+            <summary>The feed page plus the per-type chip counts (under every filter except the
+            type itself) and the summary cards.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AdminNotificationFeedDto.#ctor(Regalis.Shared.Api.PagedResult{Regalis.Application.Operations.AdminNotificationDto},System.Collections.Generic.Dictionary{System.Byte,System.Int32},System.Int32,System.Int32,Regalis.Application.Operations.AdminNotificationSummaryDto)">
+            <summary>The feed page plus the per-type chip counts (under every filter except the
+            type itself) and the summary cards.</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.AdminNotificationListRequest.State">
+            <summary>"unread" or "read"; anything else is all.</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.AdminNotificationListRequest.From">
+            <summary>IST dates, inclusive. With no From, the feed shows the last 90 days.</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.AdminNotificationListRequest.NeedsAction">
+            <summary>Only items that still need action (the "Needs action" card).</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.AdminNotificationSettingDto">
+            <summary>One row of the Notification settings screen. In-app is always on.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AdminNotificationSettingDto.#ctor(System.Byte,System.String,System.String,System.Boolean,System.Boolean,System.Boolean)">
+            <summary>One row of the Notification settings screen. In-app is always on.</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.HousekeepingListRequest.WorkspaceId">
+            <summary>Workspace the schedule blocks or takes place in.</summary>
         </member>
         <member name="M:Regalis.Application.Operations.IHousekeepingService.GetMySchedulesAsync(Regalis.Shared.Api.PagedRequest,System.Threading.CancellationToken)">
             <summary>Own rows for the signed-in staff member (matrix: Housekeeping
@@ -954,6 +1121,51 @@
         </member>
         <member name="M:Regalis.Application.Operations.IInventoryService.ExportItemsExcelAsync(Regalis.Application.Operations.InventoryItemListRequest,System.Threading.CancellationToken)">
             <summary>The item master as an .xlsx workbook, filtered like the Items screen.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.MaintenanceMeDto">
+            <summary>Capabilities are decided on the server. A caller whose only housekeeping role
+            is HOUSEKEEPING is a housekeeper: own tasks only, no add/assign/verify, whatever
+            permissions that role carries.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.MaintenanceMeDto.#ctor(System.Int64,System.String,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,Regalis.Application.Operations.MaintenanceHousekeeperDto)">
+            <summary>Capabilities are decided on the server. A caller whose only housekeeping role
+            is HOUSEKEEPING is a housekeeper: own tasks only, no add/assign/verify, whatever
+            permissions that role carries.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.MaintenanceAreaOptionDto">
+            <summary>An area is either a bookable workspace (can be blocked) or a common area.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.MaintenanceAreaOptionDto.#ctor(System.String,System.Nullable{System.Int32},System.Nullable{System.Int32})">
+            <summary>An area is either a bookable workspace (can be blocked) or a common area.</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.MaintenanceWorkListRequest.Status">
+            <summary>1 Pending … 7 Cancelled. "Overdue" (6) also matches tasks past due that
+            the sweeper has not reached yet.</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.MaintenanceWorkListRequest.Date">
+            <summary>IST day the task is due; null = today. Use All = true for every date.</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.HousekeeperListRequest.Status">
+            <summary>"active" (default), "inactive" or "all".</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.HousekeeperCreatedDto">
+            <summary>Returned once when a housekeeper is created with a login: the temporary
+            password is shown to the admin to hand over, and must be changed on first sign-in.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.HousekeeperCreatedDto.#ctor(Regalis.Application.Operations.MaintenanceHousekeeperDto,System.String)">
+            <summary>Returned once when a housekeeper is created with a login: the temporary
+            password is shown to the admin to hand over, and must be changed on first sign-in.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IMaintenanceService.CreateForScheduleAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>A housekeeping/cleaning schedule created on the Schedules tab gets its
+            matching checklist task.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IMaintenanceService.CancelForScheduleAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Cancelling a schedule on the Schedules tab cancels its open checklist task.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IMaintenanceService.SweepOverdueAsync(System.Threading.CancellationToken)">
+            <summary>Background sweep: Pending/InProgress past due (plus grace) → Overdue,
+            with alerts to admins and supervisors. Returns how many tasks turned overdue.</summary>
         </member>
         <member name="M:Regalis.Application.Operations.INotificationService.BroadcastAsync(Regalis.Application.Operations.BroadcastNotificationRequest,System.Threading.CancellationToken)">
             <summary>Fans a broadcast out to one row per recipient so read-state stays personal.</summary>

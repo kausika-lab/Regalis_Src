@@ -36,6 +36,27 @@
             (Design Invariant 6). Values are configured by the admin, never compiled in.
             </summary>
         </member>
+        <member name="T:Regalis.Shared.Constants.AppSettingKeys.Purchase">
+            <summary>Purchase orders. Shown under Settings → Billing (SettingGroup "Billing").</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Purchase.RequireApproval">
+            <summary>true: Draft → Submit → Approve → Send. false: an approver approves a Draft directly.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Purchase.TermsAndConditions">
+            <summary>Default terms copied onto each new PO; editing a PO's copy never changes this.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Purchase.TdsOptions">
+            <summary>"code|label|percent;…" — TDS Regalis deducts from supplier payments.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Purchase.GstRateOptions">
+            <summary>"0,5,12,18,28".</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Purchase.ShipmentPreferences">
+            <summary>Comma-separated shipment methods.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Purchase.AccountCategories">
+            <summary>Comma-separated accounting heads for PO lines.</summary>
+        </member>
         <member name="F:Regalis.Shared.Constants.AppSettingKeys.Quotation.DefaultGstPercent">
             <summary>Default GST rate for coworking services, 18 (document §2.3).</summary>
         </member>
@@ -69,8 +90,39 @@
         <member name="F:Regalis.Shared.Constants.AppSettingKeys.Quotation.AdvanceMonths">
             <summary>Default months of rent for the advance/security-deposit invoice.</summary>
         </member>
+        <member name="T:Regalis.Shared.Constants.AppSettingKeys.Maintenance">
+            <summary>Maintenance &amp; housekeeping checklist (Settings, group "Maintenance").</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Maintenance.Categories">
+            <summary>Comma-separated work categories.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Maintenance.Areas">
+            <summary>Comma-separated common areas; bookable workspaces are added automatically.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Maintenance.OverdueGraceMinutes">
+            <summary>Minutes after the due time before a task is marked Overdue.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Maintenance.ShiftHours">
+            <summary>"Morning=06:00-14:00;Evening=14:00-22:00;Night=22:00-06:00" (IST) — drives "On duty now".</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Wallet.LowBalanceThreshold">
+            <summary>A balance below this is "low": the admin list filter, the amber
+            highlight and any low-balance reminder all read it. Shown under Settings → Billing.</summary>
+        </member>
         <member name="T:Regalis.Shared.Constants.AuditActions">
             <summary>Values written to <c>TRN_AuditLog.Action</c>.</summary>
+        </member>
+        <member name="T:Regalis.Shared.Constants.AuditResults">
+            <summary>Values written to <c>TRN_AuditLog.Result</c>.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AuditResults.Success">
+            <summary>The action completed and was saved.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AuditResults.Failed">
+            <summary>Attempted, but an error occurred: validation, exception, wrong password.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AuditResults.Denied">
+            <summary>Blocked by a permission or a business rule.</summary>
         </member>
         <member name="T:Regalis.Shared.Constants.ErrorCodes">
             <summary>Machine-readable error codes carried in <c>ApiError.Code</c> (API_PLAN §1).</summary>

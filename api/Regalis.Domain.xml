@@ -194,8 +194,56 @@
         <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.PoNumber">
             <summary>REG/PO/{FY}/{00001} — gap-free, from MST_NumberSequence.</summary>
         </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.ReferenceNumber">
+            <summary>Supplier quotation, indent or request number.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.ShipmentPreference">
+            <summary>One of Purchase.ShipmentPreferences ("Supplier delivery", "Pickup"…).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.IsReverseCharge">
+            <summary>Reverse charge: the supplier does not charge GST; Regalis pays it to the
+            government. The GST is still computed and printed, but not added to what the
+            supplier is paid.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.DeliveryAddress">
+            <summary>The delivery address as printed, snapshotted from the location (or
+            typed) so later edits to the location never rewrite an issued PO.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.IsInterState">
+            <summary>Supplier state ≠ delivery location state: IGST instead of CGST + SGST.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.SubTotal">
+            <summary>Σ quantity × rate.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.DiscountValue">
+            <summary>The percent or rupee figure as entered; DiscountAmount is what it came to.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.TaxAmount">
+            <summary>CGST + SGST + IGST.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.TdsCode">
+            <summary>TDS Regalis deducts from the supplier's payment, on the pre-GST value.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.AdjustmentAmount">
+            <summary>Round off, freight, other — may be negative.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.TotalAmount">
+            <summary>Payable to the supplier: taxable + GST (unless reverse charge) − TDS + adjustment.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.Remarks">
+            <summary>Notes for the supplier, printed on the PO.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.TermsAndConditions">
+            <summary>Copied from Purchase.TermsAndConditions on create, then this PO's own.</summary>
+        </member>
         <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrder.AttachmentPath">
-            <summary>Supporting document (quote, approval mail) — one path, like TicketAttachment.</summary>
+            <summary>Legacy single document path; new uploads go to <see cref="P:Regalis.Domain.Entities.Finance.PurchaseOrder.Attachments"/>.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.PurchaseOrderAttachment">
+            <summary>TRN_PurchaseOrderAttachment — supplier quotation, proforma, indent or any
+            supporting document. Same rules as QuotationAttachment: .pdf .jpg .jpeg .png .docx
+            .xlsx, checked by extension and content sniffing, at most 10 MB each and 10 per PO.
+            Supersedes the single PurchaseOrder.AttachmentPath, which is kept for old rows.</summary>
         </member>
         <member name="T:Regalis.Domain.Entities.Finance.PurchaseOrderLine">
             <summary>TRN_PurchaseOrderLine. ReceivedQuantity is what drives the header's
@@ -204,6 +252,27 @@
         </member>
         <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrderLine.InventoryItemId">
             <summary>Optional link to the stock master; a PO may buy something not stocked.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrderLine.DiscountAmount">
+            <summary>The line's own discount plus its share of the whole-order discount.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrderLine.LineAmount">
+            <summary>Taxable value: quantity × rate − DiscountAmount.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrderLine.AccountCategory">
+            <summary>Accounting head, e.g. "Pantry &amp; supplies" (Purchase.AccountCategories).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrderLine.Remarks">
+            <summary>Printed under the item name, e.g. "For the 2nd floor desk zone".</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.PurchaseOrderStatusHistory">
+            <summary>TRN_PurchaseOrderStatusHistory — append-only, mirroring
+            TRN_QuotationStatusHistory. Every workflow step (submit, approve, reject, send,
+            receive, cancel) writes one row, which is also the approval record: who approved
+            or rejected, when, and the comment they gave.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.PurchaseOrderStatusHistory.Action">
+            <summary>"Created", "Submitted", "Approved", "Rejected", "Sent", "Received"…</summary>
         </member>
         <member name="T:Regalis.Domain.Entities.Finance.Quotation">
              <summary>TRN_Quotation — the priced offer that precedes an invoice (document §6).
@@ -405,6 +474,18 @@
         <member name="P:Regalis.Domain.Entities.Identity.AuditLog.Action">
             <summary>One of <c>Regalis.Shared.Constants.AuditActions</c>.</summary>
         </member>
+        <member name="P:Regalis.Domain.Entities.Identity.AuditLog.CorrelationId">
+            <summary>The request's correlation ID — links every row one request wrote.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.AuditLog.Result">
+            <summary>One of <c>Regalis.Shared.Constants.AuditResults</c>: Success, Failed, Denied.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.AuditLog.FailureReason">
+            <summary>Why a Failed or Denied action did not happen. Never a stack trace.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.AuditLog.ChangedFields">
+            <summary>Comma-separated property names an UPDATE changed; drives the summary.</summary>
+        </member>
         <member name="T:Regalis.Domain.Entities.Identity.LoginHistory">
             <summary>TRN_LoginHistory — every attempt, successful or not.</summary>
         </member>
@@ -564,6 +645,62 @@
             <summary>MST_WorkspaceType — DESK, CABIN, MEETING_ROOM.
             Extensible: adding CONFERENCE_ROOM or EVENT_SPACE is a data insert.</summary>
         </member>
+        <member name="T:Regalis.Domain.Entities.Operations.AdminNotification">
+            <summary>
+            TRN_AdminNotification — one row per event in the space, shown on the admin
+            Notifications page. Read state lives in <see cref="T:Regalis.Domain.Entities.Operations.AdminNotificationRead"/>, one row
+            per admin, so one admin reading an item never clears it for the others. Rows are
+            never deleted: the page hides anything older than 90 days from its default view.
+            </summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.AdminNotification.EventCode">
+            <summary>"customer.registered", "payment.failed", … — the specific event within
+            the type; new events need no migration.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.AdminNotification.CustomerId">
+            <summary>The customer the event is about, when there is one.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.AdminNotification.ReferenceType">
+            <summary>Booking, Payment, Invoice, WalletTransaction, Ticket, MaintenanceWork,
+            PurchaseOrder or User — with ReferenceId, the record to deep-link to.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.AdminNotification.ReferenceLabel">
+            <summary>"Booking REG-000052" — shown under the body.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.AdminNotification.DeliveredUtc">
+            <summary>Set once the email / WhatsApp copies (if any admin wants them) are done.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.AdminNotification.DeliveryNote">
+            <summary>What delivery did, e.g. "Email to 2 admins; WhatsApp: manual share".</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.AdminNotificationRead">
+            <summary>TRN_AdminNotificationRead — one admin has read one notification.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.AdminNotificationSetting">
+            <summary>MST_AdminNotificationSetting — one admin's extra channels for one type.
+            In-app is always on and not stored. No row means the defaults apply.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.Announcement">
+            <summary>TRN_Announcement — what the admin sent (or will send) to customers. Each
+            recipient's copy is a TRN_Notification with ReferenceType "Announcement", whose read
+            state gives the read count. A sent announcement is never edited or unsent.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.Announcement.TargetCustomerId">
+            <summary>For <see cref="F:Regalis.Domain.Enums.AnnouncementAudience.OneCustomer"/>.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.Announcement.WhatsAppManualShare">
+            <summary>No WhatsApp provider was configured when it was sent, so the WhatsApp
+            copies were NOT delivered — the admin shares the message by hand.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.HousekeeperProfile">
+            <summary>MST_HousekeeperProfile — the housekeeping details of a staff user (HK-000018).
+            The person is an MST_User (Staff, role HOUSEKEEPING) so they can sign in to see their
+            tasks; Active / Inactive is the user's own status, so deactivating also stops sign-in.
+            A housekeeper is never deleted, only deactivated, so their work history stays.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.HousekeeperProfile.AssignedAreas">
+            <summary>Comma-separated area names, used to suggest the right person for a task.</summary>
+        </member>
         <member name="T:Regalis.Domain.Entities.Operations.HousekeepingSchedule">
             <summary>TRN_HousekeepingSchedule. When BlocksWorkspace is true, creating the schedule
             writes a TRN_WorkspaceBlock in the same transaction (Invariant 12), so the customer
@@ -610,6 +747,21 @@
         </member>
         <member name="P:Regalis.Domain.Entities.Operations.InventoryTransaction.AttachmentPath">
             <summary>Delivery note or bill scan. PhotoPath stays damage-specific.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.MaintenanceWorkItem">
+            <summary>TRN_MaintenanceWorkItem — one checklist task (MW-000142). A work item is the
+            job a housekeeper must finish; a HousekeepingSchedule is a time window that blocks a
+            workspace. When "block this workspace" is ticked the two are linked
+            (LinkedScheduleId) and kept in step.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.MaintenanceWorkItem.WorkspaceId">
+            <summary>Set when the area is a bookable workspace (lets the task block it).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.MaintenanceWorkItem.Category">
+            <summary>One of Maintenance.Categories (Cleaning, Plumbing, Electrical, Laundry, Other).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.MaintenanceWorkItem.OverdueSinceUtc">
+            <summary>Set once, the first time the sweeper finds the task past due.</summary>
         </member>
         <member name="T:Regalis.Domain.Entities.Operations.Notification">
             <summary>TRN_Notification — the in-app notification centre.</summary>
@@ -692,8 +844,16 @@
             timeline with a Retry when it failed (§3.6).</summary>
         </member>
         <member name="T:Regalis.Domain.Enums.PurchaseOrderStatus">
-            <summary>Purchase order lifecycle from document §4/§20. PartiallyReceived and
-            Received are derived from the lines' ReceivedQuantity, never set by hand.</summary>
+             <summary>Purchase order lifecycle from document §4/§20. PartiallyReceived and
+             Received are derived from the lines' ReceivedQuantity, never set by hand.
+            
+             Draft → PendingApproval → Approved → Sent → PartiallyReceived → Received, with
+             Cancelled reachable until goods arrive. When Purchase.RequireApproval is off an
+             approver takes a Draft straight to Approved. The values are stored, so the two
+             approval states were appended (6, 7) rather than renumbering the lifecycle.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.PurchaseOrderDiscountType">
+            <summary>How a purchase order's whole-order discount was entered.</summary>
         </member>
         <member name="T:Regalis.Domain.Enums.BankTransactionDirection">
             <summary>Direction of a bank statement line. Separate from WalletDirection —
@@ -718,9 +878,30 @@
             <summary>A mistake is corrected with a compensating Adjustment row —
             there is no update or delete path (Invariant 11).</summary>
         </member>
+        <member name="F:Regalis.Domain.Enums.NotificationCategory.Account">
+            <summary>Profile, staff-account and password activity, raised to the admin feed.</summary>
+        </member>
         <member name="T:Regalis.Domain.Enums.InventoryItemType">
             <summary>What an item-master row is sold as. Goods carry an HSN code and stock;
             services carry a SAC code and are kept off the stock screens.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.MaintenanceWorkStatus">
+            <summary>Maintenance checklist lifecycle. Pending → InProgress → Done (waiting for a
+            supervisor) → Verified. Rejecting a Done task sets Rework; the housekeeper starts it
+            again (InProgress). Overdue is set by the sweeper when the due time passes on a Pending
+            or InProgress task. Cancelled replaces deletion once a task has moved past Pending.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.AdminNotificationType">
+            <summary>The type chips on the admin Notifications page. Deliberately broad: a new
+            event (KYC uploaded, KYC verified) is a new EventCode under an existing type, so it
+            needs no migration. Customer covers registration today and KYC later.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.AdminNotificationSeverity">
+            <summary>ActionNeeded rows count towards "Needs action" until the record they are
+            about is resolved (ticket closed, invoice paid, task verified).</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.AnnouncementAudience">
+            <summary>Companies / individuals are told apart by whether the profile has a company name.</summary>
         </member>
     </members>
 </doc>

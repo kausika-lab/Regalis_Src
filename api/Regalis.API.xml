@@ -4,6 +4,26 @@
         <name>Regalis.API</name>
     </assembly>
     <members>
+        <member name="T:Regalis.API.Auditing.AuditOutcome">
+             <summary>
+             Builds the audit row for a request that did NOT go through: Failed (validation error,
+             exception) or Denied (missing permission, business rule) — Audit Trail Enhancements
+             §5.3. Successful changes are audited by the save-changes interceptor; this covers the
+             attempts that never reach a save, so blocked and failed operations are visible too.
+            
+             What was attempted is inferred from the endpoint: HTTP verb and action name give the
+             action, the controller gives the entity, the route's id gives the entity ID. The JSON
+             body the caller sent (secrets stripped) is kept as the "After" the user tried to save.
+             </summary>
+        </member>
+        <member name="M:Regalis.API.Auditing.AuditOutcome.CaptureBodyAsync(Microsoft.AspNetCore.Http.HttpContext)">
+            <summary>Call before the endpoint runs: keeps a copy of a small JSON body so a
+            failed attempt can show what was sent.</summary>
+        </member>
+        <member name="M:Regalis.API.Auditing.AuditOutcome.RecordAsync(Microsoft.AspNetCore.Http.HttpContext,System.String,System.String,System.String)">
+            <summary>Writes the row through a fresh scope: the request's own context may hold
+            the half-made changes that just failed.</summary>
+        </member>
         <member name="T:Regalis.API.Authorization.HasPermissionAttribute">
             <summary>
             Guards a controller action with a permission code, e.g.
@@ -56,6 +76,21 @@
              blocked — <c>User.IsProfileComplete</c> treats them as complete by definition.
              </summary>
         </member>
+        <member name="T:Regalis.API.Authorization.StaffOnlyAttribute">
+             <summary>
+             Refuses customer logins on an admin-portal endpoint, whatever permissions their token
+             carries.
+            
+             Permissions alone cannot separate the portals: a customer legitimately holds
+             WALLET.VIEW and QUOTATION.VIEW for their OWN wallet and quotations, and those same
+             codes guard the admin screens that read EVERY customer's. Without this filter, one
+             customer could read another's wallet ledger (/api/wallet/{id}, /api/admin/wallets/{id})
+             or quotations (GET /api/quotations) — found 2026-09-28. Put it on any route whose data
+             spans customers; the customer portal keeps its own "my" routes.
+            
+             An authorization filter, so it runs before model binding, like RequireCompleteProfile.
+             </summary>
+        </member>
         <member name="T:Regalis.API.Controllers.AccessController">
             <summary>QR and access control (API_PLAN §9).</summary>
         </member>
@@ -73,6 +108,62 @@
         <member name="M:Regalis.API.Controllers.AccessController.ManualOverride(Regalis.Application.Access.ManualOverrideRequest,System.Threading.CancellationToken)">
             <summary>The device-down fallback. Requires the distinct ACCESS.OVERRIDE
             permission; every use writes an exception log row and an audit entry (A10).</summary>
+        </member>
+        <member name="T:Regalis.API.Controllers.AdminNotificationsController">
+            <summary>
+            The admin portal's Notifications page: the incoming feed, read state (per admin) and
+            each admin's notification settings. Staff-only — the feed spans every customer.
+            Customers keep /api/notifications/my for their own notification centre.
+            </summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminNotificationsController.#ctor(Regalis.Application.Operations.IAdminNotificationService)">
+            <summary>
+            The admin portal's Notifications page: the incoming feed, read state (per admin) and
+            each admin's notification settings. Staff-only — the feed spans every customer.
+            Customers keep /api/notifications/my for their own notification centre.
+            </summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminNotificationsController.GetFeed(Regalis.Application.Operations.AdminNotificationListRequest,System.Threading.CancellationToken)">
+            <summary>Feed page + per-type counts + unread count + the four summary cards.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminNotificationsController.GetUnreadCount(System.Threading.CancellationToken)">
+            <summary>Unread count for the logged-in admin (sidebar badge and bell).</summary>
+        </member>
+        <member name="T:Regalis.API.Controllers.AdminNotificationSettingsController">
+            <summary>The logged-in admin's own channels per event type (in-app is always on).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminNotificationSettingsController.#ctor(Regalis.Application.Operations.IAdminNotificationService)">
+            <summary>The logged-in admin's own channels per event type (in-app is always on).</summary>
+        </member>
+        <member name="T:Regalis.API.Controllers.AdminWalletsController">
+            <summary>Admin wallet screens (Billing &amp; Finance → Wallet). Read-only aggregates
+            over the append-only ledger; money-moving actions stay on WalletController.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminWalletsController.#ctor(Regalis.Application.Finance.IWalletLedgerQueries,Regalis.Application.Finance.IWalletDeskService)">
+            <summary>Admin wallet screens (Billing &amp; Finance → Wallet). Read-only aggregates
+            over the append-only ledger; money-moving actions stay on WalletController.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminWalletsController.GetWallets(Regalis.Application.Finance.WalletListRequest,System.Threading.CancellationToken)">
+            <summary>Every customer wallet with totals summed from the ledger, the summary
+            cards and the filtered totals row. Filter: all | with-balance | zero | low.
+            Sort: balance-desc | balance-asc | name | last-activity | spent.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminWalletsController.Export(Regalis.Application.Finance.WalletListRequest,System.Threading.CancellationToken)">
+            <summary>The filtered list as CSV.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminWalletsController.GetWallet(System.Int64,Regalis.Application.Finance.WalletLedgerRequest,System.Threading.CancellationToken)">
+            <summary>One customer: profile, active membership, ledger totals and the filtered,
+            paginated transactions (newest first).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminWalletsController.Statement(System.Int64,Regalis.Application.Finance.WalletLedgerRequest,System.String,System.Threading.CancellationToken)">
+            <summary>Statement for a period (from/to, IST). format = pdf (default) or csv.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminWalletsController.AddMoney(System.Int64,Regalis.Application.Finance.AdminAddMoneyRequest,System.Threading.CancellationToken)">
+            <summary>Money collected at the desk: the PAY- payment and the Recharge credit in
+            one transaction.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminWalletsController.Adjust(System.Int64,Regalis.Application.Finance.AdminAdjustRequest,System.Threading.CancellationToken)">
+            <summary>A credit or debit correction entry; a debit can never take the balance below zero.</summary>
         </member>
         <member name="T:Regalis.API.Controllers.ApiControllerBase">
             <summary>Base for every controller: produces the ApiResponse envelope so it is
@@ -104,15 +195,34 @@
             <summary>The payroll hand-off (A03): an export file, no direct integration.</summary>
         </member>
         <member name="T:Regalis.API.Controllers.AuditController">
-            <summary>The audit trail (API_PLAN §13). Read-only — TRN_AuditLog has no update
-            or delete path anywhere in the system.</summary>
+            <summary>The audit trail (API_PLAN §13; Audit Trail Enhancements v1.0 §5.2). Read-only —
+            TRN_AuditLog has no update or delete endpoint anywhere in the system. Served at
+            /api/admin/audit as the enhancement specifies; /api/audit remains for older clients.</summary>
         </member>
         <member name="M:Regalis.API.Controllers.AuditController.#ctor(Regalis.Application.Administration.IAuditService)">
-            <summary>The audit trail (API_PLAN §13). Read-only — TRN_AuditLog has no update
-            or delete path anywhere in the system.</summary>
+            <summary>The audit trail (API_PLAN §13; Audit Trail Enhancements v1.0 §5.2). Read-only —
+            TRN_AuditLog has no update or delete endpoint anywhere in the system. Served at
+            /api/admin/audit as the enhancement specifies; /api/audit remains for older clients.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AuditController.GetAll(Regalis.Application.Administration.AuditListRequest,System.Threading.CancellationToken)">
+            <summary>Filters: search, module, actions (comma list), userIds (comma list,
+            "system" allowed), result, from, to, page, pageSize, sort (createdAt:desc|asc).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AuditController.Lookups(System.String,System.Threading.CancellationToken)">
+            <summary>Distinct actions, modules and users for the filter dropdowns.</summary>
         </member>
         <member name="M:Regalis.API.Controllers.AuditController.GetModules(System.Threading.CancellationToken)">
-            <summary>Distinct module names for the filter dropdown.</summary>
+            <summary>Distinct module names (kept for older clients; lookups has them too).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AuditController.Export(Regalis.Application.Administration.AuditListRequest,System.Threading.CancellationToken)">
+            <summary>Same filters as the list; streams every matching row, and records an
+            EXPORT audit row.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AuditController.Get(System.Int64,System.Threading.CancellationToken)">
+            <summary>One record with full before/after values, device and changed fields.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AuditController.Related(System.Int64,System.Threading.CancellationToken)">
+            <summary>Other audit records for the same entity, newest first.</summary>
         </member>
         <member name="T:Regalis.API.Controllers.AuthController">
             <summary>Authentication — API_PLAN §2. The sensitive endpoints carry the strict
@@ -307,7 +417,7 @@
             blocking schedule writes the calendar block in the same transaction, so customer
             availability drops the slot with no second code path (Invariant 12).</summary>
         </member>
-        <member name="M:Regalis.API.Controllers.HousekeepingController.#ctor(Regalis.Application.Operations.IHousekeepingService)">
+        <member name="M:Regalis.API.Controllers.HousekeepingController.#ctor(Regalis.Application.Operations.IHousekeepingService,Regalis.Application.Operations.IMaintenanceService)">
             <summary>Housekeeping / maintenance scheduling (API_PLAN §10, M18). Creating a
             blocking schedule writes the calendar block in the same transaction, so customer
             availability drops the slot with no second code path (Invariant 12).</summary>
@@ -384,6 +494,30 @@
         <member name="M:Regalis.API.Controllers.LocationsController.#ctor(Regalis.Application.Masters.ILocationService)">
             <summary>Locations (API_PLAN §5). Reads are open to any authenticated user —
             customers browse locations when booking; writes are LOCATION.*.</summary>
+        </member>
+        <member name="T:Regalis.API.Controllers.MaintenanceController">
+            <summary>Maintenance &amp; housekeeping checklist (Maintenance Feature Specification).
+            HOUSEKEEPING.VIEW opens the module; who may add, assign, verify, delete or manage
+            housekeepers is decided in <see cref="T:Regalis.Application.Operations.IMaintenanceService"/> from the caller's roles,
+            because the Housekeeping Staff role itself carries CREATE/EDIT/APPROVE.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.MaintenanceController.#ctor(Regalis.Application.Operations.IMaintenanceService)">
+            <summary>Maintenance &amp; housekeeping checklist (Maintenance Feature Specification).
+            HOUSEKEEPING.VIEW opens the module; who may add, assign, verify, delete or manage
+            housekeepers is decided in <see cref="T:Regalis.Application.Operations.IMaintenanceService"/> from the caller's roles,
+            because the Housekeeping Staff role itself carries CREATE/EDIT/APPROVE.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.MaintenanceController.Me(System.Threading.CancellationToken)">
+            <summary>What the caller may do — drives the tabs and buttons.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.MaintenanceController.Export(Regalis.Application.Operations.MaintenanceWorkListRequest,System.Threading.CancellationToken)">
+            <summary>CSV of the filtered checklist (same filters as the list).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.MaintenanceController.MarkDone(System.Int64,System.String,Microsoft.AspNetCore.Http.IFormFile,System.Threading.CancellationToken)">
+            <summary>Multipart: <c>note</c> (required) and an optional <c>photo</c>.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.MaintenanceController.MyTasks(System.String,System.Threading.CancellationToken)">
+            <summary>Housekeeper phone view. <c>tab</c>: todo (default), done, rework.</summary>
         </member>
         <member name="T:Regalis.API.Controllers.MenusController">
             <summary>Navigation (API_PLAN §3): the caller's sidebar plus menu management.</summary>
@@ -479,21 +613,51 @@
             GSTIN in one submission. Member accounts only.</summary>
         </member>
         <member name="T:Regalis.API.Controllers.PurchaseOrdersController">
-            <summary>Purchase orders (document §4). A PO is editable only while Draft, and
-            receiving goods against it writes the incoming inventory rows in the same
-            transaction — there is no separate goods-received endpoint that could drift.</summary>
+             <summary>Purchase orders (document §4). Draft → PendingApproval → Approved → Sent →
+             (Partially) Received, Cancelled until goods arrive. A PO is editable only while
+             Draft, and receiving goods against it writes the incoming inventory rows in the same
+             transaction — there is no separate goods-received endpoint that could drift.
+            
+             Permissions: VIEW reads, prints and downloads; CREATE raises, attaches files and
+             submits; EDIT changes a draft and records receipts; APPROVE approves, rejects and
+             sends; DELETE cancels.</summary>
         </member>
         <member name="M:Regalis.API.Controllers.PurchaseOrdersController.#ctor(Regalis.Application.Finance.IPurchaseOrderService)">
-            <summary>Purchase orders (document §4). A PO is editable only while Draft, and
-            receiving goods against it writes the incoming inventory rows in the same
-            transaction — there is no separate goods-received endpoint that could drift.</summary>
+             <summary>Purchase orders (document §4). Draft → PendingApproval → Approved → Sent →
+             (Partially) Received, Cancelled until goods arrive. A PO is editable only while
+             Draft, and receiving goods against it writes the incoming inventory rows in the same
+             transaction — there is no separate goods-received endpoint that could drift.
+            
+             Permissions: VIEW reads, prints and downloads; CREATE raises, attaches files and
+             submits; EDIT changes a draft and records receipts; APPROVE approves, rejects and
+             sends; DELETE cancels.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.PurchaseOrdersController.GetFormOptions(System.Threading.CancellationToken)">
+            <summary>Settings-driven options for the form: GST rates, TDS sections, shipment
+            methods, account heads, default terms and the next PO number.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.PurchaseOrdersController.Submit(System.Int64,System.Threading.CancellationToken)">
+            <summary>Draft to PendingApproval.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.PurchaseOrdersController.Approve(System.Int64,Regalis.Application.Finance.PurchaseOrderDecisionRequest,System.Threading.CancellationToken)">
+            <summary>PendingApproval to Approved (or Draft to Approved when approval is off).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.PurchaseOrdersController.Reject(System.Int64,Regalis.Application.Finance.PurchaseOrderDecisionRequest,System.Threading.CancellationToken)">
+            <summary>PendingApproval back to Draft; a reason is mandatory.</summary>
         </member>
         <member name="M:Regalis.API.Controllers.PurchaseOrdersController.Send(System.Int64,System.Threading.CancellationToken)">
-            <summary>Draft to Sent — the point after which the PO is frozen.</summary>
+            <summary>Approved to Sent — the point after which the PO is frozen.</summary>
         </member>
         <member name="M:Regalis.API.Controllers.PurchaseOrdersController.Receive(System.Int64,Regalis.Application.Finance.ReceiveGoodsRequest,System.Threading.CancellationToken)">
             <summary>Goods received: writes the incoming TRN_InventoryTransaction rows, the
             line receipts and the header status atomically.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.PurchaseOrdersController.AddAttachment(System.Int64,Microsoft.AspNetCore.Http.IFormFile,System.Threading.CancellationToken)">
+            <summary>Multipart upload, ≤10 MB, .pdf .jpg .jpeg .png .docx .xlsx, 10 per PO,
+            content-sniffed. Draft only.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.PurchaseOrdersController.GetPdf(System.Int64,System.Threading.CancellationToken)">
+            <summary>The PO as the supplier sees it. Drafts print, but are stamped NOT FOR ISSUE.</summary>
         </member>
         <member name="T:Regalis.API.Controllers.CancelPurchaseOrderRequest">
             <summary>Body for the cancel route — a reason is mandatory, as with a booking.</summary>
@@ -736,6 +900,12 @@
         <member name="M:Regalis.API.Middleware.ExceptionHandlingMiddleware.#ctor(Microsoft.AspNetCore.Http.RequestDelegate,Microsoft.Extensions.Logging.ILogger{Regalis.API.Middleware.ExceptionHandlingMiddleware})">
             <summary>Maps exceptions to the ApiResponse envelope (ARCHITECTURE §9).
             Stack traces reach the log, never the client.</summary>
+        </member>
+        <member name="M:Regalis.API.Middleware.ExceptionHandlingMiddleware.RecordAuditAsync(Microsoft.AspNetCore.Http.HttpContext,System.Exception)">
+            <summary>Audit Trail §5.3: a change that was refused is Denied (permission or
+            business rule), one that broke is Failed (validation or an unexpected error).
+            Only signed-in changes are recorded — sign-in failures have their own
+            LOGIN_FAILED rows, reads are not audited, and a 404 is not an attempted change.</summary>
         </member>
         <member name="T:Regalis.API.Middleware.RequestLoggingMiddleware">
             <summary>Structured request log: method, path, status, elapsed ms, user id.</summary>

@@ -170,6 +170,37 @@
             vendor exists yet.
             </summary>
         </member>
+        <member name="T:Regalis.Infrastructure.BackgroundJobs.AdminNotificationJobs">
+            <summary>
+            The admin-notification jobs: sends the email / WhatsApp copies admins asked for in
+            their Notification settings, and raises "Invoice overdue" once per invoice. Kept apart
+            from the timer so tests can run a pass directly.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.BackgroundJobs.AdminNotificationJobs.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.IQuotationDispatcher,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.BackgroundJobs.AdminNotificationJobs})">
+            <summary>
+            The admin-notification jobs: sends the email / WhatsApp copies admins asked for in
+            their Notification settings, and raises "Invoice overdue" once per invoice. Kept apart
+            from the timer so tests can run a pass directly.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.BackgroundJobs.AdminNotificationJobs.DeliverPendingAsync(System.Threading.CancellationToken)">
+            <summary>Delivers the extra channels for rows not handled yet. In-app needs no
+            delivery: the row is the notification. Nothing is sent for a type whose toggle is
+            off; staff (non-admin) accounts get nothing unless they switched a channel on.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.BackgroundJobs.AdminNotificationJobs.RaiseOverdueInvoicesAsync(System.Threading.CancellationToken)">
+            <summary>Raises "Invoice overdue" for invoices past their due date with money
+            outstanding — once per invoice. It stops needing action when the invoice is paid.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.BackgroundJobs.AdminNotificationWorker">
+            <summary>Runs <see cref="T:Regalis.Infrastructure.BackgroundJobs.AdminNotificationJobs"/>: delivery every minute, the
+            overdue-invoice scan every hour.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.BackgroundJobs.AdminNotificationWorker.#ctor(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory,Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.BackgroundJobs.AdminNotificationWorker})">
+            <summary>Runs <see cref="T:Regalis.Infrastructure.BackgroundJobs.AdminNotificationJobs"/>: delivery every minute, the
+            overdue-invoice scan every hour.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.BackgroundJobs.BookingHoldSweeper">
             <summary>
             Sweeps Pending bookings whose payment window (Booking.PendingHoldMinutes,
@@ -184,21 +215,96 @@
             usp_ExpireStaleBookingHolds (DATABASE_DESIGN §10). ChangedByUserId 0 = system.
             </summary>
         </member>
-        <member name="T:Regalis.Infrastructure.Persistence.Interceptors.AuditSaveChangesInterceptor">
+        <member name="T:Regalis.Infrastructure.BackgroundJobs.MaintenanceOverdueSweeper">
             <summary>
-            Sets the audit columns on every insert/update, converts hard deletes of
-            soft-deletable entities into soft deletes, and writes a TRN_AuditLog row for every
-            change to an auditable entity (ARCHITECTURE §9). Sensitive fields are redacted
-            before serialisation.
+            Every five minutes: checklist tasks still Pending or In progress past their due time
+            (plus Maintenance.OverdueGraceMinutes) turn Overdue, and admins and supervisors get
+            one grouped alert per sweep (Maintenance spec §4.4).
             </summary>
         </member>
-        <member name="M:Regalis.Infrastructure.Persistence.Interceptors.AuditSaveChangesInterceptor.#ctor(Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+        <member name="M:Regalis.Infrastructure.BackgroundJobs.MaintenanceOverdueSweeper.#ctor(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory,Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.BackgroundJobs.MaintenanceOverdueSweeper})">
             <summary>
-            Sets the audit columns on every insert/update, converts hard deletes of
-            soft-deletable entities into soft deletes, and writes a TRN_AuditLog row for every
-            change to an auditable entity (ARCHITECTURE §9). Sensitive fields are redacted
-            before serialisation.
+            Every five minutes: checklist tasks still Pending or In progress past their due time
+            (plus Maintenance.OverdueGraceMinutes) turn Overdue, and admins and supervisors get
+            one grouped alert per sweep (Maintenance spec §4.4).
             </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Interceptors.AdminEventInterceptor">
+             <summary>
+             Raises admin notifications from the change tracker, so every code path that saves a
+             payment, a wallet entry, a new customer, a customer's own profile edit, a purchase
+             order or a maintenance status change produces its notification — not just the paths
+             someone remembered to hook.
+            
+             What changed is read before the save (original values are still there); the rows are
+             written after it, in a second save, once new records have their real keys to link to.
+             Bookings, tickets and staff accounts are raised explicitly through AdminAlerts.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Interceptors.AdminEventInterceptor.#ctor(Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+             <summary>
+             Raises admin notifications from the change tracker, so every code path that saves a
+             payment, a wallet entry, a new customer, a customer's own profile edit, a purchase
+             order or a maintenance status change produces its notification — not just the paths
+             someone remembered to hook.
+            
+             What changed is read before the save (original values are still there); the rows are
+             written after it, in a second save, once new records have their real keys to link to.
+             Bookings, tickets and staff accounts are raised explicitly through AdminAlerts.
+             </summary>
+        </member>
+        <member name="P:Regalis.Infrastructure.Persistence.Interceptors.AdminEventInterceptor.Pending.Reference">
+            <summary>The record the row links to; its key is only real after the save.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Interceptors.AdminEventInterceptor.Stage(Microsoft.EntityFrameworkCore.DbContext)">
+            <summary>Stamps the real keys and adds the rows; returns the context to save.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Interceptors.AdminEventInterceptor.StatusBecame(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry,System.String,System.Object@)">
+            <summary>True when the entity is new with that status, or its status just changed.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Interceptors.AdminEventInterceptor.CustomerEdit(Microsoft.EntityFrameworkCore.DbContext,Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry,Regalis.Domain.Entities.Identity.User,System.DateTime)">
+            <summary>A customer changing their own details: which fields, old → new.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Interceptors.AuditSaveChangesInterceptor">
+             <summary>
+             Sets the audit columns on every insert/update, converts hard deletes of
+             soft-deletable entities into soft deletes, and writes a TRN_AuditLog row for every
+             change to an auditable entity (ARCHITECTURE §9). Sensitive fields are redacted
+             before serialisation.
+            
+             CREATE rows are written only after the insert succeeds (Audit Trail Enhancements §6):
+             before the save, an identity key holds EF's temporary placeholder, which is how
+             entries like "Quotation #-9223372036854774805" got into the log. The rows are held
+             back per context and added by a second, audit-only save in the same transaction.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Interceptors.AuditSaveChangesInterceptor.#ctor(Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+             <summary>
+             Sets the audit columns on every insert/update, converts hard deletes of
+             soft-deletable entities into soft deletes, and writes a TRN_AuditLog row for every
+             change to an auditable entity (ARCHITECTURE §9). Sensitive fields are redacted
+             before serialisation.
+            
+             CREATE rows are written only after the insert succeeds (Audit Trail Enhancements §6):
+             before the save, an identity key holds EF's temporary placeholder, which is how
+             entries like "Quotation #-9223372036854774805" got into the log. The rows are held
+             back per context and added by a second, audit-only save in the same transaction.
+             </summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Persistence.Interceptors.AuditSaveChangesInterceptor.MaskedProperties">
+            <summary>Shown with only the last four characters.</summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Persistence.Interceptors.AuditSaveChangesInterceptor.IgnoredForChanges">
+            <summary>Bookkeeping that never counts as a change on its own.</summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Persistence.Interceptors.AuditSaveChangesInterceptor.LoginBookkeeping">
+            <summary>What a sign-in touches on MST_User. The LOGIN / LOGIN_FAILED row already
+            records the event, so an UPDATE changing only these is noise (the "system" UPDATE
+            on User #3 after every login, §6).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Interceptors.AuditSaveChangesInterceptor.TakePendingCreates(Microsoft.EntityFrameworkCore.DbContext)">
+            <summary>Stamps the real keys onto held-back CREATE rows and stages them.
+            Returns the context when there is something to save.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Persistence.Migrations.InitialCreate">
             <inheritdoc />
@@ -326,6 +432,54 @@
         <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddItemMasterSalesFields.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.AddPurchaseOrderWorkflow">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddPurchaseOrderWorkflow.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddPurchaseOrderWorkflow.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddPurchaseOrderWorkflow.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.AddMaintenanceChecklist">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddMaintenanceChecklist.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddMaintenanceChecklist.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AddMaintenanceChecklist.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.AuditTrailResult">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AuditTrailResult.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AuditTrailResult.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AuditTrailResult.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.AdminNotificationCentre">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AdminNotificationCentre.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AdminNotificationCentre.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AdminNotificationCentre.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="T:Regalis.Infrastructure.Persistence.Seed.DatabaseSeeder">
             <summary>
             Idempotent seeding of the state defined by ROLE_PERMISSION_MATRIX.md and
@@ -362,6 +516,23 @@
             <summary>The GST tax invoice as a PDF (QuestPDF, community license), generated on
             demand from the snapshotted invoice — later profile or settings edits never
             change what a customer already received.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.PurchaseOrderPdfContext">
+            <summary>What the printed PO needs beyond its own row: the company letterhead (from
+            the Company.* settings), the delivery location's name, the approver and an optional
+            logo (Company.LogoPath, PNG/JPG).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.PurchaseOrderPdfContext.#ctor(System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.Byte[])">
+            <summary>What the printed PO needs beyond its own row: the company letterhead (from
+            the Company.* settings), the delivery location's name, the approver and an optional
+            logo (Company.LogoPath, PNG/JPG).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.PurchaseOrderPdfGenerator">
+            <summary>
+            The purchase order as sent to the supplier — A4, the same letterhead, palette and
+            table style as QuotationPdfGenerator and InvoicePdfGenerator, so every document
+            Regalis issues looks like it came from the same place.
+            </summary>
         </member>
         <member name="T:Regalis.Infrastructure.Reporting.QuotationLineText">
             <summary>
@@ -437,6 +608,11 @@
             Day 9 ships reports 1–8; the remaining keys are catalogued but flagged
             unavailable until Day 10.
             </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.WalletStatementPdfGenerator">
+            <summary>A customer's wallet statement for a period: opening balance, every ledger
+            entry in date order, closing balance — the same letterhead and palette as the
+            invoice, receipt and quotation PDFs.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Security.GoogleOptions">
              <summary>
@@ -528,6 +704,74 @@
             <summary>Accepts the raw token value or the signed RGL1 payload; a payload
             with a bad HMAC never reaches the database lookup.</summary>
         </member>
+        <member name="T:Regalis.Infrastructure.Services.AdminEvent">
+            <summary>One event for the admin Notifications page.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AdminEvent.#ctor(Regalis.Domain.Enums.AdminNotificationType,System.String,System.String,System.String,Regalis.Domain.Enums.AdminNotificationSeverity,System.Nullable{System.Int64},System.String,System.Nullable{System.Int64},System.String,System.String,System.String)">
+            <summary>One event for the admin Notifications page.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.AdminAlerts">
+             <summary>
+             Raises events onto the admin Notifications page (TRN_AdminNotification). There is
+             one row per event; each admin's read state is a TRN_AdminNotificationRead row, so
+             one admin reading an item never clears it for the others. Rows are only added to
+             the context: the caller's SaveChanges commits them with the change they describe.
+            
+             Payments, wallet entries, new customers, customer profile edits, purchase orders
+             and maintenance status changes are raised by <c>AdminEventInterceptor</c> from the
+             change tracker, so every code path that saves one produces its notification. The
+             helpers here cover bookings, tickets and staff accounts, which carry richer text.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AdminAlerts.BookingAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Domain.Entities.Booking.Booking,System.String,System.DateTime,System.Threading.CancellationToken,System.String)">
+            <summary>"New booking — Board Room": "Kausika RS · 25 Sep 2026, 04:00 PM–06:00 PM IST."</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AdminAlerts.TicketAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Domain.Entities.Operations.Ticket,System.String,System.DateTime,System.Threading.CancellationToken,System.Nullable{System.Int64},System.String)">
+            <summary>A new ticket, a customer reply or a reopened ticket needs someone; the
+            rest is information. "Needs action" clears when the ticket is resolved or closed.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AdminAlerts.AccountAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Domain.Entities.Identity.User,System.String,System.String,System.DateTime,System.Threading.CancellationToken,Regalis.Domain.Enums.NotificationPriority)">
+            <summary>Staff and admin account activity. A customer's own edits and new
+            customers are raised by the interceptor, with the actual old → new values.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.AdminNotificationCatalogue">
+            <summary>The event types, their settings-screen wording and default extra channels:
+            in-app is always on, email is on by default for new customers, payments and support
+            only, WhatsApp is off unless an admin turns it on.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.AdminNotificationService">
+             <summary>
+             The admin Notifications feed. Read state is per admin (TRN_AdminNotificationRead).
+             Nothing is ever deleted: without an explicit From date the feed shows the last 90
+             days, and older rows stay reachable through the date filter.
+            
+             "Needs action" is worked out from the record itself, not from read state: a new
+             ticket stops needing action when the ticket is resolved or closed, an overdue invoice
+             when it is paid, a maintenance item when the work is verified (or done, for an
+             overdue task), a failed payment when the customer's next payment succeeds.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AdminNotificationService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+             <summary>
+             The admin Notifications feed. Read state is per admin (TRN_AdminNotificationRead).
+             Nothing is ever deleted: without an explicit From date the feed shows the last 90
+             days, and older rows stay reachable through the date filter.
+            
+             "Needs action" is worked out from the record itself, not from read state: a new
+             ticket stops needing action when the ticket is resolved or closed, an overdue invoice
+             when it is paid, a maintenance item when the work is verified (or done, for an
+             overdue task), a failed payment when the customer's next payment succeeds.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AdminNotificationService.MarkAllReadAsync(System.Threading.CancellationToken)">
+            <summary>Marks everything this admin has not read, in one statement.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AdminNotificationService.DayStartUtc(System.DateOnly)">
+            <summary>Midnight IST of a date, in UTC.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AdminNotificationService.Unresolved(System.Linq.IQueryable{Regalis.Domain.Entities.Operations.AdminNotification})">
+            <summary>ActionNeeded rows whose record is not resolved yet.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Services.AttendanceRecorder">
             <summary>
             Shared attendance mutations — the gate (AccessService) and the app
@@ -551,14 +795,76 @@
             <summary>Closes the open row; null when there is nothing to close. Caller saves.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Services.AuditService">
-            <summary>The audit trail screen (M25 slice). TRN_AuditLog is append-only and
-            written by the save-changes interceptor and the explicit exception paths —
-            this service only ever reads it.</summary>
+             <summary>
+             The audit trail screen (Audit Trail Enhancements v1.0). TRN_AuditLog is append-only and
+             written by the save-changes interceptor, the sign-in code and the Failed/Denied
+             recorder — this service only reads it, except for the EXPORT row an export writes.
+            
+             Filtering, sorting and paging run in SQL. Only the rows of the requested page are
+             materialised, and their JSON is read on the server to build the change summary; the
+             list response never carries the full before/after values (§5.2) — the drawer's
+             detail call does.
+             </summary>
         </member>
-        <member name="M:Regalis.Infrastructure.Services.AuditService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.IDateTimeProvider)">
-            <summary>The audit trail screen (M25 slice). TRN_AuditLog is append-only and
-            written by the save-changes interceptor and the explicit exception paths —
-            this service only ever reads it.</summary>
+        <member name="M:Regalis.Infrastructure.Services.AuditService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+             <summary>
+             The audit trail screen (Audit Trail Enhancements v1.0). TRN_AuditLog is append-only and
+             written by the save-changes interceptor, the sign-in code and the Failed/Denied
+             recorder — this service only reads it, except for the EXPORT row an export writes.
+            
+             Filtering, sorting and paging run in SQL. Only the rows of the requested page are
+             materialised, and their JSON is read on the server to build the change summary; the
+             list response never carries the full before/after values (§5.2) — the drawer's
+             detail call does.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AuditService.Search(System.Linq.IQueryable{Regalis.Domain.Entities.Identity.AuditLog},System.String)">
+            <summary>§4.1: case-insensitive, partial, across user name and email, entity,
+            entity ID, module, IP and the change content. "Quotation 11" / "Quotation #11"
+            means that one quotation — the ID must match exactly, or amounts like 1100 in
+            other quotations' values would match too. Every other word must match somewhere.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AuditService.EntityAndIdPattern">
+            <remarks>
+            Pattern:<br/>
+            <code>^(?&lt;name&gt;[A-Za-z][A-Za-z ]*?)\\s*#?\\s*(?&lt;id&gt;\\d+)$</code><br/>
+            Explanation:<br/>
+            <code>
+            ○ Match if at the beginning of the string.<br/>
+            ○ "name" capture group.<br/>
+                ○ Match a character in the set [A-Za-z].<br/>
+                ○ Match a character in the set [ A-Za-z] lazily any number of times.<br/>
+            ○ Match a whitespace character greedily any number of times.<br/>
+            ○ Match '#' atomically, optionally.<br/>
+            ○ Match a whitespace character atomically any number of times.<br/>
+            ○ "id" capture group.<br/>
+                ○ Match a Unicode digit atomically at least once.<br/>
+            ○ Match if at the end of the string or if before an ending newline.<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AuditService.ChangedList(Regalis.Infrastructure.Services.AuditService.Row)">
+            <summary>ChangedFields when the row has it; for rows written before it existed,
+            the difference between the before and after snapshots.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AuditService.Humanize(System.String)">
+            <summary>"PurchaseOrder" → "Purchase Order".</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AuditService.HumanizePattern">
+            <remarks>
+            Pattern:<br/>
+            <code>(?&lt;=[a-z])([A-Z])</code><br/>
+            Explanation:<br/>
+            <code>
+            ○ Zero-width positive lookbehind.<br/>
+                ○ Match a character in the set [a-z] right-to-left.<br/>
+            ○ 1st capture group.<br/>
+                ○ Match a character in the set [A-Z].<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AuditService.Device(System.String)">
+            <summary>"Chrome 129 · Windows" from a user agent.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Services.AuthService">
             <summary>
@@ -883,6 +1189,47 @@
         <member name="M:Regalis.Infrastructure.Services.InvoiceService.LoadScopedAsync(System.Int64,System.Threading.CancellationToken)">
             <summary>Customers read their own invoices only, whatever id they pass.</summary>
         </member>
+        <member name="T:Regalis.Infrastructure.Services.MaintenanceService">
+             <summary>
+             Maintenance &amp; housekeeping checklist (Maintenance Feature Specification v1.0).
+            
+             Roles are decided here, not by the permission codes alone: the HOUSEKEEPING role
+             carries HOUSEKEEPING.CREATE/EDIT/APPROVE, so a caller whose housekeeping role is only
+             HOUSEKEEPING is treated as a housekeeper — own tasks, start and mark done, nothing
+             else. Supervisors are callers with HOUSEKEEPING.APPROVE who are not housekeepers
+             (today: Admin and Operations Manager). Nobody verifies work they completed.
+             Housekeepers and deleting work are Admin-only.
+            
+             Progress (confirmed with the business): Done and Verified both count as complete.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.MaintenanceService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Operations.IHousekeepingService,Regalis.Application.Abstractions.IPasswordHasher,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Services.StorageOptions},Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Services.MaintenanceService})">
+             <summary>
+             Maintenance &amp; housekeeping checklist (Maintenance Feature Specification v1.0).
+            
+             Roles are decided here, not by the permission codes alone: the HOUSEKEEPING role
+             carries HOUSEKEEPING.CREATE/EDIT/APPROVE, so a caller whose housekeeping role is only
+             HOUSEKEEPING is treated as a housekeeper — own tasks, start and mark done, nothing
+             else. Supervisors are callers with HOUSEKEEPING.APPROVE who are not housekeepers
+             (today: Admin and Operations Manager). Nobody verifies work they completed.
+             Housekeepers and deleting work are Admin-only.
+            
+             Progress (confirmed with the business): Done and Verified both count as complete.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.MaintenanceService.Scoped">
+            <summary>What the caller may see: housekeepers only their own tasks.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.MaintenanceService.RequireWorker(Regalis.Domain.Entities.Operations.MaintenanceWorkItem)">
+            <summary>The assignee works their own task; a manager may act for them.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.MaintenanceService.HousekeeperRows">
+            <summary>Housekeepers with today's counts, as a filterable server-side query. A
+            member-init row (not the DTO record) so callers can still Where/OrderBy on it.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.MaintenanceService.SyncScheduleAsync(Regalis.Domain.Entities.Operations.MaintenanceWorkItem,System.Threading.CancellationToken)">
+            <summary>Keeps a linked schedule's window and assignee in step with the task.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Services.MenuQueryService">
             <summary>Builds the caller's sidebar from MST_Menu + MAP_RoleMenu. Adding a screen
             is a data insert — no redeploy (ARCHITECTURE §5).</summary>
@@ -890,6 +1237,11 @@
         <member name="M:Regalis.Infrastructure.Services.MenuQueryService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser)">
             <summary>Builds the caller's sidebar from MST_Menu + MAP_RoleMenu. Adding a screen
             is a data insert — no redeploy (ARCHITECTURE §5).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.NotificationService.GetMyUnreadCountAsync(System.Threading.CancellationToken)">
+            <summary>The bell. For an admin-portal user it counts the admin Notifications feed
+            (per-admin read state, last 90 days) — what the bell and the page show; customers
+            count their own notifications.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Services.NumberSequenceService">
             <summary>
@@ -921,12 +1273,17 @@
             snapshots, an access token valid for the whole pass window, a notification.
             </summary>
         </member>
+        <member name="M:Regalis.Infrastructure.Services.PassService.PassNumberFor(System.String,System.String)">
+            <summary>A membership (plan code MEM-…, the plans the Membership screen sells) is
+            numbered MEM-000006; any other pass keeps PASS-000006. Both take the next value of
+            the one CustomerPass counter, so the two series can never produce the same number.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Services.ProfileService">
             <summary>Own-record profile (matrix §6: always scoped to the caller, never an id
             from the client). Email is the login and is not edited here. Invoices are
             unaffected by profile edits — they snapshot at issue time.</summary>
         </member>
-        <member name="M:Regalis.Infrastructure.Services.ProfileService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Services.StorageOptions})">
+        <member name="M:Regalis.Infrastructure.Services.ProfileService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Services.StorageOptions},Regalis.Application.Abstractions.IDateTimeProvider)">
             <summary>Own-record profile (matrix §6: always scoped to the caller, never an id
             from the client). Email is the login and is not edited here. Invoices are
             unaffected by profile edits — they snapshot at issue time.</summary>
@@ -940,29 +1297,72 @@
         <member name="M:Regalis.Infrastructure.Services.ProfileService.ComposeAddress(Regalis.Domain.Entities.Identity.User)">
             <summary>Flattens the structured address into the legacy single line.</summary>
         </member>
+        <member name="T:Regalis.Infrastructure.Services.PurchaseOrderPricing">
+             <summary>
+             Purchase-order money, as a pure function so it can be unit-tested and mirrored
+             exactly by the form's live preview (AdminPurchaseOrderPages chunk, poCompute).
+             Every step rounds to the paisa, half away from zero:
+            
+               gross     = qty × rate                         Sub total = Σ gross
+               base      = gross − line discount
+               discount  = % of Σ base, or the flat amount; spread over lines by base, the
+                           largest line absorbing the paisa difference
+               taxable   = base − share
+               tax       = taxable × GST% (CGST = tax / 2, SGST = tax − CGST; or all IGST)
+               TDS       = Σ taxable × TDS%   (deducted on the value before GST)
+               total     = Σ taxable + tax (not under reverse charge) − TDS + adjustment
+             </summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Services.PurchaseOrderService">
-            <summary>
-            Purchase orders (document §4). Two rules carry the weight here. Totals are always
-            recomputed from quantity, rate, discount and the supplier's tax percent, so a
-            client-sent total is never trusted. And receiving goods writes the incoming
-            TRN_InventoryTransaction rows, the line receipts and the header status inside one
-            serializable transaction — stock and the order can never disagree, and there is no
-            second "incoming goods" table to fall out of step with the ledger (Invariant 11).
-            </summary>
+             <summary>
+             Purchase orders (document §4). Three rules carry the weight here.
+            
+             Totals are always recomputed from quantity, rate, discount, the supplier's tax
+             percent, TDS and adjustment, so a client-sent total is never trusted. The pricing
+             mirrors QuotationService: the whole-order discount is spread across lines in
+             proportion to their value, GST is charged per line on what is left and split
+             CGST/SGST or IGST by comparing the supplier's state with the delivery location's.
+            
+             The workflow is Draft → PendingApproval → Approved → Sent → (Partially) Received,
+             with Cancelled reachable until goods arrive. Only a Draft can be edited; from Sent
+             the PO is frozen. Each step writes a status-history row and a named audit row.
+            
+             Receiving goods writes the incoming TRN_InventoryTransaction rows, the line
+             receipts and the header status inside one serializable transaction — stock and the
+             order can never disagree (Invariant 11).
+             </summary>
         </member>
-        <member name="M:Regalis.Infrastructure.Services.PurchaseOrderService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
-            <summary>
-            Purchase orders (document §4). Two rules carry the weight here. Totals are always
-            recomputed from quantity, rate, discount and the supplier's tax percent, so a
-            client-sent total is never trusted. And receiving goods writes the incoming
-            TRN_InventoryTransaction rows, the line receipts and the header status inside one
-            serializable transaction — stock and the order can never disagree, and there is no
-            second "incoming goods" table to fall out of step with the ledger (Invariant 11).
-            </summary>
+        <member name="M:Regalis.Infrastructure.Services.PurchaseOrderService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Regalis.Application.Abstractions.ISettingService,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Services.StorageOptions})">
+             <summary>
+             Purchase orders (document §4). Three rules carry the weight here.
+            
+             Totals are always recomputed from quantity, rate, discount, the supplier's tax
+             percent, TDS and adjustment, so a client-sent total is never trusted. The pricing
+             mirrors QuotationService: the whole-order discount is spread across lines in
+             proportion to their value, GST is charged per line on what is left and split
+             CGST/SGST or IGST by comparing the supplier's state with the delivery location's.
+            
+             The workflow is Draft → PendingApproval → Approved → Sent → (Partially) Received,
+             with Cancelled reachable until goods arrive. Only a Draft can be edited; from Sent
+             the PO is frozen. Each step writes a status-history row and a named audit row.
+            
+             Receiving goods writes the incoming TRN_InventoryTransaction rows, the line
+             receipts and the header status inside one serializable transaction — stock and the
+             order can never disagree (Invariant 11).
+             </summary>
         </member>
-        <member name="M:Regalis.Infrastructure.Services.PurchaseOrderService.ReplaceLines(Regalis.Domain.Entities.Finance.PurchaseOrder,Regalis.Application.Finance.SavePurchaseOrderRequest)">
-            <summary>Server-side money. Line value is quantity × rate − discount; tax is the
-            supplier's percent on that; the header is the sum of its lines.</summary>
+        <member name="M:Regalis.Infrastructure.Services.PurchaseOrderService.ApplyAsync(Regalis.Domain.Entities.Finance.PurchaseOrder,Regalis.Application.Finance.SavePurchaseOrderRequest,Regalis.Domain.Entities.Finance.Supplier,Regalis.Domain.Entities.Masters.Location,System.Threading.CancellationToken)">
+            <summary>Copies the header fields and recomputes every line and total.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PurchaseOrderService.EnsureReadyToIssue(Regalis.Domain.Entities.Finance.PurchaseOrder)">
+            <summary>The checks that apply before a PO can go to an approver or a supplier.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PurchaseOrderService.AddAudit(Regalis.Domain.Entities.Finance.PurchaseOrder,System.String,System.Nullable{Regalis.Domain.Enums.PurchaseOrderStatus},Regalis.Domain.Enums.PurchaseOrderStatus,System.String)">
+            <summary>A named business event in TRN_AuditLog, beside the generic row-change
+            entries the save interceptor already writes.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PurchaseOrderService.SupplierStateCode(Regalis.Domain.Entities.Finance.Supplier)">
+            <summary>The GSTIN's first two digits are the state code; failing that, the state name.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Services.QuotationService">
              <summary>
@@ -1165,6 +1565,65 @@
             <summary>Roles must exist and match the user's portal type: a Customer user
             cannot receive an admin-portal role and vice versa.</summary>
         </member>
+        <member name="T:Regalis.Infrastructure.Services.WalletDeskService">
+             <summary>
+             The admin's view of one customer's wallet, and the two desk actions on it.
+            
+             Totals are summed from the append-only ledger; the stored MST_Wallet balance is only
+             compared against it (LedgerVerified). Nothing here edits or deletes a ledger row:
+             Add money is a PAY- payment plus a Recharge credit, written in ONE database
+             transaction so a credit can never exist without the payment behind it; Adjust is a
+             new AdminAdjustment entry, with the reason and the admin's name on the audit trail.
+             Debits go through IWalletService.DebitAsync, which refuses to take a balance below
+             zero (and MST_Wallet's CHECK constraint backs that up).
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.WalletDeskService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Finance.IWalletService,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Finance.IPaymentService,Regalis.Application.Abstractions.IQuotationDispatcher,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Services.WalletDeskService})">
+             <summary>
+             The admin's view of one customer's wallet, and the two desk actions on it.
+            
+             Totals are summed from the append-only ledger; the stored MST_Wallet balance is only
+             compared against it (LedgerVerified). Nothing here edits or deletes a ledger row:
+             Add money is a PAY- payment plus a Recharge credit, written in ONE database
+             transaction so a credit can never exist without the payment behind it; Adjust is a
+             new AdminAdjustment entry, with the reason and the admin's name on the audit trail.
+             Debits go through IWalletService.DebitAsync, which refuses to take a balance below
+             zero (and MST_Wallet's CHECK constraint backs that up).
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.WalletDeskService.NotifyAsync(Regalis.Application.Finance.WalletCustomerDto,Regalis.Domain.Entities.Finance.Payment,System.Decimal,System.Threading.CancellationToken)">
+            <summary>In-app notification, plus the receipt by email. A delivery failure is
+            reported back to the admin, never thrown: the money is already recorded.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.WalletLedgerQueries">
+            <summary>
+            Read side of the admin wallet screens. Every figure is summed from the append-only
+            ledger (TRN_WalletTransaction) in SQL — one GROUP BY per customer, LEFT JOINed to
+            MST_Wallet so a wallet with no activity still shows as ₹0 — so Balance is always
+            credits − debits and nothing depends on the stored MST_Wallet counters. The grouped
+            query uses IX_WalletTxn (CustomerId, TransactionUtc).
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.WalletLedgerQueries.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Abstractions.IDateTimeProvider)">
+            <summary>
+            Read side of the admin wallet screens. Every figure is summed from the append-only
+            ledger (TRN_WalletTransaction) in SQL — one GROUP BY per customer, LEFT JOINed to
+            MST_Wallet so a wallet with no activity still shows as ₹0 — so Balance is always
+            credits − debits and nothing depends on the stored MST_Wallet counters. The grouped
+            query uses IX_WalletTxn (CustomerId, TransactionUtc).
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.WalletLedgerQueries.Row">
+            <summary>A flat row EF can filter, sort and aggregate on the server.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.WalletLedgerQueries.Rows">
+            <summary>
+            One row per customer wallet. The ledger is summed once, grouped by customer, and
+            LEFT JOINed so a wallet with no entries still appears at 0. Written as SQL because
+            EF cannot sort or re-aggregate over a LINQ left join to a grouped subquery; EF 8
+            composes the filters, ORDER BY, paging and SUMs around it as a derived table.
+            </summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Services.WalletService">
             <summary>
             The wallet ledger is append-only and self-checking: BalanceAfter is written in
@@ -1180,6 +1639,79 @@
             always equals Balance. The CHECK constraint refuses an overdraft at the database
             level, and RowVersion catches concurrent movements.
             </summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.EntityAndIdPattern_0">
+            <summary>Custom <see cref="T:System.Text.RegularExpressions.Regex"/>-derived type for the EntityAndIdPattern method.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.EntityAndIdPattern_0.Instance">
+            <summary>Cached, thread-safe singleton instance.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.EntityAndIdPattern_0.#ctor">
+            <summary>Initializes the instance.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.EntityAndIdPattern_0.RunnerFactory">
+            <summary>Provides a factory for creating <see cref="T:System.Text.RegularExpressions.RegexRunner"/> instances to be used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.EntityAndIdPattern_0.RunnerFactory.CreateInstance">
+            <summary>Creates an instance of a <see cref="T:System.Text.RegularExpressions.RegexRunner"/> used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.EntityAndIdPattern_0.RunnerFactory.Runner">
+            <summary>Provides the runner that contains the custom logic implementing the specified regular expression.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.EntityAndIdPattern_0.RunnerFactory.Runner.Scan(System.ReadOnlySpan{System.Char})">
+            <summary>Scan the <paramref name="inputSpan"/> starting from base.runtextstart for the next match.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.EntityAndIdPattern_0.RunnerFactory.Runner.TryFindNextPossibleStartingPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Search <paramref name="inputSpan"/> starting from base.runtextpos for the next location a match could possibly start.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if a possible match was found; false if no more matches are possible.</returns>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.EntityAndIdPattern_0.RunnerFactory.Runner.TryMatchAtCurrentPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Determine whether <paramref name="inputSpan"/> at base.runtextpos is a match for the regular expression.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if the regular expression matches at the current position; otherwise, false.</returns>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.HumanizePattern_1">
+            <summary>Custom <see cref="T:System.Text.RegularExpressions.Regex"/>-derived type for the HumanizePattern method.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.HumanizePattern_1.Instance">
+            <summary>Cached, thread-safe singleton instance.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.HumanizePattern_1.#ctor">
+            <summary>Initializes the instance.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.HumanizePattern_1.RunnerFactory">
+            <summary>Provides a factory for creating <see cref="T:System.Text.RegularExpressions.RegexRunner"/> instances to be used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.HumanizePattern_1.RunnerFactory.CreateInstance">
+            <summary>Creates an instance of a <see cref="T:System.Text.RegularExpressions.RegexRunner"/> used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.HumanizePattern_1.RunnerFactory.Runner">
+            <summary>Provides the runner that contains the custom logic implementing the specified regular expression.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.HumanizePattern_1.RunnerFactory.Runner.Scan(System.ReadOnlySpan{System.Char})">
+            <summary>Scan the <paramref name="inputSpan"/> starting from base.runtextstart for the next match.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.HumanizePattern_1.RunnerFactory.Runner.TryFindNextPossibleStartingPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Search <paramref name="inputSpan"/> starting from base.runtextpos for the next location a match could possibly start.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if a possible match was found; false if no more matches are possible.</returns>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.HumanizePattern_1.RunnerFactory.Runner.TryMatchAtCurrentPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Determine whether <paramref name="inputSpan"/> at base.runtextpos is a match for the regular expression.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if the regular expression matches at the current position; otherwise, false.</returns>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.Utilities">
+            <summary>Helper methods used by generated <see cref="T:System.Text.RegularExpressions.Regex"/>-derived implementations.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout">
+            <summary>Default timeout value set in <see cref="T:System.AppContext"/>, or <see cref="F:System.Text.RegularExpressions.Regex.InfiniteMatchTimeout"/> if none was set.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_hasTimeout">
+            <summary>Whether <see cref="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout"/> is non-infinite.</summary>
         </member>
     </members>
 </doc>

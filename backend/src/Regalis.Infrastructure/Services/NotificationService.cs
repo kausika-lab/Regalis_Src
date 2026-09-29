@@ -37,8 +37,20 @@ public class NotificationService(
         return PagedResult<NotificationDto>.Create(items, request.Page, request.PageSize, totalCount);
     }
 
-    public Task<int> GetMyUnreadCountAsync(CancellationToken ct = default) =>
-        db.Notifications.CountAsync(n => n.UserId == currentUser.UserId && !n.IsRead, ct);
+    /// <summary>The bell. For an admin-portal user it counts the admin Notifications feed
+    /// (per-admin read state, last 90 days) — what the bell and the page show; customers
+    /// count their own notifications.</summary>
+    public Task<int> GetMyUnreadCountAsync(CancellationToken ct = default)
+    {
+        var userId = currentUser.UserId;
+        if (currentUser.UserType is not null and not UserType.Customer)
+        {
+            var since = DateTime.UtcNow.AddDays(-AdminNotificationService.ArchiveDays);
+            return db.AdminNotifications.CountAsync(
+                n => n.CreatedUtc >= since && !n.Reads.Any(r => r.UserId == userId), ct);
+        }
+        return db.Notifications.CountAsync(n => n.UserId == userId && !n.IsRead, ct);
+    }
 
     public async Task MarkReadAsync(long notificationId, CancellationToken ct = default)
     {

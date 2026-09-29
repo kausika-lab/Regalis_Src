@@ -27,13 +27,17 @@ public static class DependencyInjection
         this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<AuditSaveChangesInterceptor>();
+        services.AddScoped<AdminEventInterceptor>();
 
         services.AddDbContext<RegalisDbContext>((provider, dbOptions) =>
         {
             dbOptions.UseSqlServer(
                 configuration.GetConnectionString("Default"),
                 sql => sql.EnableRetryOnFailure(maxRetryCount: 3));
-            dbOptions.AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>());
+            dbOptions.AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>(),
+                // Raises admin notifications for payments, wallet entries, new customers,
+                // customer profile edits, purchase orders and maintenance status changes.
+                provider.GetRequiredService<AdminEventInterceptor>());
         });
 
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
@@ -105,6 +109,11 @@ public static class DependencyInjection
 
         // Operations
         services.AddScoped<INotificationService, NotificationService>();
+        // The admin Notifications page: feed, per-admin read state and settings; the
+        // worker sends the email / WhatsApp copies and raises overdue invoices.
+        services.AddScoped<IAdminNotificationService, AdminNotificationService>();
+        services.AddScoped<AdminNotificationJobs>();
+        services.AddHostedService<AdminNotificationWorker>();
         services.AddScoped<IHousekeepingService, HousekeepingService>();
         services.AddScoped<IMaintenanceService, MaintenanceService>();
         services.AddHostedService<MaintenanceOverdueSweeper>();

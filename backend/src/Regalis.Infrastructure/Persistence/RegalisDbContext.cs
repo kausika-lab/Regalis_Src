@@ -80,6 +80,10 @@ public class RegalisDbContext(DbContextOptions<RegalisDbContext> options) : DbCo
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
     public DbSet<HousekeepingSchedule> HousekeepingSchedules => Set<HousekeepingSchedule>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<AdminNotification> AdminNotifications => Set<AdminNotification>();
+    public DbSet<AdminNotificationRead> AdminNotificationReads => Set<AdminNotificationRead>();
+    public DbSet<AdminNotificationSetting> AdminNotificationSettings => Set<AdminNotificationSetting>();
+    public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<TicketMessage> TicketMessages => Set<TicketMessage>();
     public DbSet<TicketAttachment> TicketAttachments => Set<TicketAttachment>();

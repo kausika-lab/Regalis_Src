@@ -4210,6 +4210,216 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.ToTable("MST_WorkspaceType", (string)null);
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Operations.AdminNotification", b =>
+                {
+                    b.Property<long>("AdminNotificationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("AdminNotificationId"));
+
+                    b.Property<string>("ActionLabel")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("ActionRoute")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long?>("CustomerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeliveredUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("DeliveryNote")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("EventCode")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<long?>("ReferenceId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ReferenceLabel")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("ReferenceType")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<byte>("Severity")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<byte>("Type")
+                        .HasColumnType("tinyint");
+
+                    b.HasKey("AdminNotificationId");
+
+                    b.HasIndex("CreatedUtc")
+                        .HasDatabaseName("IX_AdminNotification_Created");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("DeliveredUtc")
+                        .HasDatabaseName("IX_AdminNotification_Undelivered")
+                        .HasFilter("[DeliveredUtc] IS NULL");
+
+                    b.HasIndex("Type", "CreatedUtc")
+                        .HasDatabaseName("IX_AdminNotification_Type_Created");
+
+                    b.HasIndex("ReferenceType", "ReferenceId", "EventCode")
+                        .HasDatabaseName("IX_AdminNotification_Reference");
+
+                    b.ToTable("TRN_AdminNotification", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Operations.AdminNotificationRead", b =>
+                {
+                    b.Property<long>("AdminNotificationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("ReadUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("AdminNotificationId", "UserId");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_AdminNotificationRead_User");
+
+                    b.ToTable("TRN_AdminNotificationRead", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Operations.AdminNotificationSetting", b =>
+                {
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte>("Type")
+                        .HasColumnType("tinyint");
+
+                    b.Property<bool>("Email")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("ModifiedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<bool>("WhatsApp")
+                        .HasColumnType("bit");
+
+                    b.HasKey("UserId", "Type");
+
+                    b.ToTable("MST_AdminNotificationSetting", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Operations.Announcement", b =>
+                {
+                    b.Property<long>("AnnouncementId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("AnnouncementId"));
+
+                    b.Property<byte>("Audience")
+                        .HasColumnType("tinyint");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<int>("EmailSentCount")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long?>("ModifiedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<int>("RecipientCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ScheduledForUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<bool>("SendEmail")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("SendWhatsApp")
+                        .HasColumnType("bit");
+
+                    b.Property<long?>("SentByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("SentUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<byte>("Status")
+                        .HasColumnType("tinyint");
+
+                    b.Property<long?>("TargetCustomerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("WhatsAppManualShare")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("WhatsAppSentCount")
+                        .HasColumnType("int");
+
+                    b.HasKey("AnnouncementId");
+
+                    b.HasIndex("TargetCustomerId");
+
+                    b.HasIndex("Status", "ScheduledForUtc")
+                        .HasDatabaseName("IX_Announcement_Status_Scheduled");
+
+                    b.ToTable("TRN_Announcement", (string)null);
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Operations.HousekeeperProfile", b =>
                 {
                     b.Property<long>("HousekeeperProfileId")
@@ -5627,6 +5837,48 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Operations.AdminNotification", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Operations.AdminNotificationRead", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Operations.AdminNotification", "Notification")
+                        .WithMany("Reads")
+                        .HasForeignKey("AdminNotificationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Notification");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Operations.AdminNotificationSetting", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Operations.Announcement", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("TargetCustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Operations.HousekeeperProfile", b =>
                 {
                     b.HasOne("Regalis.Domain.Entities.Identity.User", null)
@@ -5833,6 +6085,11 @@ namespace Regalis.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Regalis.Domain.Entities.Masters.WorkspaceType", b =>
                 {
                     b.Navigation("Workspaces");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Operations.AdminNotification", b =>
+                {
+                    b.Navigation("Reads");
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Operations.InventoryItem", b =>

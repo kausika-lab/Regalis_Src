@@ -124,3 +124,42 @@ public enum HousekeeperShift : byte
     Evening = 2,
     Night = 3
 }
+
+/// <summary>The type chips on the admin Notifications page. Deliberately broad: a new
+/// event (KYC uploaded, KYC verified) is a new EventCode under an existing type, so it
+/// needs no migration. Customer covers registration today and KYC later.</summary>
+public enum AdminNotificationType : byte
+{
+    Customer = 1,
+    Booking = 2,
+    Payment = 3,
+    Wallet = 4,
+    Support = 5,
+    AccountChange = 6,
+    Maintenance = 7,
+    Purchase = 8
+}
+
+/// <summary>ActionNeeded rows count towards "Needs action" until the record they are
+/// about is resolved (ticket closed, invoice paid, task verified).</summary>
+public enum AdminNotificationSeverity : byte
+{
+    Info = 1,
+    ActionNeeded = 2
+}
+
+public enum AnnouncementStatus : byte
+{
+    Draft = 1,
+    Scheduled = 2,
+    Sent = 3
+}
+
+/// <summary>Companies / individuals are told apart by whether the profile has a company name.</summary>
+public enum AnnouncementAudience : byte
+{
+    AllCustomers = 1,
+    CompaniesOnly = 2,
+    IndividualMembers = 3,
+    OneCustomer = 4
+}

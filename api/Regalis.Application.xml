@@ -1074,6 +1074,37 @@
         <member name="M:Regalis.Application.Operations.AdminNotificationSettingDto.#ctor(System.Byte,System.String,System.String,System.Boolean,System.Boolean,System.Boolean)">
             <summary>One row of the Notification settings screen. In-app is always on.</summary>
         </member>
+        <member name="T:Regalis.Application.Operations.AnnouncementDto">
+            <summary>One announcement, as the Announcements tab and its View screen show it.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AnnouncementDto.#ctor(System.Int64,System.String,System.String,System.Byte,System.Nullable{System.Int64},System.String,System.Boolean,System.Boolean,System.Byte,System.Nullable{System.DateTime},System.Nullable{System.DateTime},System.String,System.Int32,System.Int32,System.Int32,System.Int32,System.Boolean,System.Boolean,System.String,System.DateTime)">
+            <summary>One announcement, as the Announcements tab and its View screen show it.</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.AnnouncementListRequest.From">
+            <summary>IST dates, inclusive, on when it was sent / is scheduled / was created.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.SaveAnnouncementRequest">
+            <summary>What the form saves. Action: "draft" keeps it editable, "send" sends it now,
+            "schedule" sends it at ScheduledForUtc.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.SaveAnnouncementRequest.#ctor(System.String,System.String,System.Byte,System.Nullable{System.Int64},System.Boolean,System.Boolean,System.Nullable{System.DateTime},System.String)">
+            <summary>What the form saves. Action: "draft" keeps it editable, "send" sends it now,
+            "schedule" sends it at ScheduledForUtc.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.AnnouncementChannelsDto">
+            <summary>Which extra channels can really deliver on this server, so the form can say
+            so before sending instead of failing silently.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AnnouncementChannelsDto.#ctor(System.Boolean,System.Boolean)">
+            <summary>Which extra channels can really deliver on this server, so the form can say
+            so before sending instead of failing silently.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IAnnouncementService.UpdateAsync(System.Int64,Regalis.Application.Operations.SaveAnnouncementRequest,System.Threading.CancellationToken)">
+            <summary>Drafts and scheduled announcements only: a sent one is never edited.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IAnnouncementService.DeleteAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Drafts and scheduled announcements only.</summary>
+        </member>
         <member name="P:Regalis.Application.Operations.HousekeepingListRequest.WorkspaceId">
             <summary>Workspace the schedule blocks or takes place in.</summary>
         </member>

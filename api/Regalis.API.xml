@@ -165,6 +165,27 @@
         <member name="M:Regalis.API.Controllers.AdminWalletsController.Adjust(System.Int64,Regalis.Application.Finance.AdminAdjustRequest,System.Threading.CancellationToken)">
             <summary>A credit or debit correction entry; a debit can never take the balance below zero.</summary>
         </member>
+        <member name="T:Regalis.API.Controllers.AnnouncementsController">
+            <summary>
+            Announcements to customers (Notifications → Announcements sent). Drafts and scheduled
+            announcements can be edited or deleted; a sent one cannot be edited or unsent.
+            </summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AnnouncementsController.#ctor(Regalis.Application.Operations.IAnnouncementService)">
+            <summary>
+            Announcements to customers (Notifications → Announcements sent). Drafts and scheduled
+            announcements can be edited or deleted; a sent one cannot be edited or unsent.
+            </summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AnnouncementsController.StatusCounts(System.Threading.CancellationToken)">
+            <summary>Count per status (1 Draft, 2 Scheduled, 3 Sent) for the filter.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AnnouncementsController.Channels">
+            <summary>Whether email and WhatsApp can really deliver on this server.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AnnouncementsController.AudienceCount(System.Byte,System.Nullable{System.Int64},System.Threading.CancellationToken)">
+            <summary>How many customers an audience reaches ("It reaches 214 customers").</summary>
+        </member>
         <member name="T:Regalis.API.Controllers.ApiControllerBase">
             <summary>Base for every controller: produces the ApiResponse envelope so it is
             implemented once, never hand-rolled (ARCHITECTURE §3).</summary>

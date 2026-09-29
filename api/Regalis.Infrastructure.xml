@@ -193,13 +193,17 @@
             <summary>Raises "Invoice overdue" for invoices past their due date with money
             outstanding — once per invoice. It stops needing action when the invoice is paid.</summary>
         </member>
+        <member name="M:Regalis.Infrastructure.BackgroundJobs.AdminNotificationJobs.NotSent(System.String)">
+            <summary>The dispatcher reports "no mail server configured" as a success with a
+            note; that is not a delivery.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.BackgroundJobs.AdminNotificationWorker">
-            <summary>Runs <see cref="T:Regalis.Infrastructure.BackgroundJobs.AdminNotificationJobs"/>: delivery every minute, the
-            overdue-invoice scan every hour.</summary>
+            <summary>Runs <see cref="T:Regalis.Infrastructure.BackgroundJobs.AdminNotificationJobs"/> and the announcement jobs: delivery
+            and scheduled announcements every minute, the overdue-invoice scan every hour.</summary>
         </member>
         <member name="M:Regalis.Infrastructure.BackgroundJobs.AdminNotificationWorker.#ctor(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory,Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.BackgroundJobs.AdminNotificationWorker})">
-            <summary>Runs <see cref="T:Regalis.Infrastructure.BackgroundJobs.AdminNotificationJobs"/>: delivery every minute, the
-            overdue-invoice scan every hour.</summary>
+            <summary>Runs <see cref="T:Regalis.Infrastructure.BackgroundJobs.AdminNotificationJobs"/> and the announcement jobs: delivery
+            and scheduled announcements every minute, the overdue-invoice scan every hour.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.BackgroundJobs.BookingHoldSweeper">
             <summary>
@@ -478,6 +482,18 @@
             <inheritdoc />
         </member>
         <member name="M:Regalis.Infrastructure.Persistence.Migrations.AdminNotificationCentre.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.AnnouncementChannelDelivery">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AnnouncementChannelDelivery.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AnnouncementChannelDelivery.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AnnouncementChannelDelivery.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
         <member name="T:Regalis.Infrastructure.Persistence.Seed.DatabaseSeeder">
@@ -771,6 +787,46 @@
         </member>
         <member name="M:Regalis.Infrastructure.Services.AdminNotificationService.Unresolved(System.Linq.IQueryable{Regalis.Domain.Entities.Operations.AdminNotification})">
             <summary>ActionNeeded rows whose record is not resolved yet.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.AnnouncementService">
+             <summary>
+             Announcements to customers. Every recipient gets an in-app copy (a TRN_Notification
+             with ReferenceType "Announcement"), which is also what the read count is counted
+             from. Email and WhatsApp copies go out from the worker, and only when a channel can
+             really deliver: with no mail server or no WhatsApp provider the announcement says so
+             (WhatsAppManualShare, DeliveryNote) instead of pretending it went out.
+            
+             A sent announcement is never edited, deleted or unsent.
+             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AnnouncementService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Regalis.Application.Abstractions.IQuotationDispatcher,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Adapters.SmtpOptions},Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Adapters.WhatsAppOptions})">
+             <summary>
+             Announcements to customers. Every recipient gets an in-app copy (a TRN_Notification
+             with ReferenceType "Announcement"), which is also what the read count is counted
+             from. Email and WhatsApp copies go out from the worker, and only when a channel can
+             really deliver: with no mail server or no WhatsApp provider the announcement says so
+             (WhatsAppManualShare, DeliveryNote) instead of pretending it went out.
+            
+             A sent announcement is never edited, deleted or unsent.
+             </summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Services.AnnouncementService.ShortMessageLength">
+            <summary>WhatsApp and SMS copies are trimmed to this length.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AnnouncementService.PublishDueAsync(System.Threading.CancellationToken)">
+            <summary>Scheduled announcements whose time has come (run by the worker).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AnnouncementService.DeliverChannelsAsync(System.Threading.CancellationToken)">
+            <summary>Email / WhatsApp copies for sent announcements (run by the worker).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AnnouncementService.SendAsync(Regalis.Domain.Entities.Operations.Announcement,System.Nullable{System.Int64},System.Threading.CancellationToken)">
+            <summary>In-app copies to every recipient now; email / WhatsApp follow from the
+            worker. A WhatsApp choice with no provider is marked manual share at once, so the
+            list says so straight away.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AnnouncementService.Recipients(Regalis.Domain.Enums.AnnouncementAudience,System.Nullable{System.Int64})">
+            <summary>Active customers in the audience. Companies and individuals are told
+            apart by whether the profile has a company name.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Services.AttendanceRecorder">
             <summary>

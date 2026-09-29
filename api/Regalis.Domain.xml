@@ -692,6 +692,13 @@
             <summary>No WhatsApp provider was configured when it was sent, so the WhatsApp
             copies were NOT delivered — the admin shares the message by hand.</summary>
         </member>
+        <member name="P:Regalis.Domain.Entities.Operations.Announcement.ChannelsDeliveredUtc">
+            <summary>Set once the email / WhatsApp copies have been handled (at once when
+            only in-app was chosen). Until then the worker picks it up.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.Announcement.DeliveryNote">
+            <summary>What the channels did, e.g. "Email NOT sent: no mail server configured".</summary>
+        </member>
         <member name="T:Regalis.Domain.Entities.Operations.HousekeeperProfile">
             <summary>MST_HousekeeperProfile — the housekeeping details of a staff user (HK-000018).
             The person is an MST_User (Staff, role HOUSEKEEPING) so they can sign in to see their

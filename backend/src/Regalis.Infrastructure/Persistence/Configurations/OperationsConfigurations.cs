@@ -149,3 +149,43 @@ public class TicketAttachmentConfiguration : IEntityTypeConfiguration<TicketAtta
             .HasForeignKey(x => x.TicketId).OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+public class MaintenanceWorkItemConfiguration : IEntityTypeConfiguration<MaintenanceWorkItem>
+{
+    public void Configure(EntityTypeBuilder<MaintenanceWorkItem> builder)
+    {
+        builder.ToTable("TRN_MaintenanceWorkItem");
+        builder.HasKey(x => x.MaintenanceWorkItemId);
+        builder.Property(x => x.WorkNumber).HasMaxLength(30).IsRequired();
+        builder.Property(x => x.Title).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.AreaName).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.Category).HasMaxLength(60).IsRequired();
+        builder.Property(x => x.Instructions).HasMaxLength(1000);
+        builder.Property(x => x.CompletionNote).HasMaxLength(1000);
+        builder.Property(x => x.PhotoPath).HasMaxLength(500);
+        builder.Property(x => x.PhotoFileName).HasMaxLength(260);
+        builder.Property(x => x.PhotoContentType).HasMaxLength(100);
+        builder.Property(x => x.ReworkReason).HasMaxLength(500);
+        builder.Property(x => x.CancelReason).HasMaxLength(500);
+        builder.HasIndex(x => x.WorkNumber).IsUnique().HasDatabaseName("UX_MaintenanceWork_Number");
+        builder.HasIndex(x => new { x.DueUtc, x.Status }).HasDatabaseName("IX_MaintenanceWork_Due_Status");
+        builder.HasIndex(x => new { x.AssignedToUserId, x.Status }).HasDatabaseName("IX_MaintenanceWork_Assignee_Status");
+        builder.HasOne<User>().WithMany().HasForeignKey(x => x.AssignedToUserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Location>().WithMany().HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<HousekeepingSchedule>().WithMany().HasForeignKey(x => x.LinkedScheduleId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class HousekeeperProfileConfiguration : IEntityTypeConfiguration<HousekeeperProfile>
+{
+    public void Configure(EntityTypeBuilder<HousekeeperProfile> builder)
+    {
+        builder.ToTable("MST_HousekeeperProfile");
+        builder.HasKey(x => x.HousekeeperProfileId);
+        builder.Property(x => x.HousekeeperCode).HasMaxLength(30).IsRequired();
+        builder.Property(x => x.AssignedAreas).HasMaxLength(300);
+        builder.HasIndex(x => x.UserId).IsUnique().HasDatabaseName("UX_HousekeeperProfile_User");
+        builder.HasIndex(x => x.HousekeeperCode).IsUnique().HasDatabaseName("UX_HousekeeperProfile_Code");
+        builder.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+    }
+}

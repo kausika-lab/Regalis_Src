@@ -101,6 +101,15 @@ public class PassService(
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>A membership (plan code MEM-…, the plans the Membership screen sells) is
+    /// numbered MEM-000006; any other pass keeps PASS-000006. Both take the next value of
+    /// the one CustomerPass counter, so the two series can never produce the same number.</summary>
+    internal static string PassNumberFor(string planCode, string sequenceNumber) =>
+        planCode.StartsWith("MEM-", StringComparison.OrdinalIgnoreCase)
+        && sequenceNumber.StartsWith("PASS-", StringComparison.Ordinal)
+            ? "MEM-" + sequenceNumber["PASS-".Length..]
+            : sequenceNumber;
+
     private static void Apply(PassPlan plan, SavePassPlanRequest request)
     {
         plan.PlanName = request.PlanName.Trim();
@@ -250,7 +259,8 @@ public class PassService(
                 ?? await db.Locations.Where(l => l.IsDefault).Select(l => l.LocationId).FirstAsync(ct);
             var pass = new CustomerPass
             {
-                PassNumber = await sequences.NextAsync(SequenceKeys.CustomerPass, ct),
+                PassNumber = PassNumberFor(plan.PlanCode,
+                    await sequences.NextAsync(SequenceKeys.CustomerPass, ct)),
                 CustomerId = customerId,
                 PassPlanId = plan.PassPlanId,
                 LocationId = locationId,

@@ -29,6 +29,24 @@ public static class AppSettingKeys
         public const string DueDays = "Invoice.DueDays";
     }
 
+    /// <summary>Purchase orders. Shown under Settings → Billing (SettingGroup "Billing").</summary>
+    public static class Purchase
+    {
+        /// <summary>true: Draft → Submit → Approve → Send. false: an approver approves a Draft directly.</summary>
+        public const string RequireApproval = "Purchase.RequireApproval";
+        /// <summary>Default terms copied onto each new PO; editing a PO's copy never changes this.</summary>
+        public const string TermsAndConditions = "Purchase.TermsAndConditions";
+        /// <summary>"code|label|percent;…" — TDS Regalis deducts from supplier payments.</summary>
+        public const string TdsOptions = "Purchase.TdsOptions";
+        /// <summary>"0,5,12,18,28".</summary>
+        public const string GstRateOptions = "Purchase.GstRateOptions";
+        public const string DefaultGstPercent = "Purchase.DefaultGstPercent";
+        /// <summary>Comma-separated shipment methods.</summary>
+        public const string ShipmentPreferences = "Purchase.ShipmentPreferences";
+        /// <summary>Comma-separated accounting heads for PO lines.</summary>
+        public const string AccountCategories = "Purchase.AccountCategories";
+    }
+
     public static class Quotation
     {
         public const string ValidityDays = "Quotation.ValidityDays";
@@ -76,12 +94,28 @@ public static class AppSettingKeys
         public const string RefundPercentAfterCutoff = "Cancellation.RefundPercentAfterCutoff";
     }
 
+    /// <summary>Maintenance &amp; housekeeping checklist (Settings, group "Maintenance").</summary>
+    public static class Maintenance
+    {
+        /// <summary>Comma-separated work categories.</summary>
+        public const string Categories = "Maintenance.Categories";
+        /// <summary>Comma-separated common areas; bookable workspaces are added automatically.</summary>
+        public const string Areas = "Maintenance.Areas";
+        /// <summary>Minutes after the due time before a task is marked Overdue.</summary>
+        public const string OverdueGraceMinutes = "Maintenance.OverdueGraceMinutes";
+        /// <summary>"Morning=06:00-14:00;Evening=14:00-22:00;Night=22:00-06:00" (IST) — drives "On duty now".</summary>
+        public const string ShiftHours = "Maintenance.ShiftHours";
+    }
+
     public static class Wallet
     {
         public const string MinRecharge = "Wallet.MinRecharge";
         public const string MaxRecharge = "Wallet.MaxRecharge";
         public const string Enabled = "Wallet.Enabled";
         public const string Withdrawable = "Wallet.Withdrawable";
+        /// <summary>A balance below this is "low": the admin list filter, the amber
+        /// highlight and any low-balance reminder all read it. Shown under Settings → Billing.</summary>
+        public const string LowBalanceThreshold = "Wallet.LowBalanceThreshold";
     }
 
     public static class Support

@@ -204,14 +204,28 @@ public enum QuotationDeliveryStatus : byte
 }
 
 /// <summary>Purchase order lifecycle from document §4/§20. PartiallyReceived and
-/// Received are derived from the lines' ReceivedQuantity, never set by hand.</summary>
+/// Received are derived from the lines' ReceivedQuantity, never set by hand.
+///
+/// Draft → PendingApproval → Approved → Sent → PartiallyReceived → Received, with
+/// Cancelled reachable until goods arrive. When Purchase.RequireApproval is off an
+/// approver takes a Draft straight to Approved. The values are stored, so the two
+/// approval states were appended (6, 7) rather than renumbering the lifecycle.</summary>
 public enum PurchaseOrderStatus : byte
 {
     Draft = 1,
     Sent = 2,
     PartiallyReceived = 3,
     Received = 4,
-    Cancelled = 5
+    Cancelled = 5,
+    PendingApproval = 6,
+    Approved = 7
+}
+
+/// <summary>How a purchase order's whole-order discount was entered.</summary>
+public enum PurchaseOrderDiscountType : byte
+{
+    Percentage = 1,
+    Amount = 2
 }
 
 /// <summary>Direction of a bank statement line. Separate from WalletDirection —

@@ -1,3 +1,5 @@
+using Regalis.API.Auditing;
+using Regalis.Application.Abstractions;
 using Regalis.Application.Common.Exceptions;
 using Regalis.Shared.Api;
 using Regalis.Shared.Constants;
@@ -12,11 +14,13 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
     {
         try
         {
+            await AuditOutcome.CaptureBodyAsync(context);
             await next(context);
         }
         catch (Exception exception)
         {
             var correlationId = context.Items[CorrelationIdMiddleware.ItemKey]?.ToString();
+            await RecordAuditAsync(context, exception);
 
             var (statusCode, response) = exception switch
             {
@@ -59,6 +63,42 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
             context.Response.Headers[CorrelationIdMiddleware.HeaderName] = correlationId;
             context.Response.StatusCode = statusCode;
             await context.Response.WriteAsJsonAsync(response);
+        }
+    }
+
+    /// <summary>Audit Trail §5.3: a change that was refused is Denied (permission or
+    /// business rule), one that broke is Failed (validation or an unexpected error).
+    /// Only signed-in changes are recorded — sign-in failures have their own
+    /// LOGIN_FAILED rows, reads are not audited, and a 404 is not an attempted change.</summary>
+    private async Task RecordAuditAsync(HttpContext context, Exception exception)
+    {
+        if (!AuditOutcome.IsMutation(context.Request.Method) || context.Request.Path.StartsWithSegments("/api/auth"))
+        {
+            return;
+        }
+        var (result, reason) = exception switch
+        {
+            ForbiddenException ex => (AuditResults.Denied, ex.Message),
+            BusinessRuleException ex => (AuditResults.Denied, ex.Message),
+            ConflictException ex => (AuditResults.Denied, ex.Message),
+            AppValidationException ex => (AuditResults.Failed,
+                "Validation error: " + string.Join("; ", ex.ToErrors().Select(e => e.Message).Distinct().Take(3))),
+            UnauthorizedException or NotFoundException => (null, null),
+            _ => (AuditResults.Failed, "Unexpected error — see the API log for request " +
+                                       (context.Items[CorrelationIdMiddleware.ItemKey]?.ToString() ?? "?"))
+        };
+        if (result is null || context.RequestServices.GetRequiredService<ICurrentUser>() is not { IsAuthenticated: true })
+        {
+            return;
+        }
+        try
+        {
+            await AuditOutcome.RecordAsync(context, result, reason!);
+        }
+        catch (Exception auditError)
+        {
+            // Never let the audit write replace the original error response.
+            logger.LogError(auditError, "Could not write the {Result} audit row", result);
         }
     }
 }

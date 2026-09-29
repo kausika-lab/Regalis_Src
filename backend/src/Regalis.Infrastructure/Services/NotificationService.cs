@@ -116,5 +116,6 @@ public class NotificationService(
 
     private static NotificationDto ToDto(Notification n) => new(
         n.NotificationId, n.Title, n.Message, (byte)n.Category, (byte)n.Priority,
-        n.ActionLabel, n.ActionRoute, n.IsRead, n.ReadUtc, n.CreatedDate);
+        n.ActionLabel, n.ActionRoute, n.IsRead, n.ReadUtc, n.CreatedDate,
+        n.ReferenceType, n.ReferenceId);
 }

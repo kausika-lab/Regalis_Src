@@ -92,6 +92,8 @@ public static class DependencyInjection
         // Finance
         services.AddScoped<IWalletService, WalletService>();
         services.AddScoped<IWalletAdminService, WalletAdminService>();
+        services.AddScoped<IWalletLedgerQueries, WalletLedgerQueries>();
+        services.AddScoped<IWalletDeskService, WalletDeskService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IPassService, PassService>();
@@ -104,6 +106,8 @@ public static class DependencyInjection
         // Operations
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IHousekeepingService, HousekeepingService>();
+        services.AddScoped<IMaintenanceService, MaintenanceService>();
+        services.AddHostedService<MaintenanceOverdueSweeper>();
         services.AddScoped<IInventoryService, InventoryService>();
         services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
         services.AddScoped<ITicketService, TicketService>();

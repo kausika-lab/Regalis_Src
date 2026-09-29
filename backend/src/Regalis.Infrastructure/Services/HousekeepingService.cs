@@ -58,6 +58,19 @@ public class HousekeepingService(
         {
             query = query.Where(h => h.LocationId == request.LocationId);
         }
+        if (request.WorkspaceId is not null)
+        {
+            query = query.Where(h => h.WorkspaceId == request.WorkspaceId);
+        }
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            // Schedule number, task, area, or the assigned staff member.
+            var term = request.Search.Trim();
+            query = query.Where(h => h.ScheduleNumber.Contains(term) || h.TaskDescription.Contains(term)
+                                     || (h.AreaName != null && h.AreaName.Contains(term))
+                                     || db.Users.Any(u => u.UserId == h.StaffUserId && u.FullName.Contains(term))
+                                     || db.Workspaces.Any(w => w.WorkspaceId == h.WorkspaceId && w.WorkspaceName.Contains(term)));
+        }
         return await PageAsync(query, request, ct);
     }
 

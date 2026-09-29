@@ -186,9 +186,15 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
         builder.Property(x => x.IpAddress).HasMaxLength(64);
         builder.Property(x => x.UserAgent).HasMaxLength(300);
         builder.Property(x => x.CorrelationId).HasMaxLength(64);
+        builder.Property(x => x.Result).HasMaxLength(10).IsRequired().HasDefaultValue("Success");
+        builder.Property(x => x.FailureReason).HasMaxLength(500);
+        builder.Property(x => x.ChangedFields).HasMaxLength(1000);
         builder.HasIndex(x => x.TimestampUtc).HasDatabaseName("IX_AuditLog_Timestamp");
         builder.HasIndex(x => new { x.UserId, x.TimestampUtc }).HasDatabaseName("IX_AuditLog_User_Timestamp");
         builder.HasIndex(x => new { x.EntityName, x.EntityId }).HasDatabaseName("IX_AuditLog_Entity");
+        builder.HasIndex(x => new { x.Action, x.TimestampUtc }).HasDatabaseName("IX_AuditLog_Action_Timestamp");
+        builder.HasIndex(x => new { x.ModuleName, x.TimestampUtc }).HasDatabaseName("IX_AuditLog_Module_Timestamp");
+        builder.HasIndex(x => new { x.Result, x.TimestampUtc }).HasDatabaseName("IX_AuditLog_Result_Timestamp");
     }
 }
 

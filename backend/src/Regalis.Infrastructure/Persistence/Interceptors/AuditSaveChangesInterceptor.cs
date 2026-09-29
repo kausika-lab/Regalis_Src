@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -14,16 +15,44 @@ namespace Regalis.Infrastructure.Persistence.Interceptors;
 /// soft-deletable entities into soft deletes, and writes a TRN_AuditLog row for every
 /// change to an auditable entity (ARCHITECTURE §9). Sensitive fields are redacted
 /// before serialisation.
+///
+/// CREATE rows are written only after the insert succeeds (Audit Trail Enhancements §6):
+/// before the save, an identity key holds EF's temporary placeholder, which is how
+/// entries like "Quotation #-9223372036854774805" got into the log. The rows are held
+/// back per context and added by a second, audit-only save in the same transaction.
 /// </summary>
 public class AuditSaveChangesInterceptor(ICurrentUser currentUser, IDateTimeProvider clock)
     : SaveChangesInterceptor
 {
     private static readonly HashSet<string> RedactedProperties = new(StringComparer.OrdinalIgnoreCase)
     {
-        "PasswordHash", "TokenHash", "CodeHash", "ReplacedByTokenHash", "GatewaySignature"
+        "PasswordHash", "TokenHash", "CodeHash", "ReplacedByTokenHash", "GatewaySignature",
+        "Token", "RawToken", "RefreshToken", "Secret", "ClientSecret", "ApiKey", "Otp", "OtpCode"
+    };
+
+    /// <summary>Shown with only the last four characters.</summary>
+    private static readonly HashSet<string> MaskedProperties = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "AccountNumber", "AccountNo", "BankAccountNumber", "CardNumber"
+    };
+
+    /// <summary>Bookkeeping that never counts as a change on its own.</summary>
+    private static readonly HashSet<string> IgnoredForChanges = new(StringComparer.OrdinalIgnoreCase)
+    {
+        nameof(IAuditableEntity.ModifiedBy), nameof(IAuditableEntity.ModifiedDate)
+    };
+
+    /// <summary>What a sign-in touches on MST_User. The LOGIN / LOGIN_FAILED row already
+    /// records the event, so an UPDATE changing only these is noise (the "system" UPDATE
+    /// on User #3 after every login, §6).</summary>
+    private static readonly HashSet<string> LoginBookkeeping = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "LastLoginUtc", "FailedLoginCount", "LockoutEndUtc"
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
+
+    private readonly ConditionalWeakTable<DbContext, List<(EntityEntry Entry, AuditLog Row)>> _pendingCreates = new();
 
     public override InterceptionResult<int> SavingChanges(
         DbContextEventData eventData, InterceptionResult<int> result)
@@ -40,6 +69,56 @@ public class AuditSaveChangesInterceptor(ICurrentUser currentUser, IDateTimeProv
         return base.SavingChangesAsync(eventData, result, cancellationToken);
     }
 
+    public override int SavedChanges(SaveChangesCompletedEventData eventData, int result)
+    {
+        if (TakePendingCreates(eventData.Context) is { } context)
+        {
+            context.SaveChanges();
+        }
+        return base.SavedChanges(eventData, result);
+    }
+
+    public override async ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData,
+        int result, CancellationToken cancellationToken = default)
+    {
+        if (TakePendingCreates(eventData.Context) is { } context)
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        return await base.SavedChangesAsync(eventData, result, cancellationToken);
+    }
+
+    public override void SaveChangesFailed(DbContextErrorEventData eventData)
+    {
+        if (eventData.Context is not null) _pendingCreates.Remove(eventData.Context);
+        base.SaveChangesFailed(eventData);
+    }
+
+    public override Task SaveChangesFailedAsync(DbContextErrorEventData eventData,
+        CancellationToken cancellationToken = default)
+    {
+        if (eventData.Context is not null) _pendingCreates.Remove(eventData.Context);
+        return base.SaveChangesFailedAsync(eventData, cancellationToken);
+    }
+
+    /// <summary>Stamps the real keys onto held-back CREATE rows and stages them.
+    /// Returns the context when there is something to save.</summary>
+    private DbContext? TakePendingCreates(DbContext? context)
+    {
+        if (context is null || !_pendingCreates.TryGetValue(context, out var pending) || pending.Count == 0)
+        {
+            return null;
+        }
+        _pendingCreates.Remove(context);
+        foreach (var (entry, row) in pending)
+        {
+            row.EntityId = DescribePrimaryKey(entry);
+            row.NewValue = SerializeCurrent(entry);
+        }
+        context.Set<AuditLog>().AddRange(pending.Select(p => p.Row));
+        return context;
+    }
+
     private void ApplyAudit(DbContext? context)
     {
         if (context is null)
@@ -50,6 +129,7 @@ public class AuditSaveChangesInterceptor(ICurrentUser currentUser, IDateTimeProv
         var nowUtc = clock.UtcNow;
         long? userId = currentUser.IsAuthenticated ? currentUser.UserId : null;
         var auditRows = new List<AuditLog>();
+        var creates = new List<(EntityEntry, AuditLog)>();
 
         foreach (var entry in context.ChangeTracker.Entries().ToList())
         {
@@ -69,8 +149,8 @@ public class AuditSaveChangesInterceptor(ICurrentUser currentUser, IDateTimeProv
                     }
                     if (entry.Entity is AuditableEntity)
                     {
-                        auditRows.Add(BuildRow(entry, AuditActions.Create, nowUtc, userId, oldValues: null,
-                            newValues: SerializeCurrent(entry)));
+                        creates.Add((entry, BuildRow(entry, AuditActions.Create, nowUtc, userId,
+                            oldValues: null, newValues: null, changedFields: null)));
                     }
                     break;
 
@@ -84,8 +164,15 @@ public class AuditSaveChangesInterceptor(ICurrentUser currentUser, IDateTimeProv
                     {
                         var isSoftDelete = entry.Entity is ISoftDeletableEntity { IsDeleted: true } &&
                                            entry.Property(nameof(ISoftDeletableEntity.IsDeleted)).IsModified;
+                        var changed = ChangedProperties(entry);
+                        if (!isSoftDelete)
+                        {
+                            if (changed.Count == 0) break;
+                            if (entry.Entity is User && changed.All(LoginBookkeeping.Contains)) break;
+                        }
                         auditRows.Add(BuildRow(entry, isSoftDelete ? AuditActions.Delete : AuditActions.Update,
-                            nowUtc, userId, SerializeOriginal(entry), SerializeCurrent(entry)));
+                            nowUtc, userId, SerializeOriginal(entry), SerializeCurrent(entry),
+                            isSoftDelete ? null : Join(changed)));
                     }
                     break;
 
@@ -102,7 +189,7 @@ public class AuditSaveChangesInterceptor(ICurrentUser currentUser, IDateTimeProv
                         onDelete.ModifiedDate = nowUtc;
                     }
                     auditRows.Add(BuildRow(entry, AuditActions.Delete, nowUtc, userId,
-                        SerializeOriginal(entry), SerializeCurrent(entry)));
+                        SerializeOriginal(entry), SerializeCurrent(entry), changedFields: null));
                     break;
             }
         }
@@ -111,10 +198,14 @@ public class AuditSaveChangesInterceptor(ICurrentUser currentUser, IDateTimeProv
         {
             context.Set<AuditLog>().AddRange(auditRows);
         }
+        if (creates.Count > 0)
+        {
+            _pendingCreates.GetValue(context, _ => []).AddRange(creates);
+        }
     }
 
     private AuditLog BuildRow(EntityEntry entry, string action, DateTime nowUtc, long? userId,
-        string? oldValues, string? newValues) => new()
+        string? oldValues, string? newValues, string? changedFields) => new()
     {
         UserId = userId,
         UserName = currentUser.FullName,
@@ -125,10 +216,30 @@ public class AuditSaveChangesInterceptor(ICurrentUser currentUser, IDateTimeProv
         OldValue = oldValues,
         NewValue = newValues,
         IpAddress = currentUser.IpAddress,
-        UserAgent = currentUser.UserAgent,
+        UserAgent = Truncate(currentUser.UserAgent, 300),
         CorrelationId = currentUser.CorrelationId,
-        TimestampUtc = nowUtc
+        TimestampUtc = nowUtc,
+        Result = AuditResults.Success,
+        ChangedFields = changedFields
     };
+
+    private static List<string> ChangedProperties(EntityEntry entry) =>
+        entry.Properties
+            .Where(p => p.IsModified && !p.Metadata.IsShadowProperty()
+                        && !IgnoredForChanges.Contains(p.Metadata.Name)
+                        && !Equals(p.OriginalValue, p.CurrentValue))
+            .Select(p => p.Metadata.Name)
+            .ToList();
+
+    private static string? Join(List<string> names)
+    {
+        if (names.Count == 0) return null;
+        var joined = string.Join(",", names);
+        return joined.Length <= 1000 ? joined : joined[..1000];
+    }
+
+    private static string? Truncate(string? value, int max) =>
+        value is null || value.Length <= max ? value : value[..max];
 
     private static string? DescribePrimaryKey(EntityEntry entry)
     {
@@ -156,9 +267,13 @@ public class AuditSaveChangesInterceptor(ICurrentUser currentUser, IDateTimeProv
             {
                 continue;
             }
-            payload[property.Metadata.Name] = RedactedProperties.Contains(property.Metadata.Name)
+            var name = property.Metadata.Name;
+            var value = valueSelector(property);
+            payload[name] = RedactedProperties.Contains(name)
                 ? "***REDACTED***"
-                : valueSelector(property);
+                : MaskedProperties.Contains(name) && value is string s && s.Length > 4
+                    ? new string('X', s.Length - 4) + s[^4..]
+                    : value;
         }
         return JsonSerializer.Serialize(payload, JsonOptions);
     }

@@ -10,6 +10,12 @@ namespace Regalis.Infrastructure.Persistence.Seed;
 /// </summary>
 internal static class SeedCatalogue
 {
+    internal const string PurchaseOrderDefaultTerms =
+        "1. Goods must reach the Regalis Workspace address above on or before the expected delivery date.\n" +
+        "2. The supplier invoice must quote this purchase order number and the supplier GSTIN.\n" +
+        "3. Payment will be processed as per the agreed payment terms from the date of a correct invoice.\n" +
+        "4. Any damaged, short or incorrect items will be returned at the supplier's cost.";
+
     // ── Permission catalogue (matrix §2) ────────────────────────────────────
     internal static readonly (string Module, string[] Actions)[] Permissions =
     [
@@ -203,7 +209,7 @@ internal static class SeedCatalogue
         // Housekeeping staff get this menu too — the grid scopes them to their own rows.
         new("ADM_HOUSEKEEPING", null, "Housekeeping", "/admin/housekeeping", "Sparkles", "HOUSEKEEPING.VIEW", PortalType.Admin, AdminManagerHousekeeping),
         new("ADM_LOCATIONS", null, "Locations", "/admin/locations", "MapPin", "LOCATION.VIEW", PortalType.Admin, AdminOnly),
-        new("ADM_SERVICES", null, "Services / Coffee", "/admin/services", "Coffee", "SERVICE.VIEW", PortalType.Admin, AdminManager),
+        new("ADM_SERVICES", null, "Services", "/admin/services", "Coffee", "SERVICE.VIEW", PortalType.Admin, AdminManager),
         new("ADM_BANNERS", null, "Banners", "/admin/banners", "Image", "BANNER.VIEW", PortalType.Admin, AdminManager),
         new("ADM_NOTIFICATIONS", null, "Notifications", "/admin/notifications", "Bell", "NOTIFICATION.VIEW", PortalType.Admin, AdminManagerSupport),
         new("ADM_TICKETS", null, "Support / Tickets", "/admin/tickets", "LifeBuoy", "TICKET.VIEW", PortalType.Admin, AdminManagerSupport),
@@ -233,6 +239,13 @@ internal static class SeedCatalogue
             (AppSettingKeys.Tax.IgstPercent, "18", "Tax", "decimal", "IGST percentage (inter-state)"),
             (AppSettingKeys.Tax.PlaceOfSupply, "", "Tax", "string", "Place of supply shown on invoices"),
             (AppSettingKeys.Invoice.DueDays, "7", "Invoice", "int", "Days until an invoice is due"),
+            (AppSettingKeys.Purchase.RequireApproval, "true", "Billing", "bool", "Purchase orders need approval: Draft → Submit → Approve → Send"),
+            (AppSettingKeys.Purchase.TermsAndConditions, PurchaseOrderDefaultTerms, "Billing", "string", "Default purchase order terms, copied onto each new PO (editable per PO)"),
+            (AppSettingKeys.Purchase.TdsOptions, "194C1|194C Contractor – individual/HUF 1%|1;194C2|194C Contractor – others 2%|2;194J|194J Professional services 10%|10;194I|194I Rent 10%|10;194Q|194Q Purchase of goods 0.1%|0.1", "Billing", "string", "TDS sections deducted from supplier payments, as code|label|percent rows"),
+            (AppSettingKeys.Purchase.GstRateOptions, "0,5,12,18,28", "Billing", "string", "GST rates the purchase order line dropdown offers"),
+            (AppSettingKeys.Purchase.DefaultGstPercent, "18", "Billing", "decimal", "Default GST rate on a new purchase order line"),
+            (AppSettingKeys.Purchase.ShipmentPreferences, "Supplier delivery,Pickup,Courier,Other", "Billing", "string", "Shipment preferences offered on a purchase order, comma-separated"),
+            (AppSettingKeys.Purchase.AccountCategories, "Pantry & supplies,Furniture & fixtures,Office supplies,Housekeeping supplies,Repairs & maintenance,IT & electronics,Professional services,Other", "Billing", "string", "Account heads for purchase order lines, comma-separated"),
             (AppSettingKeys.Quotation.ValidityDays, "15", "Quotation", "int", "Days a quotation stays valid before it expires"),
             (AppSettingKeys.Quotation.TermsAndConditions, "", "Quotation", "string", "Default terms printed on a quotation"),
             (AppSettingKeys.Quotation.DefaultGstPercent, "18", "Quotation", "decimal", "Default GST rate on a quotation line"),
@@ -258,6 +271,11 @@ internal static class SeedCatalogue
             (AppSettingKeys.Wallet.MinRecharge, "100", "Wallet", "decimal", "Minimum wallet recharge"),
             (AppSettingKeys.Wallet.MaxRecharge, "50000", "Wallet", "decimal", "Maximum wallet recharge"),
             (AppSettingKeys.Wallet.Enabled, "true", "Wallet", "bool", "Wallet feature toggle"),
+            (AppSettingKeys.Maintenance.Categories, "Cleaning,Plumbing,Electrical,Laundry,Other", "Maintenance", "string", "Maintenance work categories, comma-separated"),
+            (AppSettingKeys.Maintenance.Areas, "Lobby,Reception,Pantry,Washroom 1F,Washroom 2F,Floor 1,Floor 2,Corridor,Terrace", "Maintenance", "string", "Common areas for maintenance work; workspaces are listed automatically"),
+            (AppSettingKeys.Maintenance.OverdueGraceMinutes, "0", "Maintenance", "int", "Minutes after the due time before a task turns Overdue"),
+            (AppSettingKeys.Maintenance.ShiftHours, "Morning=06:00-14:00;Evening=14:00-22:00;Night=22:00-06:00", "Maintenance", "string", "Housekeeper shift hours (IST), used for On duty now"),
+            (AppSettingKeys.Wallet.LowBalanceThreshold, "100", "Billing", "decimal", "A customer wallet below this balance (Rs) is flagged as low"),
             (AppSettingKeys.Wallet.Withdrawable, "false", "Wallet", "bool", "Doc-1 §22: wallet is non-withdrawable"),
             (AppSettingKeys.Support.ContactNumber, "", "Support", "string", "Support phone shown to customers"),
             (AppSettingKeys.Support.Hours, "Mon–Sat 09:00–19:00 IST", "Support", "string", "Support hours"),
@@ -320,6 +338,8 @@ internal static class SeedCatalogue
         ("InventoryTransaction", "ITX-", null),
         ("PurchaseOrder", "REG/PO", "FY"),
         ("Expense", "REG/EXP", "FY"),
-        ("Quotation", "REG/QTN", "FY")
+        ("Quotation", "REG/QTN", "FY"),
+        ("MaintenanceWork", "MW-", null),
+        ("Housekeeper", "HK-", null)
     ];
 }

@@ -216,6 +216,14 @@ public class PurchaseOrderConfiguration : IEntityTypeConfiguration<PurchaseOrder
         builder.Property(x => x.Remarks).HasMaxLength(1000);
         builder.Property(x => x.AttachmentPath).HasMaxLength(500);
         builder.Property(x => x.CancellationReason).HasMaxLength(500);
+        builder.Property(x => x.ReferenceNumber).HasMaxLength(80);
+        builder.Property(x => x.ShipmentPreference).HasMaxLength(60);
+        builder.Property(x => x.DeliveryAddress).HasMaxLength(600);
+        builder.Property(x => x.TdsCode).HasMaxLength(20);
+        builder.Property(x => x.TdsLabel).HasMaxLength(100);
+        builder.Property(x => x.TdsPercent).HasPrecision(5, 2);
+        builder.Property(x => x.AdjustmentLabel).HasMaxLength(60);
+        builder.Property(x => x.TermsAndConditions).HasMaxLength(4000);
 
         builder.HasIndex(x => x.PoNumber).IsUnique().HasDatabaseName("UX_PurchaseOrder_Number");
         builder.HasIndex(x => new { x.SupplierId, x.PoDate }).HasDatabaseName("IX_PurchaseOrder_Supplier_Date");
@@ -245,11 +253,44 @@ public class PurchaseOrderLineConfiguration : IEntityTypeConfiguration<PurchaseO
         builder.Property(x => x.ReceivedQuantity).HasPrecision(18, 3);
         builder.Property(x => x.TaxPercent).HasPrecision(5, 2);
         builder.Property(x => x.Remarks).HasMaxLength(500);
+        builder.Property(x => x.AccountCategory).HasMaxLength(100);
 
         builder.HasOne(x => x.PurchaseOrder).WithMany(x => x.Lines)
             .HasForeignKey(x => x.PurchaseOrderId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<InventoryItem>().WithMany()
             .HasForeignKey(x => x.InventoryItemId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class PurchaseOrderAttachmentConfiguration : IEntityTypeConfiguration<PurchaseOrderAttachment>
+{
+    public void Configure(EntityTypeBuilder<PurchaseOrderAttachment> builder)
+    {
+        builder.ToTable("TRN_PurchaseOrderAttachment");
+        builder.HasKey(x => x.PurchaseOrderAttachmentId);
+        builder.Property(x => x.FileName).HasMaxLength(260).IsRequired();
+        builder.Property(x => x.StoredFileName).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.FilePath).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.ContentType).HasMaxLength(150).IsRequired();
+        builder.HasIndex(x => x.PurchaseOrderId).HasDatabaseName("IX_PurchaseOrderAttachment_PurchaseOrder");
+
+        builder.HasOne(x => x.PurchaseOrder).WithMany(x => x.Attachments)
+            .HasForeignKey(x => x.PurchaseOrderId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class PurchaseOrderStatusHistoryConfiguration : IEntityTypeConfiguration<PurchaseOrderStatusHistory>
+{
+    public void Configure(EntityTypeBuilder<PurchaseOrderStatusHistory> builder)
+    {
+        builder.ToTable("TRN_PurchaseOrderStatusHistory");
+        builder.HasKey(x => x.PurchaseOrderStatusHistoryId);
+        builder.Property(x => x.Action).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.Reason).HasMaxLength(500);
+        builder.HasIndex(x => x.PurchaseOrderId).HasDatabaseName("IX_PurchaseOrderStatusHistory_PurchaseOrder");
+
+        builder.HasOne(x => x.PurchaseOrder).WithMany(x => x.StatusHistory)
+            .HasForeignKey(x => x.PurchaseOrderId).OnDelete(DeleteBehavior.Cascade);
     }
 }
 

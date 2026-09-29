@@ -88,7 +88,7 @@ public class FeatureCompleteTests(RegalisApiFactory factory)
         // A workspace create writes audit rows via the interceptor.
         await admin.CreateWorkspaceAsync();
 
-        var logs = (await admin.GetFromJsonAsync<ApiResponse<PagedResult<AuditLogDto>>>(
+        var logs = (await admin.GetFromJsonAsync<ApiResponse<PagedResult<AuditListItemDto>>>(
             "/api/audit?pageSize=50"))!.Data!;
         logs.TotalCount.Should().BeGreaterThan(0);
         logs.Items.Should().OnlyContain(l => l.TimestampUtc != default);

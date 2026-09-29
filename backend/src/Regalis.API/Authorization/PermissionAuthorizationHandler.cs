@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Regalis.API.Auditing;
 using Regalis.Application.Abstractions;
 using Regalis.Domain.Entities.Identity;
 using Regalis.Infrastructure.Persistence;
@@ -33,19 +34,31 @@ public class PermissionAuthorizationHandler(
                 "Authorization failed: user {UserId} lacks permission {Permission}",
                 currentUser.UserId, requirement.PermissionCode);
 
-            dbContext.AuditLogs.Add(new AuditLog
-            {
-                UserId = currentUser.UserId,
-                UserName = currentUser.FullName,
-                Action = AuditActions.AuthorizationFailed,
-                ModuleName = requirement.PermissionCode.Split('.')[0],
-                EntityName = "Permission",
-                EntityId = requirement.PermissionCode,
-                IpAddress = currentUser.IpAddress,
-                UserAgent = currentUser.UserAgent,
-                CorrelationId = currentUser.CorrelationId,
-                TimestampUtc = clock.UtcNow
-            });
+            var reason = $"Missing permission: {requirement.PermissionCode}";
+            // Audit Trail §4.4: the attempted action (e.g. DELETE on Quotation #11), Denied,
+            // with the permission that was missing. Refused reads keep the
+            // AUTHORIZATION_FAILED action on the permission itself (EXPORT for exports).
+            var row = context.Resource is HttpContext http && AuditOutcome.IsMutation(http.Request.Method)
+                ? AuditOutcome.Build(http, currentUser, clock.UtcNow, AuditResults.Denied, reason)
+                : new AuditLog
+                {
+                    UserId = currentUser.UserId,
+                    UserName = currentUser.FullName,
+                    Action = context.Resource is HttpContext get
+                             && get.Request.Path.Value?.Contains("export", StringComparison.OrdinalIgnoreCase) == true
+                        ? AuditActions.Export
+                        : AuditActions.AuthorizationFailed,
+                    ModuleName = requirement.PermissionCode.Split('.')[0],
+                    EntityName = "Permission",
+                    EntityId = requirement.PermissionCode,
+                    IpAddress = currentUser.IpAddress,
+                    UserAgent = currentUser.UserAgent is { Length: > 300 } ua ? ua[..300] : currentUser.UserAgent,
+                    CorrelationId = currentUser.CorrelationId,
+                    TimestampUtc = clock.UtcNow,
+                    Result = AuditResults.Denied,
+                    FailureReason = reason
+                };
+            dbContext.AuditLogs.Add(row);
             await dbContext.SaveChangesAsync();
         }
     }

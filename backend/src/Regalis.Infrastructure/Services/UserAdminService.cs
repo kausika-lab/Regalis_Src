@@ -124,6 +124,8 @@ public class UserAdminService(
         {
             db.Wallets.Add(new Wallet { CustomerId = user.UserId });
         }
+        await AdminAlerts.AccountAsync(db, user, "New profile created", "was created",
+            clock.UtcNow, ct);
         await db.SaveChangesAsync(ct);
 
         return await GetUserAsync(user.UserId, ct);
@@ -168,6 +170,8 @@ public class UserAdminService(
             });
         }
 
+        await AdminAlerts.AccountAsync(db, user, "Profile information changed",
+            "was changed by an administrator", clock.UtcNow, ct);
         await db.SaveChangesAsync(ct);
         return await GetUserAsync(userId, ct);
     }
@@ -187,6 +191,8 @@ public class UserAdminService(
         user.Status = UserStatus.Active;
         user.LockoutEndUtc = null;
         user.FailedLoginCount = 0;
+        await AdminAlerts.AccountAsync(db, user, "Account unlocked", "was unlocked",
+            clock.UtcNow, ct);
         await db.SaveChangesAsync(ct);
     }
 
@@ -214,6 +220,9 @@ public class UserAdminService(
             token.RevokedUtc = nowUtc;
             token.RevokedReason = "AdminPasswordReset";
         }
+        await AdminAlerts.AccountAsync(db, user, "Password reset",
+            "had its password reset by an administrator", nowUtc, ct,
+            NotificationPriority.High);
         await db.SaveChangesAsync(ct);
     }
 
@@ -236,6 +245,14 @@ public class UserAdminService(
         }
         var user = await RequireUserAsync(userId, ct);
         user.Status = status;
+        var (title, action) = status switch
+        {
+            UserStatus.Active => ("Account activated", "was activated"),
+            UserStatus.Locked => ("Account locked", "was locked"),
+            _ => ("Account deactivated", "was deactivated")
+        };
+        await AdminAlerts.AccountAsync(db, user, title, action, clock.UtcNow, ct,
+            status == UserStatus.Locked ? NotificationPriority.High : NotificationPriority.Normal);
         await db.SaveChangesAsync(ct);
     }
 

@@ -41,12 +41,14 @@ public class WalletController(
         OkEnvelope(await walletAdmin.VerifyRechargeAsync(request, ct), "Wallet recharged.");
 
     /// <summary>Admin view of a customer's wallet.</summary>
+    [StaffOnly]
     [HttpGet("{customerId:long}")]
     [HasPermission(PermissionCodes.Wallet.View)]
     [ProducesResponseType(typeof(ApiResponse<WalletDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetWallet(long customerId, CancellationToken ct) =>
         OkEnvelope(await walletAdmin.GetWalletAsync(customerId, ct));
 
+    [StaffOnly]
     [HttpGet("{customerId:long}/transactions")]
     [HasPermission(PermissionCodes.Wallet.View)]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<WalletTransactionDto>>), StatusCodes.Status200OK)]
@@ -55,6 +57,7 @@ public class WalletController(
         OkEnvelope(await walletAdmin.GetTransactionsAsync(customerId, request, ct));
 
     /// <summary>Manual credit/debit with a mandatory reason — fully audited.</summary>
+    [StaffOnly]
     [HttpPost("{customerId:long}/adjust")]
     [HasPermission(PermissionCodes.Wallet.Edit)]
     [ProducesResponseType(typeof(ApiResponse<WalletDto>), StatusCodes.Status200OK)]

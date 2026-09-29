@@ -260,6 +260,44 @@ public class MoneyCompleteTests(RegalisApiFactory factory)
     }
 
     [Fact]
+    public async Task MembershipPurchase_IsNumberedMem_OffTheSamePassCounter()
+    {
+        var admin = factory.CreateClient();
+        admin.UseToken((await admin.LoginAsAdminAsync()).AccessToken);
+        var dayPlan = await CreateDayPassPlanAsync(admin, 100m);
+        // The Membership screen sells the MEM-… plans.
+        var memCode = $"MEM-T{Guid.NewGuid().ToString("N")[..5].ToUpperInvariant()}-1M";
+        var created = await admin.PostAsJsonAsync("/api/pass-plans", new SavePassPlanRequest(
+            memCode, "Test membership - Monthly", 2, null, 100m, 30, null,
+            "Monthly membership", null, 1, true));
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        var memPlan = (await created.Content.ReadFromJsonAsync<ApiResponse<PassPlanDto>>())!.Data!;
+
+        var (customer, customerId, _) = await SetUpAsync();
+        await CreditWalletAsync(customerId, 1000m);
+        var tomorrow = DateOnly.FromDateTime(Shared.IstClock.ToIst(DateTime.UtcNow)).AddDays(1);
+        async Task<string> BuyAsync(int planId, DateOnly from)
+        {
+            var r = await customer.PostAsJsonAsync("/api/passes/purchase",
+                new PurchasePassRequest(planId, from, PaymentMethods.Wallet, null, null, null));
+            r.EnsureSuccessStatusCode();
+            return (await r.Content.ReadFromJsonAsync<ApiResponse<PurchasePassResponse>>())!.Data!.Pass.PassNumber;
+        }
+
+        var membership = await BuyAsync(memPlan.PassPlanId, tomorrow);
+        var dayPass = await BuyAsync(dayPlan.PassPlanId, tomorrow.AddDays(40));
+
+        membership.Should().MatchRegex(@"^MEM-\d{6}$");
+        dayPass.Should().MatchRegex(@"^PASS-\d{6}$");
+        // One counter behind both series: the numbers follow on, never collide.
+        int.Parse(dayPass[5..]).Should().BeGreaterThan(int.Parse(membership[4..]));
+
+        var mine = (await customer.GetFromJsonAsync<ApiResponse<PagedResult<CustomerPassDto>>>(
+            "/api/passes/my"))!.Data!;
+        mine.Items.Select(p => p.PassNumber).Should().Contain([membership, dayPass]);
+    }
+
+    [Fact]
     public async Task PassPurchase_WithWallet_ProducesPassInvoiceAndQr()
     {
         var admin = factory.CreateClient();

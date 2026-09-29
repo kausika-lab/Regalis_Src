@@ -10,7 +10,8 @@ namespace Regalis.API.Controllers;
 /// blocking schedule writes the calendar block in the same transaction, so customer
 /// availability drops the slot with no second code path (Invariant 12).</summary>
 [Route("api/housekeeping")]
-public class HousekeepingController(IHousekeepingService housekeepingService) : ApiControllerBase
+public class HousekeepingController(IHousekeepingService housekeepingService, IMaintenanceService maintenance)
+    : ApiControllerBase
 {
     /// <summary>The admin grid. Staff callers are scoped to their own rows.</summary>
     [HttpGet("schedules")]
@@ -34,6 +35,8 @@ public class HousekeepingController(IHousekeepingService housekeepingService) : 
     public async Task<IActionResult> Create(SaveHousekeepingScheduleRequest request, CancellationToken ct)
     {
         var schedule = await housekeepingService.CreateAsync(request, ct);
+        // Housekeeping and cleaning schedules also appear on the Maintenance checklist.
+        await maintenance.CreateForScheduleAsync(schedule.HousekeepingScheduleId, ct);
         return CreatedEnvelope($"/api/housekeeping/schedules/{schedule.HousekeepingScheduleId}",
             schedule, "Schedule created. The staff access QR is valid for this window.");
     }
@@ -50,9 +53,12 @@ public class HousekeepingController(IHousekeepingService housekeepingService) : 
     [HttpPost("schedules/{id:long}/cancel")]
     [HasPermission(PermissionCodes.Housekeeping.Edit)]
     [ProducesResponseType(typeof(ApiResponse<HousekeepingScheduleDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Cancel(long id, CancellationToken ct) =>
-        OkEnvelope(await housekeepingService.CancelAsync(id, ct),
-            "Schedule cancelled and the workspace released.");
+    public async Task<IActionResult> Cancel(long id, CancellationToken ct)
+    {
+        var schedule = await housekeepingService.CancelAsync(id, ct);
+        await maintenance.CancelForScheduleAsync(id, ct);
+        return OkEnvelope(schedule, "Schedule cancelled and the workspace released.");
+    }
 
     [HttpPost("schedules/{id:long}/check-in")]
     [HasPermission(PermissionCodes.Housekeeping.Edit)]

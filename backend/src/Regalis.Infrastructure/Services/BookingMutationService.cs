@@ -105,6 +105,8 @@ public class BookingMutationService(
                 $"{booking.BookingNumber} has been cancelled." +
                 (refundAmount > 0 ? $" ₹{refundAmount:N2} was refunded to your wallet." : ""),
                 nowUtc));
+            await AdminAlerts.BookingAsync(db, booking, "Booking cancelled", nowUtc, ct,
+                refundAmount > 0 ? $"₹{refundAmount:N2} refunded to the wallet." : null);
 
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
@@ -177,6 +179,8 @@ public class BookingMutationService(
             db.Notifications.Add(BuildNotification(booking, "Booking rescheduled",
                 $"{booking.BookingNumber} now runs {IstClock.ToIst(newStartUtc):dd MMM yyyy HH:mm}–" +
                 $"{IstClock.ToIst(newEndUtc):HH:mm} IST.", nowUtc));
+            await AdminAlerts.BookingAsync(db, booking, "Booking rescheduled", nowUtc, ct,
+                $"Moved from {oldStartIst:dd MMM, HH:mm}.");
 
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);

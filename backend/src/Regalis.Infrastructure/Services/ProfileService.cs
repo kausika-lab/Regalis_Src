@@ -14,7 +14,8 @@ namespace Regalis.Infrastructure.Services;
 public class ProfileService(
     RegalisDbContext db,
     ICurrentUser currentUser,
-    IOptions<StorageOptions> storageOptions) : IProfileService
+    IOptions<StorageOptions> storageOptions,
+    IDateTimeProvider clock) : IProfileService
 {
     private const long MaxPhotoBytes = 2 * 1024 * 1024;
 
@@ -48,6 +49,7 @@ public class ProfileService(
         user.MobileNumber = mobile;
         user.CompanyName = request.CompanyName?.Trim();
         user.Address = request.Address?.Trim();
+        await AdminAlerts.AccountAsync(db, user, "Profile updated", "was updated", clock.UtcNow, ct);
         await db.SaveChangesAsync(ct);
         return ToDto(user);
     }
@@ -141,6 +143,8 @@ public class ProfileService(
         // The legacy single line is what TRN_Invoice snapshots, so it has to keep up.
         user.Address = ComposeAddress(user);
 
+        await AdminAlerts.AccountAsync(db, user, "Profile completed",
+            "finished onboarding", clock.UtcNow, ct);
         await db.SaveChangesAsync(ct);
         return ToDto(user);
     }

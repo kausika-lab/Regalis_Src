@@ -53,6 +53,7 @@ public class QuotationsController(IQuotationService quotationService) : ApiContr
 
     // ── Admin portal ────────────────────────────────────────────────────────
 
+    [StaffOnly]
     [HttpGet]
     [HasPermission(PermissionCodes.Quotation.View)]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<QuotationDto>>), StatusCodes.Status200OK)]
@@ -62,6 +63,7 @@ public class QuotationsController(IQuotationService quotationService) : ApiContr
 
     /// <summary>The last rates an item from Assets > Items was quoted at (newest
     /// first), for the Rate column's Recent Transactions popup.</summary>
+    [StaffOnly]
     [HttpGet("item-rates")]
     [HasPermission(PermissionCodes.Quotation.View)]
     [ProducesResponseType(typeof(ApiResponse<List<QuotationItemRateDto>>), StatusCodes.Status200OK)]
@@ -71,6 +73,7 @@ public class QuotationsController(IQuotationService quotationService) : ApiContr
 
     /// <summary>How many quotations each status tab holds under the list's current
     /// filters (search, customer, service and date). The status itself is ignored.</summary>
+    [StaffOnly]
     [HttpGet("status-counts")]
     [HasPermission(PermissionCodes.Quotation.View)]
     [ProducesResponseType(typeof(ApiResponse<QuotationStatusCountsDto>), StatusCodes.Status200OK)]
@@ -79,6 +82,7 @@ public class QuotationsController(IQuotationService quotationService) : ApiContr
         OkEnvelope(await quotationService.GetStatusCountsAsync(request, ct));
 
     /// <summary>The four summary cards and the status tab counts (document §3.1).</summary>
+    [StaffOnly]
     [HttpGet("summary")]
     [HasPermission(PermissionCodes.Quotation.View)]
     [ProducesResponseType(typeof(ApiResponse<QuotationSummaryDto>), StatusCodes.Status200OK)]
@@ -86,6 +90,7 @@ public class QuotationsController(IQuotationService quotationService) : ApiContr
         OkEnvelope(await quotationService.GetSummaryAsync(ct));
 
     /// <summary>Services, tax options and defaults for the new-quotation form (§3.2).</summary>
+    [StaffOnly]
     [HttpGet("form-options")]
     [HasPermission(PermissionCodes.Quotation.Create)]
     [ProducesResponseType(typeof(ApiResponse<QuotationFormOptionsDto>), StatusCodes.Status200OK)]
@@ -93,6 +98,7 @@ public class QuotationsController(IQuotationService quotationService) : ApiContr
         OkEnvelope(await quotationService.GetFormOptionsAsync(ct));
 
     /// <summary>The filtered list as a CSV download (document §3.1).</summary>
+    [StaffOnly]
     [HttpGet("export")]
     [HasPermission(PermissionCodes.Quotation.Export)]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -101,6 +107,7 @@ public class QuotationsController(IQuotationService quotationService) : ApiContr
         File(await quotationService.ExportAsync(request, ct), "text/csv",
             $"quotations-{DateTime.UtcNow:yyyyMMdd}.csv");
 
+    [StaffOnly]
     [HttpGet("{id:long}")]
     [HasPermission(PermissionCodes.Quotation.View)]
     [ProducesResponseType(typeof(ApiResponse<QuotationDto>), StatusCodes.Status200OK)]

@@ -13,7 +13,10 @@ public record NotificationDto(
     string? ActionRoute,
     bool IsRead,
     DateTime? ReadUtc,
-    DateTime CreatedDate);
+    DateTime CreatedDate,
+    // "Booking", "Ticket" or "User"; with ReferenceId it names the record the alert is about.
+    string? ReferenceType = null,
+    long? ReferenceId = null);
 
 public class NotificationListRequest : PagedRequest
 {
@@ -38,7 +41,7 @@ public class BroadcastNotificationRequestValidator : AbstractValidator<Broadcast
             .WithMessage("Audience must be 2 (all customers) or 3 (all admins).");
         RuleFor(x => x.Title).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Message).NotEmpty().MaximumLength(2000);
-        RuleFor(x => x.Category).InclusiveBetween((byte)1, (byte)12);
+        RuleFor(x => x.Category).InclusiveBetween((byte)1, (byte)13);
         RuleFor(x => x.ActionLabel).MaximumLength(60);
         RuleFor(x => x.ActionRoute).MaximumLength(200);
     }

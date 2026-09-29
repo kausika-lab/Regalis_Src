@@ -370,6 +370,8 @@ public class AccessService(
             booking.Status = BookingStatus.Completed;
             booking.CheckOutUtc = nowUtc;
             AddHistory(booking, BookingStatus.CheckedIn, BookingStatus.Completed, nowUtc, "Checked out at the gate.");
+            await AdminAlerts.BookingAsync(db, booking, "Booking completed", nowUtc, ct,
+                "Checked out at the gate.");
         }
         return booking.BookingNumber;
     }

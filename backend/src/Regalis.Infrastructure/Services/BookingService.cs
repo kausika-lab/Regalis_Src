@@ -131,6 +131,10 @@ public class BookingService(
             "Booking hold {BookingNumber} created for customer {CustomerId}: workspace {WorkspaceId} {Start}–{End}",
             booking.BookingNumber, booking.CustomerId, booking.WorkspaceId, startUtc, endUtc);
 
+        await AdminAlerts.BookingAsync(db, booking, "New booking", clock.UtcNow, ct,
+            "Awaiting payment.");
+        await db.SaveChangesAsync(ct);
+
         return await GetBookingAsync(booking.BookingId, ct);
     }
 
@@ -302,6 +306,8 @@ public class BookingService(
 
         // Step 6: the notification.
         db.Notifications.Add(BuildConfirmationNotification(booking, nowUtc));
+        await AdminAlerts.BookingAsync(db, booking, "Booking confirmed", nowUtc, ct,
+            $"Paid by {request.PaymentMethod}.");
 
         // Step 7: state + history.
         booking.Status = BookingStatus.Confirmed;

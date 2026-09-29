@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -584,6 +585,8 @@ public class AuthService(
         }
 
         await SetPasswordAsync(user, request.NewPassword, nowUtc, ct);
+        await AdminAlerts.AccountAsync(db, user, "Password changed", "had its password changed",
+            nowUtc, ct);
         await db.SaveChangesAsync(ct);
     }
 
@@ -607,6 +610,8 @@ public class AuthService(
         }
 
         await SetPasswordAsync(user, request.NewPassword, nowUtc, ct);
+        await AdminAlerts.AccountAsync(db, user, "Password changed", "had its password changed",
+            nowUtc, ct);
         await db.SaveChangesAsync(ct);
     }
 
@@ -886,6 +891,39 @@ public class AuthService(
             UserAgent = currentUser.UserAgent,
             AttemptedUtc = clock.UtcNow
         });
+        if (!success)
+        {
+            // Audit Trail §5.3: a failed sign-in is a LOGIN_FAILED row with the email tried,
+            // the IP and the reason — never the password.
+            var user = userId is null ? null : db.Users.Local.FirstOrDefault(u => u.UserId == userId);
+            db.AuditLogs.Add(new AuditLog
+            {
+                UserId = userId,
+                UserName = user?.FullName ?? email,
+                Action = AuditActions.LoginFailed,
+                ModuleName = "Auth",
+                EntityName = "User",
+                EntityId = userId?.ToString(),
+                NewValue = JsonSerializer.Serialize(new { Email = email }),
+                IpAddress = currentUser.IpAddress,
+                UserAgent = currentUser.UserAgent is { Length: > 300 } ua ? ua[..300] : currentUser.UserAgent,
+                CorrelationId = currentUser.CorrelationId,
+                TimestampUtc = clock.UtcNow,
+                Result = AuditResults.Failed,
+                FailureReason = failureReason switch
+                {
+                    "WrongPassword" when user?.LockoutEndUtc > clock.UtcNow => "Invalid password — account locked after too many attempts",
+                    "WrongPassword" => $"Invalid password (attempt {user?.FailedLoginCount})",
+                    "UserNotFoundOrWrongPortal" => "No account for this email on this portal",
+                    "PendingVerification" => "Email not verified yet",
+                    "Inactive" => "Account is inactive",
+                    "LockedOut" => "Account is locked",
+                    "NoPasswordSet" => "Account signs in with Google only",
+                    null => "Sign-in failed",
+                    var other => other
+                }
+            });
+        }
         if (saveNow)
         {
             await db.SaveChangesAsync(ct);

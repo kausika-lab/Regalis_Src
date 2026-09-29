@@ -49,6 +49,8 @@ public class HousekeepingListRequest : PagedRequest
     public byte? Status { get; set; }
     public long? StaffUserId { get; set; }
     public int? LocationId { get; set; }
+    /// <summary>Workspace the schedule blocks or takes place in.</summary>
+    public int? WorkspaceId { get; set; }
 }
 
 public class SaveHousekeepingScheduleRequestValidator : AbstractValidator<SaveHousekeepingScheduleRequest>

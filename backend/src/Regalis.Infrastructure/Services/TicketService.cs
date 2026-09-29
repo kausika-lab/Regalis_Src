@@ -83,21 +83,9 @@ public class TicketService(
             Status = TicketStatus.Open
         };
         db.Tickets.Add(ticket);
+        await db.SaveChangesAsync(ct); // the alert links to the ticket id
 
-        db.Notifications.Add(new Notification
-        {
-            Audience = NotificationAudience.AllAdmins,
-            Title = "New support ticket",
-            Message = $"{ticket.TicketNumber}: {ticket.Subject}",
-            Category = NotificationCategory.SupportTicket,
-            Priority = ticket.Priority >= TicketPriority.High
-                ? NotificationPriority.High
-                : NotificationPriority.Normal,
-            ReferenceType = "Ticket",
-            ActionRoute = "/admin/tickets",
-            ActionLabel = "Open triage",
-            SentUtc = clock.UtcNow
-        });
+        await AdminAlerts.TicketAsync(db, ticket, "New support ticket", clock.UtcNow, ct);
         await db.SaveChangesAsync(ct);
         return await GetTicketAsync(ticket.TicketId, ct);
     }
@@ -241,6 +229,7 @@ public class TicketService(
             {
                 ticket.Status = TicketStatus.InProgress;
             }
+            await AdminAlerts.TicketAsync(db, ticket, "Customer replied", nowUtc, ct);
         }
         await db.SaveChangesAsync(ct);
         return await GetTicketAsync(ticketId, ct);
@@ -347,8 +336,12 @@ public class TicketService(
             Category = NotificationCategory.SupportTicket,
             ReferenceType = "Ticket",
             ReferenceId = ticket.TicketId,
+            ActionRoute = $"/admin/tickets/{ticket.TicketId}",
+            ActionLabel = "Open ticket",
             SentUtc = clock.UtcNow
         });
+        await AdminAlerts.TicketAsync(db, ticket, "Ticket assigned", clock.UtcNow, ct,
+            exceptUserId: assignee.UserId, suffix: $"Assigned to {assignee.FullName}.");
         await db.SaveChangesAsync(ct);
         return await GetTicketAsync(ticketId, ct);
     }
@@ -389,6 +382,15 @@ public class TicketService(
         ticket.Status = to;
         NotifyCustomer(ticket, "Ticket status updated",
             $"{ticket.TicketNumber} is now {to}.");
+        var title = to switch
+        {
+            TicketStatus.Resolved => "Ticket resolved",
+            TicketStatus.Closed => "Ticket closed",
+            TicketStatus.Reopened => "Ticket reopened",
+            _ => "Ticket updated"
+        };
+        await AdminAlerts.TicketAsync(db, ticket, title, nowUtc, ct,
+            exceptUserId: currentUser.UserId, suffix: $"Status: {to}.");
         await db.SaveChangesAsync(ct);
         return await GetTicketAsync(ticketId, ct);
     }
@@ -398,6 +400,8 @@ public class TicketService(
     {
         var ticket = await LoadAdminTicketAsync(ticketId, ct);
         ticket.Priority = (TicketPriority)request.Priority;
+        await AdminAlerts.TicketAsync(db, ticket, "Ticket updated", clock.UtcNow, ct,
+            exceptUserId: currentUser.UserId, suffix: "Priority changed.");
         await db.SaveChangesAsync(ct);
         return await GetTicketAsync(ticketId, ct);
     }
@@ -415,6 +419,9 @@ public class TicketService(
         {
             NotifyCustomer(ticket, "Ticket closed", $"{ticket.TicketNumber} has been closed.");
         }
+        await AdminAlerts.TicketAsync(db, ticket, "Ticket closed", ticket.ClosedUtc.Value, ct,
+            exceptUserId: currentUser.UserId,
+            suffix: IsCustomer ? "Closed by the customer." : null);
         await db.SaveChangesAsync(ct);
         return await GetTicketAsync(ticketId, ct);
     }
@@ -430,6 +437,8 @@ public class TicketService(
         ticket.ReopenCount++;
         ticket.ResolvedUtc = null;
         ticket.ClosedUtc = null;
+        await AdminAlerts.TicketAsync(db, ticket, "Ticket reopened", clock.UtcNow, ct,
+            exceptUserId: currentUser.UserId);
         await db.SaveChangesAsync(ct);
         return await GetTicketAsync(ticketId, ct);
     }

@@ -160,6 +160,8 @@ public class AttendanceService(
             {
                 TransitionBooking(booking, BookingStatus.Completed, nowUtc, "Self check-out from the app.");
                 booking.CheckOutUtc = nowUtc;
+                await AdminAlerts.BookingAsync(db, booking, "Booking completed", nowUtc, ct,
+                    "Self check-out from the app.");
             }
         }
         await db.SaveChangesAsync(ct);

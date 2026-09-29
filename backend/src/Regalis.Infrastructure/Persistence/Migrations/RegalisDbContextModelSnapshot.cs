@@ -1404,6 +1404,20 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("PurchaseOrderId"));
 
+                    b.Property<decimal>("AdjustmentAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("AdjustmentLabel")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<long?>("ApprovedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ApprovedUtc")
+                        .HasColumnType("datetime2(3)");
+
                     b.Property<string>("AttachmentPath")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -1414,6 +1428,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime?>("CancelledUtc")
                         .HasColumnType("datetime2(3)");
+
+                    b.Property<decimal>("CgstAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<long?>("CreatedBy")
                         .HasColumnType("bigint");
@@ -1427,17 +1445,38 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("DeletedDate")
                         .HasColumnType("datetime2(3)");
 
+                    b.Property<string>("DeliveryAddress")
+                        .HasMaxLength(600)
+                        .HasColumnType("nvarchar(600)");
+
                     b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte?>("DiscountType")
+                        .HasColumnType("tinyint");
+
+                    b.Property<decimal>("DiscountValue")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<DateOnly?>("ExpectedDeliveryDate")
                         .HasColumnType("date");
 
+                    b.Property<decimal>("IgstAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsInterState")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsReverseCharge")
                         .HasColumnType("bit");
 
                     b.Property<int>("LocationId")
@@ -1457,6 +1496,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
+                    b.Property<string>("ReferenceNumber")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
                     b.Property<string>("Remarks")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
@@ -1464,12 +1507,23 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("SentUtc")
                         .HasColumnType("datetime2(3)");
 
+                    b.Property<decimal>("SgstAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ShipmentPreference")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
                     b.Property<byte>("Status")
                         .HasColumnType("tinyint");
 
                     b.Property<decimal>("SubTotal")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("SubmittedUtc")
+                        .HasColumnType("datetime2(3)");
 
                     b.Property<int>("SupplierId")
                         .HasColumnType("int");
@@ -1481,6 +1535,26 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("TaxableAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TdsAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TdsCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("TdsLabel")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("TdsPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("TermsAndConditions")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<decimal>("TotalAmount")
                         .HasPrecision(18, 2)
@@ -1501,6 +1575,54 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.ToTable("TRN_PurchaseOrder", (string)null);
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.PurchaseOrderAttachment", b =>
+                {
+                    b.Property<long>("PurchaseOrderAttachmentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("PurchaseOrderAttachmentId"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("PurchaseOrderId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long>("UploadedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("UploadedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("PurchaseOrderAttachmentId");
+
+                    b.HasIndex("PurchaseOrderId")
+                        .HasDatabaseName("IX_PurchaseOrderAttachment_PurchaseOrder");
+
+                    b.ToTable("TRN_PurchaseOrderAttachment", (string)null);
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.PurchaseOrderLine", b =>
                 {
                     b.Property<long>("PurchaseOrderLineId")
@@ -1509,6 +1631,14 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("PurchaseOrderLineId"));
 
+                    b.Property<string>("AccountCategory")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("CgstAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("DiscountAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -1516,6 +1646,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<string>("HsnSacCode")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("IgstAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int?>("InventoryItemId")
                         .HasColumnType("int");
@@ -1551,6 +1685,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<decimal>("SgstAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("TaxAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -1577,6 +1715,46 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_PoLine_Received", "[ReceivedQuantity] >= 0 AND [ReceivedQuantity] <= [Quantity]");
                         });
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.PurchaseOrderStatusHistory", b =>
+                {
+                    b.Property<long>("PurchaseOrderStatusHistoryId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("PurchaseOrderStatusHistoryId"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<long>("ChangedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("ChangedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<byte?>("FromStatus")
+                        .HasColumnType("tinyint");
+
+                    b.Property<long>("PurchaseOrderId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<byte>("ToStatus")
+                        .HasColumnType("tinyint");
+
+                    b.HasKey("PurchaseOrderStatusHistoryId");
+
+                    b.HasIndex("PurchaseOrderId")
+                        .HasDatabaseName("IX_PurchaseOrderStatusHistory_PurchaseOrder");
+
+                    b.ToTable("TRN_PurchaseOrderStatusHistory", (string)null);
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.Quotation", b =>
@@ -2540,6 +2718,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
+                    b.Property<string>("ChangedFields")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<string>("CorrelationId")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
@@ -2551,6 +2733,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<string>("EntityName")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("IpAddress")
                         .HasMaxLength(64)
@@ -2566,6 +2752,13 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("OldValue")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasDefaultValue("Success");
 
                     b.Property<DateTime>("TimestampUtc")
                         .HasColumnType("datetime2(3)");
@@ -2586,8 +2779,17 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.HasIndex("TimestampUtc")
                         .HasDatabaseName("IX_AuditLog_Timestamp");
 
+                    b.HasIndex("Action", "TimestampUtc")
+                        .HasDatabaseName("IX_AuditLog_Action_Timestamp");
+
                     b.HasIndex("EntityName", "EntityId")
                         .HasDatabaseName("IX_AuditLog_Entity");
+
+                    b.HasIndex("ModuleName", "TimestampUtc")
+                        .HasDatabaseName("IX_AuditLog_Module_Timestamp");
+
+                    b.HasIndex("Result", "TimestampUtc")
+                        .HasDatabaseName("IX_AuditLog_Result_Timestamp");
 
                     b.HasIndex("UserId", "TimestampUtc")
                         .HasDatabaseName("IX_AuditLog_User_Timestamp");
@@ -4008,6 +4210,69 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.ToTable("MST_WorkspaceType", (string)null);
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Operations.HousekeeperProfile", b =>
+                {
+                    b.Property<long>("HousekeeperProfileId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("HousekeeperProfileId"));
+
+                    b.Property<string>("AssignedAreas")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("HousekeeperCode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateOnly>("JoiningDate")
+                        .HasColumnType("date");
+
+                    b.Property<long?>("ModifiedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<byte>("Shift")
+                        .HasColumnType("tinyint");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("HousekeeperProfileId");
+
+                    b.HasIndex("HousekeeperCode")
+                        .IsUnique()
+                        .HasDatabaseName("UX_HousekeeperProfile_Code");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_HousekeeperProfile_User");
+
+                    b.ToTable("MST_HousekeeperProfile", (string)null);
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Operations.HousekeepingSchedule", b =>
                 {
                     b.Property<long>("HousekeepingScheduleId")
@@ -4339,6 +4604,153 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_InvTxn_Quantity", "[Quantity] > 0 OR ([TransactionType] = 5 AND [Quantity] <> 0)");
                         });
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Operations.MaintenanceWorkItem", b =>
+                {
+                    b.Property<long>("MaintenanceWorkItemId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("MaintenanceWorkItemId"));
+
+                    b.Property<string>("AreaName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long>("AssignedToUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("AssignedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("CancelledUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<long?>("CompletedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("CompletedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("CompletionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<DateTime>("DueUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Instructions")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<long?>("LinkedScheduleId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("ModifiedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<DateTime?>("OverdueSinceUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("PhotoContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PhotoFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("PhotoPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<byte>("Priority")
+                        .HasColumnType("tinyint");
+
+                    b.Property<int>("ReworkCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReworkReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("StartedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<byte>("Status")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<long?>("VerifiedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("VerifiedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("WorkNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int?>("WorkspaceId")
+                        .HasColumnType("int");
+
+                    b.HasKey("MaintenanceWorkItemId");
+
+                    b.HasIndex("LinkedScheduleId");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("WorkNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_MaintenanceWork_Number");
+
+                    b.HasIndex("AssignedToUserId", "Status")
+                        .HasDatabaseName("IX_MaintenanceWork_Assignee_Status");
+
+                    b.HasIndex("DueUtc", "Status")
+                        .HasDatabaseName("IX_MaintenanceWork_Due_Status");
+
+                    b.ToTable("TRN_MaintenanceWorkItem", (string)null);
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Operations.Notification", b =>
@@ -4861,6 +5273,17 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Navigation("Supplier");
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.PurchaseOrderAttachment", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Finance.PurchaseOrder", "PurchaseOrder")
+                        .WithMany("Attachments")
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PurchaseOrder");
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.PurchaseOrderLine", b =>
                 {
                     b.HasOne("Regalis.Domain.Entities.Operations.InventoryItem", null)
@@ -4870,6 +5293,17 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     b.HasOne("Regalis.Domain.Entities.Finance.PurchaseOrder", "PurchaseOrder")
                         .WithMany("Lines")
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PurchaseOrder");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.PurchaseOrderStatusHistory", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Finance.PurchaseOrder", "PurchaseOrder")
+                        .WithMany("StatusHistory")
                         .HasForeignKey("PurchaseOrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -5193,6 +5627,15 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Operations.HousekeeperProfile", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Operations.HousekeepingSchedule", b =>
                 {
                     b.HasOne("Regalis.Domain.Entities.Identity.User", null)
@@ -5220,6 +5663,26 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("InventoryItem");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Operations.MaintenanceWorkItem", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("AssignedToUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Regalis.Domain.Entities.Operations.HousekeepingSchedule", null)
+                        .WithMany()
+                        .HasForeignKey("LinkedScheduleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Regalis.Domain.Entities.Masters.Location", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Operations.Ticket", b =>
@@ -5286,7 +5749,11 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.PurchaseOrder", b =>
                 {
+                    b.Navigation("Attachments");
+
                     b.Navigation("Lines");
+
+                    b.Navigation("StatusHistory");
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.Quotation", b =>

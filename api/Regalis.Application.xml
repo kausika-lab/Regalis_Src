@@ -179,6 +179,20 @@
             a wa.me link the admin sends by hand, reported back as a note (document §3.5).
             </summary>
         </member>
+        <member name="T:Regalis.Application.Abstractions.IServerInstance">
+            <summary>
+            The running API process. Sessions belong to the process that issued them: every access
+            token carries <see cref="P:Regalis.Application.Abstractions.IServerInstance.BootId"/>, and a token from an earlier process is refused, so a
+            server restart sends everyone back to the sign-in page (setting Auth:EndSessionsOnRestart,
+            default true).
+            </summary>
+        </member>
+        <member name="P:Regalis.Application.Abstractions.IServerInstance.BootId">
+            <summary>Random per process start.</summary>
+        </member>
+        <member name="P:Regalis.Application.Abstractions.IServerInstance.EndSessionsOnRestart">
+            <summary>False when Auth:EndSessionsOnRestart is off: tokens outlive a restart.</summary>
+        </member>
         <member name="T:Regalis.Application.Abstractions.ISettingService">
             <summary>
             Typed access to MST_AppSetting — the "no hard-coding" table (Invariant 6).
@@ -397,12 +411,41 @@
         <member name="F:Regalis.Application.Bookings.PaymentMethods.Cash">
             <summary>Admin bookings only — cash collected at the desk.</summary>
         </member>
+        <member name="T:Regalis.Application.Bookings.BookingMonthlyRequest">
+            <summary>The admin list's filters plus the calendar year the monthly chart covers.</summary>
+        </member>
+        <member name="T:Regalis.Application.Bookings.BookingMonthlyDto">
+            <summary>Always twelve months, January to December, by booking date (IST).
+            Count is every booking the filters match — the same rows as the list. Revenue counts
+            only bookings that were paid for and kept (Confirmed, CheckedIn, Completed, NoShow):
+            cancelled bookings, expired holds and unpaid pending holds bring in nothing.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.BookingMonthlyDto.#ctor(System.Int32,System.Int32,System.Decimal,System.Collections.Generic.List{Regalis.Application.Bookings.BookingMonthTotalDto})">
+            <summary>Always twelve months, January to December, by booking date (IST).
+            Count is every booking the filters match — the same rows as the list. Revenue counts
+            only bookings that were paid for and kept (Confirmed, CheckedIn, Completed, NoShow):
+            cancelled bookings, expired holds and unpaid pending holds bring in nothing.</summary>
+        </member>
+        <member name="T:Regalis.Application.Bookings.MonthlyWorkspaceDto">
+            <summary>A desk or cabin on the monthly booking screen. IsAvailable is false when it is
+            booked or blocked at any point in the term, or has no monthly price.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.MonthlyWorkspaceDto.#ctor(System.Int32,System.String,System.String,System.String,System.String,System.Int32,System.Nullable{System.Decimal},System.String,System.Collections.Generic.IReadOnlyList{System.String},System.Boolean,System.String)">
+            <summary>A desk or cabin on the monthly booking screen. IsAvailable is false when it is
+            booked or blocked at any point in the term, or has no monthly price.</summary>
+        </member>
         <member name="M:Regalis.Application.Bookings.IAvailabilityService.GetSlotsAsync(System.Int32,System.Int32,System.DateOnly,System.Threading.CancellationToken)">
             <summary>Day-grid slots for a location + type: available when at least one
             bookable workspace of that type is free for the slot.</summary>
         </member>
-        <member name="M:Regalis.Application.Bookings.IAvailabilityService.GetAvailableWorkspacesAsync(System.Int32,System.Int32,System.DateTime,System.Int32,System.Threading.CancellationToken)">
-            <summary>Free workspaces for a window, with price — the customer picks one.</summary>
+        <member name="M:Regalis.Application.Bookings.IAvailabilityService.GetAvailableWorkspacesAsync(System.Int32,System.Int32,System.DateTime,System.Int32,System.Threading.CancellationToken,System.Boolean)">
+            <summary>Workspaces for a window, with price — the customer picks one. Only the free
+            ones, unless <paramref name="includeBusy"/>: then the taken ones come back too, with
+            IsAvailable = false, so the screen can show them greyed out.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IAvailabilityService.GetMonthlyWorkspacesAsync(System.Int32,System.Int32,System.DateOnly,System.Int32,System.Threading.CancellationToken)">
+            <summary>Every bookable desk or cabin of a type for a monthly term, free or not, with
+            its monthly price.</summary>
         </member>
         <member name="M:Regalis.Application.Bookings.IAvailabilityService.CheckAsync(Regalis.Application.Bookings.AvailabilityCheckRequest,System.Threading.CancellationToken)">
             <summary>Advisory check (no locks) — frontend convenience only. The engine
@@ -415,6 +458,13 @@
             <summary>Creates a Pending hold under a serializable transaction with
             UPDLOCK/HOLDLOCK range locks (Design Invariant 2). Losing the race is a
             documented 409 SLOT_UNAVAILABLE.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IBookingService.QuoteMonthlyAsync(Regalis.Application.Bookings.MonthlyBookingRequest,System.Threading.CancellationToken)">
+            <summary>Price of a desk or cabin for a monthly term. No write.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IBookingService.CreateMonthlyHoldAsync(Regalis.Application.Bookings.MonthlyBookingRequest,System.Threading.CancellationToken)">
+            <summary>A Pending hold on a desk or cabin for a whole monthly term; paid and
+            confirmed through the same confirm call as an hourly booking.</summary>
         </member>
         <member name="M:Regalis.Application.Bookings.IBookingService.ConfirmAsync(System.Int64,Regalis.Application.Bookings.ConfirmBookingRequest,System.Threading.CancellationToken)">
             <summary>Design Invariant 4 — one serializable transaction produces the
@@ -433,6 +483,10 @@
         </member>
         <member name="M:Regalis.Application.Bookings.IBookingService.GetBookingsAsync(Regalis.Application.Bookings.BookingListRequest,System.Threading.CancellationToken)">
             <summary>Admin list with the common filter set.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IBookingService.GetMonthlyAsync(Regalis.Application.Bookings.BookingMonthlyRequest,System.Threading.CancellationToken)">
+            <summary>Bookings and revenue per month of the requested year (default: this
+            year), under the same filters as the admin list.</summary>
         </member>
         <member name="M:Regalis.Application.Bookings.IBookingMutationService.CancelAsync(System.Int64,Regalis.Application.Bookings.CancelBookingRequest,System.Threading.CancellationToken)">
             <summary>Cancellation is a status change plus history, never a delete
@@ -557,10 +611,27 @@
             <summary>Matched to Reconciled: a human confirming the match is correct.</summary>
         </member>
         <member name="T:Regalis.Application.Finance.ExpenseSummaryDto">
-            <summary>Totals for the expense list header and the finance dashboard card.</summary>
+            <summary>Totals for the expense list header and the finance dashboard card.
+            TotalAmount and every category Amount are net of adjustments; GrossAmount is the
+            vouchers as entered and AdjustmentTotal the signed difference.</summary>
         </member>
-        <member name="M:Regalis.Application.Finance.ExpenseSummaryDto.#ctor(System.Decimal,System.Int32,System.Collections.Generic.List{Regalis.Application.Finance.ExpenseCategoryTotalDto})">
-            <summary>Totals for the expense list header and the finance dashboard card.</summary>
+        <member name="M:Regalis.Application.Finance.ExpenseSummaryDto.#ctor(System.Decimal,System.Int32,System.Collections.Generic.List{Regalis.Application.Finance.ExpenseCategoryTotalDto},System.Decimal,System.Decimal)">
+            <summary>Totals for the expense list header and the finance dashboard card.
+            TotalAmount and every category Amount are net of adjustments; GrossAmount is the
+            vouchers as entered and AdjustmentTotal the signed difference.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.ExpenseMonthlyRequest">
+            <summary>The expense list filters plus the calendar year the monthly chart covers.
+            From/To still apply, so a month outside the range reads zero.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.ExpenseMonthlyDto">
+            <summary>Always twelve months, January to December, net of adjustments.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.ExpenseMonthlyDto.#ctor(System.Int32,System.Decimal,System.Collections.Generic.List{Regalis.Application.Finance.ExpenseMonthTotalDto})">
+            <summary>Always twelve months, January to December, net of adjustments.</summary>
+        </member>
+        <member name="P:Regalis.Application.Finance.ExpenseAdjustmentListRequest.From">
+            <summary>On the adjustment date, not the expense date.</summary>
         </member>
         <member name="T:Regalis.Application.Finance.IExpenseService">
             <summary>Daily company expenses (document §5). An expense is never hard-deleted;
@@ -573,6 +644,14 @@
         <member name="M:Regalis.Application.Finance.IExpenseService.UpdateAsync(System.Int64,Regalis.Application.Finance.SaveExpenseRequest,System.Threading.CancellationToken)">
             <summary>Refused once a bank transaction has been matched to the expense —
             editing the amount then would silently break the reconciliation.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IExpenseService.GetMonthlyAsync(Regalis.Application.Finance.ExpenseMonthlyRequest,System.Threading.CancellationToken)">
+            <summary>Net totals per calendar month of the requested year (default: this year).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IExpenseService.CreateAdjustmentAsync(Regalis.Application.Finance.SaveExpenseAdjustmentRequest,System.Threading.CancellationToken)">
+            <summary>Allowed on a bank-matched expense: the voucher amount the bank saw is
+            untouched, and the adjustment is the record of the correction. Refused when it
+            would take the expense's net total below zero.</summary>
         </member>
         <member name="P:Regalis.Application.Finance.InvoiceListRequest.Status">
             <summary>pending | paid — the customer's tab filter.</summary>
@@ -608,6 +687,9 @@
             <summary>Cancels an unpaid invoice with a reason. An issued invoice is never
             edited or deleted; this is the correction path.</summary>
         </member>
+        <!-- Badly formed XML comment ignored for member "T:Regalis.Application.Finance.InvoiceTermsDto" -->
+        <!-- Badly formed XML comment ignored for member "M:Regalis.Application.Finance.InvoiceTermsDto.#ctor(System.String)" -->
+        <!-- Badly formed XML comment ignored for member "P:Regalis.Application.Finance.InvoiceTermsDto.TermsAndConditions" -->
         <member name="M:Regalis.Application.Finance.IPassService.CreatePurchaseOrderAsync(Regalis.Application.Finance.PassOrderRequest,System.Threading.CancellationToken)">
             <summary>Gateway order for a pass purchase (wallet purchases skip this).</summary>
         </member>
@@ -1143,6 +1225,35 @@
         <member name="P:Regalis.Application.Operations.InventoryItemListRequest.ItemType">
             <summary>1 Goods, 2 Service.</summary>
         </member>
+        <member name="T:Regalis.Application.Operations.InventoryImportKinds">
+            <summary>The screens an Excel file can be imported into. Current Stock is not one:
+            stock is derived from the ledger, so it is never imported directly.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.InventoryImportModes">
+            <summary>What an Items import does with a code that already exists.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.InventoryImportUpload">
+            <summary>An uploaded workbook, as the controller hands it over.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.InventoryImportUpload.#ctor(System.String,System.Int64,System.IO.Stream)">
+            <summary>An uploaded workbook, as the controller hands it over.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.InventoryImportRowDto">
+            <summary>One row of the preview. Status is New, Update, Skip or Error; Values are
+            the uploaded cells as text, keyed by column header, so the screen can show them.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.InventoryImportRowDto.#ctor(System.Int32,System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Collections.Generic.Dictionary{System.String,System.String})">
+            <summary>One row of the preview. Status is New, Update, Skip or Error; Values are
+            the uploaded cells as text, keyed by column header, so the screen can show them.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.InventoryImportResultDto">
+            <summary>The outcome of a preview (Saved = false) or of a save. A save stores every
+            valid row in one database transaction and reports the rest back as errors.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.InventoryImportResultDto.#ctor(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Boolean,System.Int32,System.Int32,System.Collections.Generic.List{Regalis.Application.Operations.InventoryImportRowDto})">
+            <summary>The outcome of a preview (Saved = false) or of a save. A save stores every
+            valid row in one database transaction and reports the rest back as errors.</summary>
+        </member>
         <member name="T:Regalis.Application.Operations.IInventoryService">
             <summary>The inventory module (M19). The ledger is append-only: there is no update
             or delete endpoint; a mistake is corrected with a compensating Adjustment row.</summary>
@@ -1151,7 +1262,25 @@
             <summary>CSV of the transaction ledger for the filter window.</summary>
         </member>
         <member name="M:Regalis.Application.Operations.IInventoryService.ExportItemsExcelAsync(Regalis.Application.Operations.InventoryItemListRequest,System.Threading.CancellationToken)">
-            <summary>The item master as an .xlsx workbook, filtered like the Items screen.</summary>
+            <summary>The item master as an .xlsx workbook, filtered like the Items screen.
+            Null when no item matches.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IInventoryService.ExportGoodsExcelAsync(Regalis.Application.Operations.InventoryTransactionListRequest,System.Byte,System.Threading.CancellationToken)">
+            <summary>Incoming (In) or Outgoing (Out) goods as .xlsx, filtered like the screen.
+            Null when no row matches.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IInventoryService.ExportStockExcelAsync(System.Nullable{System.Int32},System.Nullable{System.Boolean},System.Threading.CancellationToken)">
+            <summary>The Current Stock screen as .xlsx. Null when no row matches.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IInventoryService.ImportTemplateAsync(System.String,System.Threading.CancellationToken)">
+            <summary>The empty import workbook: headers, an example row and instructions.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IInventoryService.ImportAsync(System.String,Regalis.Application.Operations.InventoryImportUpload,System.String,System.Boolean,System.Threading.CancellationToken)">
+            <summary>Checks every row of an upload. With <paramref name="save"/> it checks again
+            inside one transaction and stores the valid rows.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.IInventoryService.ImportErrorReportAsync(System.String,Regalis.Application.Operations.InventoryImportUpload,System.String,System.Threading.CancellationToken)">
+            <summary>The rows of an upload that fail the checks, with an Error column.</summary>
         </member>
         <member name="T:Regalis.Application.Operations.MaintenanceMeDto">
             <summary>Capabilities are decided on the server. A caller whose only housekeeping role

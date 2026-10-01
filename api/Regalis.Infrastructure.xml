@@ -233,6 +233,80 @@
             one grouped alert per sweep (Maintenance spec §4.4).
             </summary>
         </member>
+        <member name="T:Regalis.Infrastructure.Excel.ExcelCellKind">
+            <summary>How an export cell is written, so numbers stay numbers and dates stay dates.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Excel.ExcelColumn`1">
+            <summary>One export column: the readable header and how to read the value from a row.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Excel.ExcelColumn`1.#ctor(System.String,System.Func{`0,System.Object},Regalis.Infrastructure.Excel.ExcelCellKind)">
+            <summary>One export column: the readable header and how to read the value from a row.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Excel.ImportColumn">
+            <summary>One column an import understands. <see cref="P:Regalis.Infrastructure.Excel.ImportColumn.Help"/> and <see cref="P:Regalis.Infrastructure.Excel.ImportColumn.Example"/>
+            feed the template's instructions sheet and its sample row.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Excel.ImportColumn.#ctor(System.String,System.Boolean,System.String,System.Object,Regalis.Infrastructure.Excel.ExcelCellKind)">
+            <summary>One column an import understands. <see cref="P:Regalis.Infrastructure.Excel.ImportColumn.Help"/> and <see cref="P:Regalis.Infrastructure.Excel.ImportColumn.Example"/>
+            feed the template's instructions sheet and its sample row.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Excel.ImportSheetRow">
+            <summary>One data row of an uploaded sheet, keyed by the canonical header.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Excel.ImportSheetRow.#ctor(System.Int32,System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>One data row of an uploaded sheet, keyed by the canonical header.</summary>
+        </member>
+        <member name="P:Regalis.Infrastructure.Excel.ImportSheetRow.RowNumber">
+            <summary>The row number as Excel shows it (the header is row 1).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Excel.ImportSheetRow.Text(System.String)">
+            <summary>The cell as trimmed text, or null when it is blank.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Excel.ImportSheet">
+            <summary>An uploaded sheet after the file-level checks passed.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Excel.ImportSheet.#ctor(System.Collections.Generic.List{Regalis.Infrastructure.Excel.ImportSheetRow},System.Collections.Generic.List{System.String})">
+            <summary>An uploaded sheet after the file-level checks passed.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Excel.ExcelWorkbookHelper">
+            <summary>
+            The one place Excel files are written and read (ClosedXML). The Assets screens'
+            exports, import templates, uploads and error reports all go through here, so they
+            share the house header style, the ₹ money format, real Excel dates and the
+            upload limits.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Excel.ExcelWorkbookHelper.FileName(System.String,System.DateTime)">
+            <summary>screen_yyyy-MM-dd_HHmm.xlsx in IST, e.g. incoming_goods_2026-09-30_1430.xlsx.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Excel.ExcelWorkbookHelper.Write``1(System.String,System.Collections.Generic.IReadOnlyList{Regalis.Infrastructure.Excel.ExcelColumn{``0}},System.Collections.Generic.IReadOnlyList{``0})">
+            <summary>A one-sheet workbook with a styled, frozen, filterable header row.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Excel.ExcelWorkbookHelper.Template(System.String,System.Collections.Generic.IReadOnlyList{Regalis.Infrastructure.Excel.ImportColumn},System.Collections.Generic.IReadOnlyList{System.String})">
+            <summary>The import template: the headers, one example row and an Instructions sheet.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Excel.ExcelWorkbookHelper.ErrorReport(System.String,System.Collections.Generic.IReadOnlyList{Regalis.Infrastructure.Excel.ImportColumn},System.Collections.Generic.IReadOnlyList{System.ValueTuple{Regalis.Infrastructure.Excel.ImportSheetRow,System.String}})">
+            <summary>The rejected rows exactly as uploaded, plus an Error column, so they can be
+            fixed and uploaded again.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Excel.ExcelWorkbookHelper.Read(System.IO.Stream,System.String,System.Int64,System.Collections.Generic.IReadOnlyList{Regalis.Infrastructure.Excel.ImportColumn})">
+            <summary>
+            Opens an upload and runs the file-level checks: .xlsx only, at most 5 MB and
+            5,000 data rows, a header row carrying every required column, at least one data
+            row. Any failure is a 422 with a message the screen shows as is. Blank rows are
+            skipped; columns the import does not know are ignored and reported back.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Excel.ExcelWorkbookHelper.TryDecimal(System.Object,System.Decimal@)">
+            <summary>A number from a numeric cell or from text such as "₹ 1,250.50".</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Excel.ExcelWorkbookHelper.TryDate(System.Object,System.DateOnly@)">
+            <summary>A date from a real Excel date, an Excel serial number, or text in
+            yyyy-MM-dd, dd-MM-yyyy, dd/MM/yyyy or dd-MMM-yyyy.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Excel.ExcelWorkbookHelper.Scale(System.Decimal)">
+            <summary>Digits after the decimal point, so 1.2345 can be refused for a 3-decimal column.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Persistence.Interceptors.AdminEventInterceptor">
              <summary>
              Raises admin notifications from the change tracker, so every code path that saves a
@@ -496,6 +570,42 @@
         <member name="M:Regalis.Infrastructure.Persistence.Migrations.AnnouncementChannelDelivery.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.ExpenseAdjustments">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.ExpenseAdjustments.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.ExpenseAdjustments.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.ExpenseAdjustments.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.MonthlyWorkspaceBooking">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.MonthlyWorkspaceBooking.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.MonthlyWorkspaceBooking.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.MonthlyWorkspaceBooking.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.InvoiceCustomerCompanyName">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.InvoiceCustomerCompanyName.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.InvoiceCustomerCompanyName.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.InvoiceCustomerCompanyName.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="T:Regalis.Infrastructure.Persistence.Seed.DatabaseSeeder">
             <summary>
             Idempotent seeding of the state defined by ROLE_PERMISSION_MATRIX.md and
@@ -528,10 +638,38 @@
             <summary>EF Core 8 has no ToHashSetAsync (it arrives in EF 9); this fills the gap
             for the seeders and admin services. In scope everywhere under Regalis.Infrastructure.</summary>
         </member>
+        <member name="T:Regalis.Infrastructure.Reporting.InvoicePdfExtras">
+            <summary>What the tax invoice prints besides the invoice row itself: the logo and the
+            company-level details (place of supply, bank strip, default terms) read from settings
+            when the PDF is made.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.InvoicePdfExtras.#ctor(System.Byte[],System.String,System.String,System.String,System.String,System.String,System.String)">
+            <summary>What the tax invoice prints besides the invoice row itself: the logo and the
+            company-level details (place of supply, bank strip, default terms) read from settings
+            when the PDF is made.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Reporting.InvoicePdfGenerator">
             <summary>The GST tax invoice as a PDF (QuestPDF, community license), generated on
             demand from the snapshotted invoice — later profile or settings edits never
-            change what a customer already received.</summary>
+            change who was billed or for what. Layout: logo, status stamp and company block;
+            a "TAX INVOICE" rule; bill-to beside the invoice facts; a ruled item grid with the
+            CGST/SGST (or IGST) split per line; totals with the amount in words; bank details,
+            terms and signature lines.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.InvoicePdfGenerator.TermsLabel(Regalis.Domain.Entities.Finance.Invoice)">
+            <summary>"Due on Receipt" when due the day it was raised, else "Net N".</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.InvoicePdfGenerator.SplitDescription(System.String)">
+            <summary>"Workspace booking REG-1 — Desk 09, 01 Oct" prints the part before the
+            dash as the item and the rest underneath it in grey.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.PdfLogo">
+            <summary>The company logo on every PDF letterhead: a PNG or JPG file named by the
+            Company.LogoPath setting. No setting, a missing file or another format means no
+            logo, and the letterhead prints the company name alone.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.PdfLogo.Compose(QuestPDF.Fluent.RowDescriptor,System.Byte[])">
+            <summary>Puts the logo at the start of a letterhead row, with a gap after it.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Reporting.PurchaseOrderPdfContext">
             <summary>What the printed PO needs beyond its own row: the company letterhead (from
@@ -572,7 +710,7 @@
             <summary>The few things the printed quotation needs that the row does not carry:
             the salesperson's name and the portal link the customer approves through.</summary>
         </member>
-        <member name="M:Regalis.Infrastructure.Reporting.QuotationPdfContext.#ctor(System.String,System.String,System.String,System.String,System.Nullable{Regalis.Domain.Enums.QuotationStatus})">
+        <member name="M:Regalis.Infrastructure.Reporting.QuotationPdfContext.#ctor(System.String,System.String,System.String,System.String,System.Nullable{Regalis.Domain.Enums.QuotationStatus},System.Byte[])">
             <summary>The few things the printed quotation needs that the row does not carry:
             the salesperson's name and the portal link the customer approves through.</summary>
         </member>
@@ -679,7 +817,7 @@
             <summary>Issues 15-minute JWT access tokens and 256-bit opaque refresh tokens.
             Refresh tokens are stored hashed (SHA-256) — the raw value is returned exactly once.</summary>
         </member>
-        <member name="M:Regalis.Infrastructure.Security.JwtTokenService.#ctor(Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Security.JwtOptions},Regalis.Application.Abstractions.IDateTimeProvider)">
+        <member name="M:Regalis.Infrastructure.Security.JwtTokenService.#ctor(Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Security.JwtOptions},Regalis.Application.Abstractions.IDateTimeProvider,Regalis.Application.Abstractions.IServerInstance)">
             <summary>Issues 15-minute JWT access tokens and 256-bit opaque refresh tokens.
             Refresh tokens are stored hashed (SHA-256) — the raw value is returned exactly once.</summary>
         </member>
@@ -694,6 +832,24 @@
             <summary>Compact signed QR payload: RGL1.{token}.{hmac}. The reader posts it to
             /access/validate, which re-verifies the signature and the token window. One
             implementation — booking, pass and housekeeping tokens all sign here.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Security.ServerInstance">
+            <summary>This API process. Registered as a singleton, so its BootId lives exactly as long
+            as the process.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Security.ServerInstance.#ctor(Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>This API process. Registered as a singleton, so its BootId lives exactly as long
+            as the process.</summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Security.ServerInstance.ClaimType">
+            <summary>The access-token claim that carries the issuing process's BootId.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Security.ServerInstance.EndEarlierSessionsAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,System.Threading.CancellationToken)">
+            <summary>
+            Run once at startup: revokes every refresh token still open, so no browser can renew
+            a session that began before this restart. Access tokens are already refused by their
+            boot claim; this closes the refresh path. Returns the number of tokens revoked.
+            </summary>
         </member>
         <member name="T:Regalis.Infrastructure.Services.AccessService">
             <summary>
@@ -982,7 +1138,7 @@
             re-verifies under range locks inside its transaction.
             </summary>
         </member>
-        <member name="M:Regalis.Infrastructure.Services.AvailabilityService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService)">
+        <member name="M:Regalis.Infrastructure.Services.AvailabilityService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Abstractions.IDateTimeProvider)">
             <summary>
             The single availability source (Design Invariant 1): both portals read the same
             bookings + blocks with the same half-open overlap predicate
@@ -1086,16 +1242,31 @@
             token + notification atomically — steps succeed or fail together.
             </summary>
         </member>
+        <member name="M:Regalis.Infrastructure.Services.BookingService.PrepareMonthlyAsync(Regalis.Application.Bookings.MonthlyBookingRequest,System.Threading.CancellationToken)">
+            <summary>The workspace, the term's window and its price, after the monthly rules:
+            a desk or cabin, with a monthly price, on a 1/3/6/12-month term.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.BookingService.HoldAsync(Regalis.Domain.Entities.Masters.Workspace,System.DateTime,System.DateTime,System.Int32,Regalis.Infrastructure.Services.BookingService.Price,System.String,System.Nullable{System.Byte},System.Threading.CancellationToken)">
+            <summary>Creates the Pending hold for an hourly or a monthly booking under
+            serializable range locks; losing the race is the documented 409.</summary>
+        </member>
         <member name="M:Regalis.Infrastructure.Services.BookingService.SettleAndFinalizeAsync(Regalis.Domain.Entities.Booking.Booking,Regalis.Application.Bookings.ConfirmBookingRequest,System.Threading.CancellationToken)">
             <summary>Steps 2–7 of the confirmed-booking transaction: settle the payment,
             write the invoice, the access token, the notification and the history row.
             Runs inside the caller's serializable transaction.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.BookingService.FilterBookings(Regalis.Application.Bookings.BookingListRequest)">
+            <summary>The admin list's filters, shared with the monthly chart so both always
+            count the same bookings.</summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.BookingService.CountConflictsWithRangeLocksAsync(System.Int32,System.DateTime,System.DateTime,System.Nullable{System.Int64},System.Threading.CancellationToken)">
             <summary>Runs the documented availability predicate under UPDLOCK/HOLDLOCK
             inside the caller's serializable transaction — the range lock blocks a
             concurrent insert of a conflicting row until we commit. On confirmation the
             booking's own Pending row is excluded.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.BookingService.TaxedAsync(System.Decimal,System.Threading.CancellationToken)">
+            <summary>CGST + SGST on a base amount, each rounded half away from zero.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Services.CalendarService">
             <summary>
@@ -1149,6 +1320,10 @@
             invalidate the reconciliation without touching the bank row that points at it.
             </summary>
         </member>
+        <member name="M:Regalis.Infrastructure.Services.ExpenseService.RecomputeAdjustmentTotalAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>One UPDATE that re-sums the live adjustments, so the stored total can
+            never drift from its rows; CK_Expense_NetAmount backs up the guard above.</summary>
+        </member>
         <member name="M:Regalis.Infrastructure.Services.ExpenseService.Csv(System.String)">
             <summary>Quote a CSV field so a comma or quote in free text cannot shift columns.</summary>
         </member>
@@ -1201,6 +1376,15 @@
             append-only transaction ledger (Invariant 11). There is no update or delete on a
             transaction; a mistake is corrected with a compensating Adjustment row.
             </summary>
+             <summary>
+             Excel export and import for the Assets screens (Items, Incoming Goods, Outgoing Goods,
+             Current Stock). Reading and writing the files is <see cref="T:Regalis.Infrastructure.Excel.ExcelWorkbookHelper"/>'s job;
+             this part decides what goes in them and what a valid row is.
+            
+             Stock is never imported: an Items import leaves stock alone, and a goods import writes
+             ordinary ledger rows through the same builder the screen's Save uses, so Current Stock
+             moves exactly as if each row had been keyed in.
+             </summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.InventoryService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
             <summary>
@@ -1209,14 +1393,39 @@
             transaction; a mistake is corrected with a compensating Adjustment row.
             </summary>
         </member>
+        <member name="M:Regalis.Infrastructure.Services.InventoryService.NewEntryAsync(Regalis.Domain.Entities.Operations.InventoryItem,Regalis.Application.Operations.CreateInventoryTransactionRequest,System.Threading.CancellationToken)">
+            <summary>A ledger row as the screen records it — numbered from the shared sequence,
+            entered by the caller. Excel imports build their rows here too.</summary>
+        </member>
         <member name="M:Regalis.Infrastructure.Services.InventoryService.ExportItemsExcelAsync(Regalis.Application.Operations.InventoryItemListRequest,System.Threading.CancellationToken)">
             <summary>The item master as an Excel workbook, with the same filters as the Items
             screen (search, category, location, below-reorder) and every matching row —
-            not just the page on screen. Status uses the screen's thresholds.</summary>
+            not just the page on screen. Status uses the screen's thresholds. The columns
+            match the import template, so an export can be edited and imported back.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.InventoryService.ExportGoodsExcelAsync(Regalis.Application.Operations.InventoryTransactionListRequest,System.Byte,System.Threading.CancellationToken)">
+            <summary>Incoming or Outgoing Goods with the screen's filters (search, supplier or
+            item, date range), newest first like the screen, every matching row.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.InventoryService.ExportStockExcelAsync(System.Nullable{System.Int32},System.Nullable{System.Boolean},System.Threading.CancellationToken)">
+            <summary>The Current Stock screen: the ledger derivation per item, plus unit cost,
+            location and stock value from the item master.</summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.InventoryService.StockStatus(System.Decimal,System.Decimal)">
             <summary>The Items screen's badge: Critical at half the reorder level or less,
             Low Stock at the reorder level or less, otherwise OK.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.InventoryService.ModeFor(System.String,System.String)">
+            <summary>Items need a choice for codes that exist; updating needs Edit on top of
+            the Create the route already demands.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.InventoryService.TryTax(System.Object,System.Boolean@,System.Decimal@)">
+            <summary>Non-Taxable, or one of the GST rates, typed as 18, 18% or a cell
+            formatted as a percentage (0.18).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.InventoryService.ImportAuditRow(Regalis.Infrastructure.Services.InventoryService.ImportSpec,System.String,System.Collections.Generic.List{Regalis.Infrastructure.Services.InventoryService.RowCheck},System.Int32,System.Int32)">
+            <summary>One IMPORT row on the audit trail for the whole file. The rows it created
+            or updated carry their own CREATE/UPDATE entries from the interceptor.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Services.InvoiceService">
             <summary>
@@ -1233,6 +1442,11 @@
             change one are to cancel it or to let a payment move its status. The one creation
             path is an approved quotation, whose figures are carried across verbatim.
             </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.InvoiceService.PdfExtrasAsync(System.Threading.CancellationToken)">
+            <summary>The company-level parts of the invoice PDF. Place of supply is the
+            Tax.PlaceOfSupply setting, else the home state (Regalis sells space in its own
+            state, so the supply happens there).</summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.InvoiceService.CustomerOf(Regalis.Domain.Entities.Finance.Quotation)">
             <summary>An invoice is always raised to a customer account. A quotation whose
@@ -1293,6 +1507,21 @@
         <member name="M:Regalis.Infrastructure.Services.MenuQueryService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser)">
             <summary>Builds the caller's sidebar from MST_Menu + MAP_RoleMenu. Adding a screen
             is a data insert — no redeploy (ARCHITECTURE §5).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.MonthlyTerm">
+            <summary>
+            The window a monthly desk or cabin booking occupies: from the location's opening time
+            on the start date to its closing time on the last day of the term, both IST. A term of
+            N months ends the day before the same date N months later (1 Oct + 1 month = 1–31 Oct).
+            Nights in between are inside the window, so nobody else can book the workspace for any
+            hour of the term. A term starting today begins now (rounded up to the minute) if the
+            location has already opened.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.MonthlyTerm.IsHotDesk(System.String)">
+            <summary>Hot desks are never booked by the month: the pick list always shows them
+            as booked. A hot desk is a DESK whose name starts "Hot Desk" (there is no type of
+            its own).</summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.NotificationService.GetMyUnreadCountAsync(System.Threading.CancellationToken)">
             <summary>The bell. For an admin-portal user it counts the admin Notifications feed

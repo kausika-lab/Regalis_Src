@@ -67,6 +67,11 @@
         <member name="P:Regalis.Domain.Entities.Booking.Booking.CreatedByUserId">
             <summary>Who actually created it (differs from CustomerId for admin bookings).</summary>
         </member>
+        <member name="P:Regalis.Domain.Entities.Booking.Booking.BillingMonths">
+            <summary>Set for a desk or cabin booked by the month (1, 3, 6 or 12): the booking
+            holds the workspace for the whole term, is priced at PricePerMonth x months, and a
+            daily check-out does not complete it. Null for an ordinary hourly booking.</summary>
+        </member>
         <member name="F:Regalis.Domain.Entities.Booking.Booking.OccupancyStatuses">
             <summary>Statuses that occupy the slot: Pending (held), Confirmed, CheckedIn.</summary>
         </member>
@@ -135,6 +140,12 @@
             <summary>Free text today, matching InventoryItem.Category. A master table is
             an open question (A10) — moving to one later is an additive change.</summary>
         </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Expense.AdjustmentTotal">
+            <summary>Signed sum of this expense's live adjustments (increases minus
+            decreases). ExpenseService recomputes it from TRN_ExpenseAdjustment whenever an
+            adjustment changes, so every total stays a plain SUM(Amount + AdjustmentTotal):
+            SQL Server refuses SUM over a correlated subquery.</summary>
+        </member>
         <member name="P:Regalis.Domain.Entities.Finance.Expense.PaymentMethod">
             <summary>Reuses the existing PaymentMethod enum rather than inventing a
             parallel "payment mode" list.</summary>
@@ -148,6 +159,15 @@
         </member>
         <member name="P:Regalis.Domain.Entities.Finance.Expense.SupplierId">
             <summary>Optional provenance when the expense settles a purchase.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.ExpenseAdjustment">
+            <summary>TRN_ExpenseAdjustment — a correction recorded against an existing expense
+            instead of editing the voucher. It is the only way to correct an expense that a bank
+            statement line has been matched to, because the voucher's own Amount stays what the
+            bank saw. The expense's net total is Amount + Expense.AdjustmentTotal.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.ExpenseAdjustment.Amount">
+            <summary>Always positive; AdjustmentType carries the sign.</summary>
         </member>
         <member name="T:Regalis.Domain.Entities.Finance.Invoice">
             <summary>TRN_Invoice. Customer and company details are snapshotted at issue time
@@ -168,6 +188,10 @@
         </member>
         <member name="P:Regalis.Domain.Entities.Finance.Invoice.OutstandingAmount">
             <summary>Computed persisted column: TotalAmount − PaidAmount.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.Invoice.CustomerCompanyName">
+            <summary>The customer's company (profile CompanyName, or the quotation's), printed
+            above the contact name under Bill To.</summary>
         </member>
         <member name="P:Regalis.Domain.Entities.Finance.Invoice.TermsAndConditions">
             <summary>Snapshotted from the quotation at issue time, like every other
@@ -869,6 +893,15 @@
         <member name="T:Regalis.Domain.Enums.ReconciliationStatus">
             <summary>Reconciliation lifecycle from document §14. Matched means a candidate
             system record is linked; Reconciled means a human confirmed it.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.ExpenseAdjustmentType">
+            <summary>Which way an expense adjustment moves the expense's total.</summary>
+        </member>
+        <member name="F:Regalis.Domain.Enums.ExpenseAdjustmentType.Increase">
+            <summary>An extra charge on top of the original voucher (late fee, balance paid).</summary>
+        </member>
+        <member name="F:Regalis.Domain.Enums.ExpenseAdjustmentType.Decrease">
+            <summary>A refund, discount or over-booking correction that reduces the voucher.</summary>
         </member>
         <member name="T:Regalis.Domain.Enums.Gender">
             <summary>Self-declared, and never used to decide anything — it is collected for

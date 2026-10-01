@@ -36,6 +36,9 @@
             (Design Invariant 6). Values are configured by the admin, never compiled in.
             </summary>
         </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Invoice.TermsAndConditions">
+            <summary>Printed on an invoice that carries no terms of its own.</summary>
+        </member>
         <member name="T:Regalis.Shared.Constants.AppSettingKeys.Purchase">
             <summary>Purchase orders. Shown under Settings → Billing (SettingGroup "Billing").</summary>
         </member>

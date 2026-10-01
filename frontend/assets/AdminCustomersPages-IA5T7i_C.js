@@ -229,9 +229,7 @@ function usePagedTab(active, fetcher) {
 function AdminCustomersPage() {
   const toast = useToast();
   const navigate = useNavigate();
-  // Creating a member happens on the Users screen; ?new=1 opens its create form.
-  const canCreateUser = usePermission("USER.CREATE");
-  const canViewUsers = usePermission("USER.VIEW");
+  // No "Add Customer" here: customers register themselves on the Customer Portal.
 
   const [result, setResult] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -435,11 +433,7 @@ function AdminCustomersPage() {
     null,
     el(PageHeader, {
       title: "Customers",
-      description: "All customers registered on the Customer Portal.",
-      actions:
-        canCreateUser && canViewUsers
-          ? el(Button, { onClick: () => navigate("/admin/users?new=1") }, "+ Add Customer")
-          : null
+      description: "All customers registered on the Customer Portal."
     }),
     el(
       "div",

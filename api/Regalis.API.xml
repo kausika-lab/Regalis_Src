@@ -300,8 +300,13 @@
         <member name="M:Regalis.API.Controllers.AvailabilityController.GetSlots(System.Int32,System.Int32,System.DateOnly,System.Threading.CancellationToken)">
             <summary>Slot grid for a date: available while any workspace of the type is free.</summary>
         </member>
-        <member name="M:Regalis.API.Controllers.AvailabilityController.GetWorkspaces(System.Int32,System.Int32,System.DateTime,System.Int32,System.Threading.CancellationToken)">
-            <summary>Free workspaces (with price) for a window.</summary>
+        <member name="M:Regalis.API.Controllers.AvailabilityController.GetWorkspaces(System.Int32,System.Int32,System.DateTime,System.Int32,System.Boolean,System.Threading.CancellationToken)">
+            <summary>Free workspaces (with price) for a window. includeBusy=true also returns
+            the taken ones with isAvailable=false, for a greyed-out display.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AvailabilityController.GetMonthly(System.Int32,System.Int32,System.DateOnly,System.Int32,System.Threading.CancellationToken)">
+            <summary>Every desk or cabin of a type for a monthly term (1, 3, 6 or 12 months from
+            startDate), each marked available or not.</summary>
         </member>
         <member name="M:Regalis.API.Controllers.AvailabilityController.Check(Regalis.Application.Bookings.AvailabilityCheckRequest,System.Threading.CancellationToken)">
             <summary>Advisory single-workspace check.</summary>
@@ -366,6 +371,13 @@
             <summary>Creates a Pending hold that reserves the slot while payment
             completes (Booking.PendingHoldMinutes, default 10).</summary>
         </member>
+        <member name="M:Regalis.API.Controllers.BookingsController.QuoteMonthly(Regalis.Application.Bookings.MonthlyBookingRequest,System.Threading.CancellationToken)">
+            <summary>Price of a desk or cabin for a 1/3/6/12-month term. No write.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.BookingsController.CreateMonthlyHold(Regalis.Application.Bookings.MonthlyBookingRequest,System.Threading.CancellationToken)">
+            <summary>Holds a desk or cabin for a whole monthly term while payment completes;
+            confirm it with POST /api/bookings/{id}/confirm like any other booking.</summary>
+        </member>
         <member name="M:Regalis.API.Controllers.BookingsController.GetById(System.Int64,System.Threading.CancellationToken)">
             <summary>One booking — customers see only their own rows.</summary>
         </member>
@@ -381,6 +393,11 @@
         </member>
         <member name="M:Regalis.API.Controllers.BookingsController.GetAll(Regalis.Application.Bookings.BookingListRequest,System.Threading.CancellationToken)">
             <summary>Admin list with the common filter set.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.BookingsController.GetMonthly(Regalis.Application.Bookings.BookingMonthlyRequest,System.Threading.CancellationToken)">
+            <summary>Bookings and revenue per month, January to December, of <c>year</c>
+            (default: this year), under the admin list's filters. Staff only: it totals
+            every customer's bookings.</summary>
         </member>
         <member name="T:Regalis.API.Controllers.CalendarController">
             <summary>The single calendar serving both portals (API_PLAN §6, Invariant 1).</summary>
@@ -433,6 +450,10 @@
         <member name="M:Regalis.API.Controllers.ExpensesController.GetCategories(System.Threading.CancellationToken)">
             <summary>Categories already in use, for the entry screen's combo.</summary>
         </member>
+        <member name="M:Regalis.API.Controllers.ExpensesController.GetMonthly(Regalis.Application.Finance.ExpenseMonthlyRequest,System.Threading.CancellationToken)">
+            <summary>Net totals for each month, January to December, of <c>year</c>
+            (default: the current year), under the same filters as the list.</summary>
+        </member>
         <member name="T:Regalis.API.Controllers.HousekeepingController">
             <summary>Housekeeping / maintenance scheduling (API_PLAN §10, M18). Creating a
             blocking schedule writes the calendar block in the same transaction, so customer
@@ -461,7 +482,29 @@
             update or delete route for a transaction, by design (Invariant 11).</summary>
         </member>
         <member name="M:Regalis.API.Controllers.InventoryController.ExportItems(Regalis.Application.Operations.InventoryItemListRequest,System.Threading.CancellationToken)">
-            <summary>The Items screen as an Excel (.xlsx) download, same filters, all rows.</summary>
+            <summary>The Items screen as an Excel (.xlsx) download, same filters, all rows.
+            204 when nothing matches.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.InventoryController.ExportIncoming(Regalis.Application.Operations.InventoryTransactionListRequest,System.Threading.CancellationToken)">
+            <summary>Incoming Goods as .xlsx: search, supplier and date range, all rows.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.InventoryController.ExportOutgoing(Regalis.Application.Operations.InventoryTransactionListRequest,System.Threading.CancellationToken)">
+            <summary>Outgoing Goods as .xlsx: search, item and date range, all rows.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.InventoryController.ExportStock(System.Nullable{System.Int32},System.Nullable{System.Boolean},System.Threading.CancellationToken)">
+            <summary>Current Stock as .xlsx. Export only — stock is derived, never imported.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.InventoryController.ImportTemplate(System.String,System.Threading.CancellationToken)">
+            <summary>The blank workbook: headers, one example row, an Instructions sheet.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.InventoryController.ImportPreview(System.String,Microsoft.AspNetCore.Http.IFormFile,System.String,System.Threading.CancellationToken)">
+            <summary>Checks every row and returns the preview. Nothing is saved.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.InventoryController.Import(System.String,Microsoft.AspNetCore.Http.IFormFile,System.String,System.Threading.CancellationToken)">
+            <summary>Checks the file again and saves every valid row in one transaction.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.InventoryController.ImportErrors(System.String,Microsoft.AspNetCore.Http.IFormFile,System.String,System.Threading.CancellationToken)">
+            <summary>The failing rows of a file, with an Error column, to fix and upload again.</summary>
         </member>
         <member name="M:Regalis.API.Controllers.InventoryController.GetStock(System.Nullable{System.Int32},System.Nullable{System.Boolean},System.Threading.CancellationToken)">
             <summary>Derived stock + reorder flags — computed from the ledger, never stored.</summary>
@@ -477,9 +520,14 @@
             <summary>Invoices (API_PLAN §7). Manual invoices, cancel and resend arrive with
             the finance screens on Day 6.</summary>
         </member>
-        <member name="M:Regalis.API.Controllers.InvoicesController.#ctor(Regalis.Application.Finance.IInvoiceService)">
+        <member name="M:Regalis.API.Controllers.InvoicesController.#ctor(Regalis.Application.Finance.IInvoiceService,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Masters.ISettingAdminService)">
             <summary>Invoices (API_PLAN §7). Manual invoices, cancel and resend arrive with
             the finance screens on Day 6.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.InvoicesController.GetTerms(System.Threading.CancellationToken)">
+            <summary>The Terms &amp; Conditions printed at the end of every invoice PDF (one
+            text for all customers; invoices raised from a quotation print the quotation's own).
+            Read when each PDF is made, so an edit shows on every invoice at once.</summary>
         </member>
         <member name="M:Regalis.API.Controllers.InvoicesController.GetAll(Regalis.Application.Finance.AdminInvoiceListRequest,System.Threading.CancellationToken)">
             <summary>Admin list with the common filter set; customers use /invoices/my.</summary>

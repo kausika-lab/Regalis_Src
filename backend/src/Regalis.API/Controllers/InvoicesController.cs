@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Regalis.API.Authorization;
+using Regalis.Application.Abstractions;
 using Regalis.Application.Finance;
+using Regalis.Application.Masters;
 using Regalis.Shared.Api;
 using Regalis.Shared.Constants;
 
@@ -9,8 +11,32 @@ namespace Regalis.API.Controllers;
 /// <summary>Invoices (API_PLAN §7). Manual invoices, cancel and resend arrive with
 /// the finance screens on Day 6.</summary>
 [Route("api/invoices")]
-public class InvoicesController(IInvoiceService invoiceService) : ApiControllerBase
+public class InvoicesController(IInvoiceService invoiceService, ISettingService settings,
+    ISettingAdminService settingAdmin) : ApiControllerBase
 {
+    /// <summary>The Terms &amp; Conditions printed at the end of every invoice PDF (one
+    /// text for all customers; invoices raised from a quotation print the quotation's own).
+    /// Read when each PDF is made, so an edit shows on every invoice at once.</summary>
+    [HttpGet("terms")]
+    [StaffOnly]
+    [HasPermission(PermissionCodes.Invoice.View)]
+    [ProducesResponseType(typeof(ApiResponse<InvoiceTermsDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetTerms(CancellationToken ct) =>
+        OkEnvelope(new InvoiceTermsDto(
+            await settings.GetStringAsync(AppSettingKeys.Invoice.TermsAndConditions, "", ct)));
+
+    [HttpPut("terms")]
+    [StaffOnly]
+    [HasPermission(PermissionCodes.Invoice.Edit)]
+    [ProducesResponseType(typeof(ApiResponse<InvoiceTermsDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> SaveTerms(InvoiceTermsDto request, CancellationToken ct)
+    {
+        var text = (request.TermsAndConditions ?? "").Trim();
+        await settingAdmin.UpdateSettingsAsync(new UpdateAppSettingsRequest(
+            [new AppSettingValue(AppSettingKeys.Invoice.TermsAndConditions, text)]), ct);
+        return OkEnvelope(new InvoiceTermsDto(text), "Invoice terms saved.");
+    }
+
     /// <summary>Admin list with the common filter set; customers use /invoices/my.</summary>
     [HttpGet]
     [HasPermission(PermissionCodes.Invoice.View)]

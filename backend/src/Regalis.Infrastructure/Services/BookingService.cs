@@ -68,9 +68,70 @@ public class BookingService(
         var workspace = await LoadBookableWorkspaceAsync(request.WorkspaceId, ct);
         await ValidateBookingRulesAsync(workspace, request.StartUtc, request.DurationMinutes, ct);
 
-        var startUtc = request.StartUtc;
-        var endUtc = startUtc.AddMinutes(request.DurationMinutes);
         var price = await CalculatePriceAsync(workspace, request.DurationMinutes, ct);
+        return await HoldAsync(workspace, request.StartUtc, request.StartUtc.AddMinutes(request.DurationMinutes),
+            request.DurationMinutes, price, request.Notes, billingMonths: null, ct);
+    }
+
+    public async Task<MonthlyQuoteResponse> QuoteMonthlyAsync(MonthlyBookingRequest request,
+        CancellationToken ct = default)
+    {
+        var (workspace, window, price) = await PrepareMonthlyAsync(request, ct);
+        return new MonthlyQuoteResponse(
+            workspace.WorkspaceId, workspace.WorkspaceName, workspace.WorkspaceCode, request.Months,
+            window.StartDate, window.EndDate, window.StartUtc, window.EndUtc, workspace.PricePerMonth!.Value,
+            price.Base, price.CgstPercent, price.Cgst, price.SgstPercent, price.Sgst, price.Total);
+    }
+
+    public async Task<BookingDto> CreateMonthlyHoldAsync(MonthlyBookingRequest request,
+        CancellationToken ct = default)
+    {
+        if (currentUser.UserType != UserType.Customer)
+        {
+            throw new ForbiddenException("Only customers can create bookings here.");
+        }
+        var (workspace, window, price) = await PrepareMonthlyAsync(request, ct);
+        var notes = string.IsNullOrWhiteSpace(request.Notes)
+            ? $"Monthly booking: {MonthlyTerm.Term(request.Months)}, {window.StartDate:dd MMM yyyy} to {window.EndDate:dd MMM yyyy}"
+            : request.Notes;
+        return await HoldAsync(workspace, window.StartUtc, window.EndUtc, window.DurationMinutes, price,
+            notes, (byte)request.Months, ct);
+    }
+
+    /// <summary>The workspace, the term's window and its price, after the monthly rules:
+    /// a desk or cabin, with a monthly price, on a 1/3/6/12-month term.</summary>
+    private async Task<(Workspace Workspace, MonthlyTerm.Window Window, Price Price)> PrepareMonthlyAsync(
+        MonthlyBookingRequest request, CancellationToken ct)
+    {
+        var workspace = await LoadBookableWorkspaceAsync(request.WorkspaceId, ct);
+        var typeCode = await db.WorkspaceTypes.AsNoTracking()
+            .Where(t => t.WorkspaceTypeId == workspace.WorkspaceTypeId)
+            .Select(t => t.TypeCode).FirstOrDefaultAsync(ct);
+        if (!MonthlyTerm.MonthlyTypeCodes.Contains(typeCode))
+        {
+            throw new BusinessRuleException("Only desks and cabins are booked by the month.");
+        }
+        if (MonthlyTerm.IsHotDesk(workspace.WorkspaceName))
+        {
+            throw new BusinessRuleException($"{workspace.WorkspaceName} is booked.");
+        }
+        if (workspace.PricePerMonth is not > 0)
+        {
+            throw new BusinessRuleException(
+                $"{workspace.WorkspaceName} has no monthly price yet, so it cannot be booked by the month.");
+        }
+        var advanceDays = await settings.GetIntAsync(AppSettingKeys.Booking.AdvanceDays, 60, ct);
+        var window = MonthlyTerm.For(workspace.Location, request.StartDate, request.Months, clock.UtcNow, advanceDays);
+        var price = await TaxedAsync(workspace.PricePerMonth.Value * request.Months, ct);
+        return (workspace, window, price);
+    }
+
+    /// <summary>Creates the Pending hold for an hourly or a monthly booking under
+    /// serializable range locks; losing the race is the documented 409.</summary>
+    private async Task<BookingDto> HoldAsync(Workspace workspace, DateTime startUtc, DateTime endUtc,
+        int durationMinutes, Price price, string? notes, byte? billingMonths, CancellationToken ct)
+    {
+        var request = new { DurationMinutes = durationMinutes, Notes = notes };
         var holdMinutes = await settings.GetIntAsync(AppSettingKeys.Booking.PendingHoldMinutes, 10, ct);
 
         var strategy = db.Database.CreateExecutionStrategy();
@@ -111,7 +172,8 @@ public class BookingService(
                 PaymentStatus = BookingPaymentStatus.Pending,
                 BookingSource = BookingSource.Customer,
                 CreatedByUserId = currentUser.UserId,
-                Notes = request.Notes?.Trim()
+                Notes = request.Notes?.Trim(),
+                BillingMonths = billingMonths
             };
             db.Bookings.Add(entity);
             entity.StatusHistory.Add(new BookingStatusHistory
@@ -443,6 +505,8 @@ public class BookingService(
             CustomerName = booking.Customer.FullName,
             CustomerEmail = booking.Customer.Email,
             CustomerMobile = booking.Customer.MobileNumber,
+            CustomerGstin = booking.Customer.Gstin,
+            CustomerCompanyName = booking.Customer.CompanyName,
             BillingAddress = booking.Customer.Address,
             CompanyName = await settings.GetStringAsync(AppSettingKeys.Company.Name, "Regalis WorkSpace", ct),
             CompanyGstin = await settings.GetStringAsync(AppSettingKeys.Company.Gstin, "", ct),
@@ -451,11 +515,19 @@ public class BookingService(
         invoice.Lines.Add(new InvoiceLine
         {
             LineNumber = 1,
-            Description = $"Workspace booking {booking.BookingNumber} — " +
-                          $"{booking.Workspace.WorkspaceName} ({booking.Workspace.WorkspaceCode}), " +
-                          $"{startIst:dd MMM yyyy HH:mm}–{endIst:HH:mm} IST",
-            Quantity = Math.Round(booking.DurationMinutes / 60m, 3),
-            UnitPrice = booking.Workspace.PricePerHour,
+            // A monthly term is billed per month at the rate it was sold at (base / months),
+            // which stays right even if the workspace's monthly price changes later.
+            Description = booking.BillingMonths is { } months
+                ? $"Monthly workspace booking {booking.BookingNumber} — " +
+                  $"{booking.Workspace.WorkspaceName} ({booking.Workspace.WorkspaceCode}), " +
+                  $"{MonthlyTerm.Term(months)}, {startIst:dd MMM yyyy} to {endIst:dd MMM yyyy}"
+                : $"Workspace booking {booking.BookingNumber} — " +
+                  $"{booking.Workspace.WorkspaceName} ({booking.Workspace.WorkspaceCode}), " +
+                  $"{startIst:dd MMM yyyy HH:mm}–{endIst:HH:mm} IST",
+            Quantity = booking.BillingMonths ?? Math.Round(booking.DurationMinutes / 60m, 3),
+            UnitPrice = booking.BillingMonths is { } m
+                ? Math.Round(booking.BaseAmount / m, 2, MidpointRounding.AwayFromZero)
+                : booking.Workspace.PricePerHour,
             LineAmount = booking.BaseAmount,
             TaxPercent = cgstPercent + sgstPercent,
             TaxAmount = booking.TaxAmount,
@@ -491,9 +563,12 @@ public class BookingService(
             UserId = booking.CustomerId,
             Audience = NotificationAudience.SingleUser,
             Title = "Booking confirmed",
-            Message = $"{booking.BookingNumber}: {booking.Workspace.WorkspaceName} on " +
-                      $"{startIst:dd MMM yyyy}, {startIst:HH:mm}–{endIst:HH:mm} IST. " +
-                      "Your QR access pass is ready.",
+            Message = booking.BillingMonths is { } months
+                ? $"{booking.BookingNumber}: {booking.Workspace.WorkspaceName} for {MonthlyTerm.Term(months)}, " +
+                  $"{startIst:dd MMM yyyy} to {endIst:dd MMM yyyy}. Your QR access pass is ready."
+                : $"{booking.BookingNumber}: {booking.Workspace.WorkspaceName} on " +
+                  $"{startIst:dd MMM yyyy}, {startIst:HH:mm}–{endIst:HH:mm} IST. " +
+                  "Your QR access pass is ready.",
             Category = NotificationCategory.Booking,
             Priority = NotificationPriority.Normal,
             ReferenceType = "Booking",
@@ -557,6 +632,49 @@ public class BookingService(
     public async Task<PagedResult<BookingDto>> GetBookingsAsync(BookingListRequest request,
         CancellationToken ct = default)
     {
+        var query = FilterBookings(request).OrderByDescending(b => b.StartUtc);
+        return await PageAsync(query, request, ct);
+    }
+
+    public async Task<BookingMonthlyDto> GetMonthlyAsync(BookingMonthlyRequest request,
+        CancellationToken ct = default)
+    {
+        var year = request.Year ?? IstClock.IstDateOf(clock.UtcNow).Year;
+        if (year is < 2000 or > 2100)
+        {
+            throw new BusinessRuleException("Choose a year between 2000 and 2100.");
+        }
+
+        var yearStart = new DateOnly(year, 1, 1);
+        var yearEnd = new DateOnly(year, 12, 31);
+        var rows = await FilterBookings(request)
+            .Where(b => b.BookingDate >= yearStart && b.BookingDate <= yearEnd)
+            .GroupBy(b => b.BookingDate.Month)
+            .Select(g => new
+            {
+                Month = g.Key,
+                Count = g.Count(),
+                Revenue = g.Sum(b => b.Status == BookingStatus.Confirmed
+                                     || b.Status == BookingStatus.CheckedIn
+                                     || b.Status == BookingStatus.Completed
+                                     || b.Status == BookingStatus.NoShow
+                    ? b.TotalAmount : 0m)
+            })
+            .ToListAsync(ct);
+
+        var months = Enumerable.Range(1, 12)
+            .Select(m => rows.FirstOrDefault(r => r.Month == m) is { } row
+                ? new BookingMonthTotalDto(m, row.Count, row.Revenue)
+                : new BookingMonthTotalDto(m, 0, 0m))
+            .ToList();
+        return new BookingMonthlyDto(year, months.Sum(m => m.Count),
+            months.Sum(m => m.Revenue), months);
+    }
+
+    /// <summary>The admin list's filters, shared with the monthly chart so both always
+    /// count the same bookings.</summary>
+    private IQueryable<Booking> FilterBookings(BookingListRequest request)
+    {
         var query = db.Bookings.AsNoTracking();
         if (request.From is not null)
         {
@@ -590,8 +708,7 @@ public class BookingService(
                 b.Customer.FullName.Contains(term) ||
                 b.Customer.Email.Contains(term));
         }
-        query = query.OrderByDescending(b => b.StartUtc);
-        return await PageAsync(query, request, ct);
+        return query;
     }
 
     private async Task<PagedResult<BookingDto>> PageAsync(IQueryable<Booking> query,
@@ -691,13 +808,15 @@ public class BookingService(
         decimal SgstPercent, decimal Sgst, decimal Total);
 
     private async Task<Price> CalculatePriceAsync(Workspace workspace, int durationMinutes,
-        CancellationToken ct)
+        CancellationToken ct) =>
+        await TaxedAsync(workspace.PricePerHour * durationMinutes / 60m, ct);
+
+    /// <summary>CGST + SGST on a base amount, each rounded half away from zero.</summary>
+    private async Task<Price> TaxedAsync(decimal amount, CancellationToken ct)
     {
         var cgstPercent = await settings.GetDecimalAsync(AppSettingKeys.Tax.CgstPercent, 9m, ct);
         var sgstPercent = await settings.GetDecimalAsync(AppSettingKeys.Tax.SgstPercent, 9m, ct);
-
-        var baseAmount = Math.Round(workspace.PricePerHour * durationMinutes / 60m, 2,
-            MidpointRounding.AwayFromZero);
+        var baseAmount = Math.Round(amount, 2, MidpointRounding.AwayFromZero);
         var cgst = Math.Round(baseAmount * cgstPercent / 100m, 2, MidpointRounding.AwayFromZero);
         var sgst = Math.Round(baseAmount * sgstPercent / 100m, 2, MidpointRounding.AwayFromZero);
         return new Price(baseAmount, cgstPercent, cgst, sgstPercent, sgst, baseAmount + cgst + sgst);
@@ -709,5 +828,6 @@ public class BookingService(
         b.WorkspaceType.TypeName, b.StartUtc, b.EndUtc, b.DurationMinutes,
         b.BaseAmount, b.TaxAmount, b.TotalAmount,
         (byte)b.Status, (byte)b.PaymentStatus, (byte)b.BookingSource, b.Notes, b.CreatedDate,
-        b.Status == BookingStatus.Pending ? b.CreatedDate.AddMinutes(holdMinutes) : null);
+        b.Status == BookingStatus.Pending ? b.CreatedDate.AddMinutes(holdMinutes) : null,
+        b.BillingMonths);
 }

@@ -76,6 +76,21 @@ public class BookingListRequest : PagedRequest
     public long? CustomerId { get; set; }
 }
 
+/// <summary>The admin list's filters plus the calendar year the monthly chart covers.</summary>
+public class BookingMonthlyRequest : BookingListRequest
+{
+    public int? Year { get; set; }
+}
+
+/// <summary>Always twelve months, January to December, by booking date (IST).
+/// Count is every booking the filters match — the same rows as the list. Revenue counts
+/// only bookings that were paid for and kept (Confirmed, CheckedIn, Completed, NoShow):
+/// cancelled bookings, expired holds and unpaid pending holds bring in nothing.</summary>
+public record BookingMonthlyDto(int Year, int TotalCount, decimal TotalRevenue,
+    List<BookingMonthTotalDto> Months);
+
+public record BookingMonthTotalDto(int Month, int Count, decimal Revenue);
+
 public static class MyBookingTabs
 {
     public const string Upcoming = "upcoming";

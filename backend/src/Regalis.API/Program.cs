@@ -142,6 +142,19 @@ builder.Services
         };
         options.Events = new JwtBearerEvents
         {
+            // A server restart ends every session: a token issued by an earlier process
+            // (or before tokens carried the claim) is refused, and the refresh tokens were
+            // revoked at startup, so the SPA falls back to the sign-in page.
+            OnTokenValidated = context =>
+            {
+                var server = context.HttpContext.RequestServices.GetRequiredService<IServerInstance>();
+                if (server.EndSessionsOnRestart
+                    && context.Principal?.FindFirst(ServerInstance.ClaimType)?.Value != server.BootId)
+                {
+                    context.Fail("The server restarted since this session began. Sign in again.");
+                }
+                return Task.CompletedTask;
+            },
             // Keep the response contract: 401/403 also arrive as ApiResponse envelopes.
             OnChallenge = async context =>
             {
@@ -282,6 +295,27 @@ if (app.Configuration.GetValue("Database:SeedOnStartup", false))
     await scope.ServiceProvider
         .GetRequiredService<Regalis.Infrastructure.Persistence.Seed.DatabaseSeeder>()
         .SeedAsync();
+}
+
+// ── End the sessions of the previous process (Auth:EndSessionsOnRestart) ────
+// Everyone signs in again after a restart. A failure here must not keep the API
+// down; the boot claim still refuses old access tokens.
+{
+    using var scope = app.Services.CreateScope();
+    var server = scope.ServiceProvider.GetRequiredService<ServerInstance>();
+    try
+    {
+        var revoked = await server.EndEarlierSessionsAsync(
+            scope.ServiceProvider.GetRequiredService<RegalisDbContext>());
+        if (server.EndSessionsOnRestart)
+        {
+            app.Logger.LogInformation("Server started: {Count} earlier session(s) ended", revoked);
+        }
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "Could not end the sessions of the previous server process");
+    }
 }
 
 // ── Pipeline (ARCHITECTURE §3) ──────────────────────────────────────────────

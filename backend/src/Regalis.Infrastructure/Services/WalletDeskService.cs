@@ -290,7 +290,8 @@ public class WalletDeskService(
             Opening: opening,
             Closing: closing,
             Lines: entries,
-            GeneratedUtc: clock.UtcNow));
+            GeneratedUtc: clock.UtcNow,
+            Logo: await PdfLogo.LoadAsync(settings, ct)));
         return (pdf, "application/pdf", $"wallet-statement-{safeName}-{stamp}.pdf");
     }
 

@@ -178,7 +178,7 @@ public class DashboardService(
 
         var expensesMonth = await db.Expenses
             .Where(e => e.ExpenseDate >= monthStartIst)
-            .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
+            .SumAsync(e => (decimal?)(e.Amount + e.AdjustmentTotal), ct) ?? 0m;
 
         var openPoValue = await db.PurchaseOrders
             .Where(p => p.Status != PurchaseOrderStatus.Cancelled

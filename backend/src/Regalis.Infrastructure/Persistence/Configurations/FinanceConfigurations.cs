@@ -86,6 +86,7 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(x => x.OutstandingAmount)
             .HasComputedColumnSql("[TotalAmount] - [PaidAmount]", stored: true);
         builder.Property(x => x.CustomerName).HasMaxLength(150).IsRequired();
+        builder.Property(x => x.CustomerCompanyName).HasMaxLength(200);
         builder.Property(x => x.CustomerEmail).HasMaxLength(256).IsRequired();
         builder.Property(x => x.CustomerMobile).HasMaxLength(20);
         builder.Property(x => x.CustomerGstin).HasMaxLength(20);
@@ -301,7 +302,11 @@ public class ExpenseConfiguration : IEntityTypeConfiguration<Expense>
         // An expense is money out; zero or negative is a data-entry error, not a
         // correction — reverse a wrong expense by cancelling it, not by negating it.
         builder.ToTable("TRN_Expense", t =>
-            t.HasCheckConstraint("CK_Expense_Amount", "[Amount] > 0"));
+        {
+            t.HasCheckConstraint("CK_Expense_Amount", "[Amount] > 0");
+            // Adjustments may take an expense to nil (a full refund), never below.
+            t.HasCheckConstraint("CK_Expense_NetAmount", "[Amount] + [AdjustmentTotal] >= 0");
+        });
         builder.HasKey(x => x.ExpenseId);
         builder.Property(x => x.ExpenseNumber).HasMaxLength(40).IsRequired();
         builder.Property(x => x.Category).HasMaxLength(100).IsRequired();
@@ -530,5 +535,27 @@ public class BankTransactionConfiguration : IEntityTypeConfiguration<BankTransac
             .HasForeignKey(x => x.MatchedExpenseId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Location>().WithMany()
             .HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class ExpenseAdjustmentConfiguration : IEntityTypeConfiguration<ExpenseAdjustment>
+{
+    public void Configure(EntityTypeBuilder<ExpenseAdjustment> builder)
+    {
+        builder.ToTable("TRN_ExpenseAdjustment", t =>
+        {
+            t.HasCheckConstraint("CK_ExpenseAdjustment_Amount", "[Amount] > 0");
+            t.HasCheckConstraint("CK_ExpenseAdjustment_Type", "[AdjustmentType] IN (1, 2)");
+        });
+        builder.HasKey(x => x.ExpenseAdjustmentId);
+        builder.Property(x => x.Reason).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.Remarks).HasMaxLength(500);
+
+        builder.HasIndex(x => new { x.ExpenseId, x.AdjustmentDate })
+            .HasDatabaseName("IX_ExpenseAdjustment_Expense_Date");
+        builder.HasIndex(x => x.AdjustmentDate).HasDatabaseName("IX_ExpenseAdjustment_Date");
+
+        builder.HasOne<Expense>().WithMany()
+            .HasForeignKey(x => x.ExpenseId).OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -212,6 +212,54 @@ public class BookingConfirmTests(RegalisApiFactory factory)
     }
 
     [Fact]
+    public async Task Invoice_CarriesCustomerCompanyAndGstin_AndPrintsTheAdminTerms()
+    {
+        var (customer, customerId, workspaceId) = await SetUpAsync();
+        await CreditWalletAsync(customerId, 5000m);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<RegalisDbContext>();
+            var user = await db.Users.SingleAsync(u => u.UserId == customerId);
+            user.CompanyName = "Einfach Group";
+            user.Gstin = "29AAAGM0289C1ZF";
+            await db.SaveChangesAsync();
+        }
+        var booking = await HoldAsync(customer, workspaceId, BookingTestHelpers.NextMondayUtc(15));
+        var confirmed = (await (await customer.PostAsJsonAsync(
+                $"/api/bookings/{booking.BookingId}/confirm",
+                new ConfirmBookingRequest(PaymentMethods.Wallet, null, null, null)))
+            .Content.ReadFromJsonAsync<ApiResponse<ConfirmBookingResponse>>())!.Data!;
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var invoice = await scope.ServiceProvider.GetRequiredService<RegalisDbContext>().Invoices
+                .SingleAsync(i => i.InvoiceId == confirmed.InvoiceId);
+            invoice.CustomerCompanyName.Should().Be("Einfach Group");
+            invoice.CustomerGstin.Should().Be("29AAAGM0289C1ZF");
+        }
+
+        // One terms text, edited by staff, read back; customers cannot read or edit it.
+        var admin = factory.CreateClient();
+        admin.UseToken((await admin.LoginAsAdminAsync()).AccessToken);
+        (await admin.PutAsJsonAsync("/api/invoices/terms",
+                new InvoiceTermsDto("  1. Payment is due on receipt.  ")))
+            .EnsureSuccessStatusCode();
+        (await admin.GetFromJsonAsync<ApiResponse<InvoiceTermsDto>>("/api/invoices/terms"))!
+            .Data!.TermsAndConditions.Should().Be("1. Payment is due on receipt.");
+        (await customer.GetAsync("/api/invoices/terms")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await customer.PutAsJsonAsync("/api/invoices/terms", new InvoiceTermsDto("x")))
+            .StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await admin.PutAsJsonAsync("/api/invoices/terms", new InvoiceTermsDto(new string('x', 4001))))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var pdf = await customer.GetAsync($"/api/invoices/{confirmed.InvoiceId}/pdf");
+        pdf.EnsureSuccessStatusCode();
+        System.Text.Encoding.ASCII.GetString((await pdf.Content.ReadAsByteArrayAsync())[..5]).Should().Be("%PDF-");
+
+        (await admin.PutAsJsonAsync("/api/invoices/terms", new InvoiceTermsDto(""))).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
     public async Task InvoicePdf_DownloadsAsRealPdf()
     {
         var (customer, customerId, workspaceId) = await SetUpAsync();

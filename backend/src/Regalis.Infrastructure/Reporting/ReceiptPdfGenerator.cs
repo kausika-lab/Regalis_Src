@@ -27,7 +27,8 @@ public static class ReceiptPdfGenerator
         Invoice? invoice,
         string companyName,
         string? companyAddress,
-        string? companyGstin)
+        string? companyGstin,
+        byte[]? logo = null)
     {
         return Document.Create(container =>
         {
@@ -39,6 +40,7 @@ public static class ReceiptPdfGenerator
 
                 page.Header().Row(row =>
                 {
+                    PdfLogo.Compose(row, logo);
                     row.RelativeItem().Column(column =>
                     {
                         column.Item().Text(companyName).Bold().FontSize(18).FontColor(Black);

@@ -1163,6 +1163,7 @@ public class ReportService(RegalisDbContext db, IDateTimeProvider clock) : IRepo
             .Select(e => new
             {
                 e.ExpenseNumber, e.ExpenseDate, e.Category, e.Description, e.Amount,
+                e.AdjustmentTotal, NetAmount = e.Amount + e.AdjustmentTotal,
                 e.PaymentMethod, e.Remarks,
                 EnteredBy = db.Users.Where(u => u.UserId == e.EnteredByUserId)
                     .Select(u => u.FullName).FirstOrDefault(),
@@ -1177,6 +1178,8 @@ public class ReportService(RegalisDbContext db, IDateTimeProvider clock) : IRepo
             new("category", "Category", "string"),
             new("description", "Description", "string"),
             new("amount", "Amount", "money"),
+            new("adjustments", "Adjustments", "money"),
+            new("net", "Net amount", "money"),
             new("mode", "Payment mode", "string"),
             new("enteredBy", "Entered by", "string"),
             new("reconciled", "Bank matched", "string"),
@@ -1188,6 +1191,8 @@ public class ReportService(RegalisDbContext db, IDateTimeProvider clock) : IRepo
             ("category", e.Category),
             ("description", e.Description),
             ("amount", e.Amount),
+            ("adjustments", e.AdjustmentTotal),
+            ("net", e.NetAmount),
             ("mode", e.PaymentMethod.ToString()),
             ("enteredBy", e.EnteredBy),
             ("reconciled", e.Reconciled ? "Yes" : "No"),
@@ -1196,7 +1201,7 @@ public class ReportService(RegalisDbContext db, IDateTimeProvider clock) : IRepo
         var summary = new List<ReportSummaryItem>
         {
             new("Entries", totalRows.ToString()),
-            new("Total spend", $"₹ {data.Sum(e => e.Amount):N2}"),
+            new("Total spend", $"₹ {data.Sum(e => e.NetAmount):N2}"),
             new("Categories", data.Select(e => e.Category).Distinct().Count().ToString()),
             new("Unmatched", data.Count(e => !e.Reconciled).ToString())
         };
@@ -1537,7 +1542,7 @@ public class ReportService(RegalisDbContext db, IDateTimeProvider clock) : IRepo
         var expenses = await db.Expenses.AsNoTracking()
             .Where(e => e.ExpenseDate >= from && e.ExpenseDate <= to
                         && (location == null || e.LocationId == location))
-            .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
+            .SumAsync(e => (decimal?)(e.Amount + e.AdjustmentTotal), ct) ?? 0m;
 
         var poValue = await db.PurchaseOrders.AsNoTracking()
             .Where(p => p.PoDate >= from && p.PoDate <= to

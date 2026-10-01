@@ -19,15 +19,26 @@ public class AvailabilityController(IAvailabilityService availabilityService) : 
         [FromQuery] DateOnly date, CancellationToken ct) =>
         OkEnvelope(await availabilityService.GetSlotsAsync(locationId, workspaceTypeId, date, ct));
 
-    /// <summary>Free workspaces (with price) for a window.</summary>
+    /// <summary>Free workspaces (with price) for a window. includeBusy=true also returns
+    /// the taken ones with isAvailable=false, for a greyed-out display.</summary>
     [HttpGet("workspaces")]
     [HasPermission(PermissionCodes.Booking.View)]
     [ProducesResponseType(typeof(ApiResponse<List<AvailableWorkspaceDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetWorkspaces([FromQuery] int locationId,
         [FromQuery] int workspaceTypeId, [FromQuery] DateTime startUtc,
-        [FromQuery] int durationMinutes, CancellationToken ct) =>
+        [FromQuery] int durationMinutes, [FromQuery] bool includeBusy, CancellationToken ct) =>
         OkEnvelope(await availabilityService.GetAvailableWorkspacesAsync(
-            locationId, workspaceTypeId, startUtc, durationMinutes, ct));
+            locationId, workspaceTypeId, startUtc, durationMinutes, ct, includeBusy));
+
+    /// <summary>Every desk or cabin of a type for a monthly term (1, 3, 6 or 12 months from
+    /// startDate), each marked available or not.</summary>
+    [HttpGet("monthly")]
+    [HasPermission(PermissionCodes.Booking.View)]
+    [ProducesResponseType(typeof(ApiResponse<List<MonthlyWorkspaceDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMonthly([FromQuery] int locationId, [FromQuery] int workspaceTypeId,
+        [FromQuery] DateOnly startDate, [FromQuery] int months, CancellationToken ct) =>
+        OkEnvelope(await availabilityService.GetMonthlyWorkspacesAsync(
+            locationId, workspaceTypeId, startDate, months, ct));
 
     /// <summary>Advisory single-workspace check.</summary>
     [HttpPost("check")]

@@ -302,6 +302,8 @@ public class PassService(
                 CustomerName = customer.FullName,
                 CustomerEmail = customer.Email,
                 CustomerMobile = customer.MobileNumber,
+                CustomerGstin = customer.Gstin,
+                CustomerCompanyName = customer.CompanyName,
                 BillingAddress = customer.Address,
                 CompanyName = await settings.GetStringAsync(AppSettingKeys.Company.Name, "Regalis WorkSpace", ct),
                 CompanyGstin = await settings.GetStringAsync(AppSettingKeys.Company.Gstin, "", ct),

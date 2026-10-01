@@ -108,7 +108,28 @@ public class InvoiceService(
     public async Task<byte[]> GetInvoicePdfAsync(long invoiceId, CancellationToken ct = default)
     {
         var invoice = await LoadScopedAsync(invoiceId, ct);
-        return InvoicePdfGenerator.Generate(invoice);
+        return InvoicePdfGenerator.Generate(invoice, await PdfExtrasAsync(ct));
+    }
+
+    /// <summary>The company-level parts of the invoice PDF. Place of supply is the
+    /// Tax.PlaceOfSupply setting, else the home state (Regalis sells space in its own
+    /// state, so the supply happens there).</summary>
+    private async Task<InvoicePdfExtras> PdfExtrasAsync(CancellationToken ct)
+    {
+        var place = await settings.GetStringAsync(AppSettingKeys.Tax.PlaceOfSupply, "", ct);
+        if (string.IsNullOrWhiteSpace(place))
+        {
+            var home = await settings.GetStringAsync(AppSettingKeys.Quotation.HomeStateCode, "29", ct);
+            place = string.IsNullOrWhiteSpace(home) ? "" : $"{GstStates.NameOf(home)} ({home})";
+        }
+        return new InvoicePdfExtras(
+            Logo: await PdfLogo.LoadAsync(settings, ct),
+            PlaceOfSupply: place,
+            BankAccountName: await settings.GetStringAsync(AppSettingKeys.Company.BankAccountName, "", ct),
+            BankAccountNumber: await settings.GetStringAsync(AppSettingKeys.Company.BankAccountNumber, "", ct),
+            BankIfsc: await settings.GetStringAsync(AppSettingKeys.Company.BankIfsc, "", ct),
+            BankBranch: await settings.GetStringAsync(AppSettingKeys.Company.BankBranch, "", ct),
+            DefaultTerms: await settings.GetStringAsync(AppSettingKeys.Invoice.TermsAndConditions, "", ct));
     }
 
 
@@ -171,6 +192,7 @@ public class InvoiceService(
             CustomerEmail = quotation.CustomerEmail,
             CustomerMobile = quotation.CustomerMobile,
             CustomerGstin = quotation.CustomerGstin,
+            CustomerCompanyName = quotation.CustomerCompanyName,
             BillingAddress = quotation.BillingAddress,
             CompanyName = quotation.CompanyName,
             CompanyGstin = quotation.CompanyGstin,
@@ -290,6 +312,7 @@ public class InvoiceService(
             CustomerEmail = quotation.CustomerEmail,
             CustomerMobile = quotation.CustomerMobile,
             CustomerGstin = quotation.CustomerGstin,
+            CustomerCompanyName = quotation.CustomerCompanyName,
             BillingAddress = quotation.BillingAddress,
             CompanyName = quotation.CompanyName,
             CompanyGstin = quotation.CompanyGstin,

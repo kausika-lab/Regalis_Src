@@ -17,6 +17,11 @@ public class Expense : AuditableEntity
     public string Category { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public decimal Amount { get; set; }
+    /// <summary>Signed sum of this expense's live adjustments (increases minus
+    /// decreases). ExpenseService recomputes it from TRN_ExpenseAdjustment whenever an
+    /// adjustment changes, so every total stays a plain SUM(Amount + AdjustmentTotal):
+    /// SQL Server refuses SUM over a correlated subquery.</summary>
+    public decimal AdjustmentTotal { get; set; }
     /// <summary>Reuses the existing PaymentMethod enum rather than inventing a
     /// parallel "payment mode" list.</summary>
     public PaymentMethod PaymentMethod { get; set; }

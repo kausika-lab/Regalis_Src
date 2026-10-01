@@ -324,6 +324,9 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<byte?>("BillingMonths")
+                        .HasColumnType("tinyint");
+
                     b.Property<DateOnly>("BookingDate")
                         .HasColumnType("date");
 
@@ -916,6 +919,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("ExpenseId"));
 
+                    b.Property<decimal>("AdjustmentTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("Amount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -1005,6 +1012,78 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.ToTable("TRN_Expense", null, t =>
                         {
                             t.HasCheckConstraint("CK_Expense_Amount", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_Expense_NetAmount", "[Amount] + [AdjustmentTotal] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.ExpenseAdjustment", b =>
+                {
+                    b.Property<long>("ExpenseAdjustmentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("ExpenseAdjustmentId"));
+
+                    b.Property<DateOnly>("AdjustmentDate")
+                        .HasColumnType("date");
+
+                    b.Property<byte>("AdjustmentType")
+                        .HasColumnType("tinyint");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long>("ExpenseId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<long?>("ModifiedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("ExpenseAdjustmentId");
+
+                    b.HasIndex("AdjustmentDate")
+                        .HasDatabaseName("IX_ExpenseAdjustment_Date");
+
+                    b.HasIndex("ExpenseId", "AdjustmentDate")
+                        .HasDatabaseName("IX_ExpenseAdjustment_Expense_Date");
+
+                    b.ToTable("TRN_ExpenseAdjustment", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ExpenseAdjustment_Amount", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_ExpenseAdjustment_Type", "[AdjustmentType] IN (1, 2)");
                         });
                 });
 
@@ -1061,6 +1140,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("CustomerCompanyName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("CustomerEmail")
                         .IsRequired()
@@ -5442,6 +5525,15 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("SupplierId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.ExpenseAdjustment", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Finance.Expense", null)
+                        .WithMany()
+                        .HasForeignKey("ExpenseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.Invoice", b =>

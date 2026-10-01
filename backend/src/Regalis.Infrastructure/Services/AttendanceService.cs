@@ -156,7 +156,12 @@ public class AttendanceService(
         {
             var booking = await db.Bookings.FirstOrDefaultAsync(
                 b => b.BookingId == attendance.BookingId, ct);
-            if (booking is { Status: BookingStatus.CheckedIn })
+            if (booking is { Status: BookingStatus.CheckedIn, BillingMonths: not null } && nowUtc < booking.EndUtc)
+            {
+                // A monthly term runs on: checking out for the day does not free the workspace.
+                booking.CheckOutUtc = nowUtc;
+            }
+            else if (booking is { Status: BookingStatus.CheckedIn })
             {
                 TransitionBooking(booking, BookingStatus.Completed, nowUtc, "Self check-out from the app.");
                 booking.CheckOutUtc = nowUtc;

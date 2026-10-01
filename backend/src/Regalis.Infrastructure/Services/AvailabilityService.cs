@@ -16,7 +16,8 @@ namespace Regalis.Infrastructure.Services;
 /// s1 &lt; e2 AND s2 &lt; e1. These reads are advisory — the booking engine
 /// re-verifies under range locks inside its transaction.
 /// </summary>
-public class AvailabilityService(RegalisDbContext db, ISettingService settings) : IAvailabilityService
+public class AvailabilityService(RegalisDbContext db, ISettingService settings, IDateTimeProvider clock)
+    : IAvailabilityService
 {
     public async Task<List<SlotDto>> GetSlotsAsync(int locationId, int workspaceTypeId, DateOnly date,
         CancellationToken ct = default)
@@ -65,7 +66,8 @@ public class AvailabilityService(RegalisDbContext db, ISettingService settings) 
     }
 
     public async Task<List<AvailableWorkspaceDto>> GetAvailableWorkspacesAsync(int locationId,
-        int workspaceTypeId, DateTime startUtc, int durationMinutes, CancellationToken ct = default)
+        int workspaceTypeId, DateTime startUtc, int durationMinutes, CancellationToken ct = default,
+        bool includeBusy = false)
     {
         var endUtc = startUtc.AddMinutes(durationMinutes);
         var workspaces = await BookableWorkspacesQuery(locationId, workspaceTypeId)
@@ -85,12 +87,70 @@ public class AvailabilityService(RegalisDbContext db, ISettingService settings) 
         var busyIds = occupancy.Select(o => o.WorkspaceId).ToHashSet();
 
         return workspaces
-            .Where(w => !busyIds.Contains(w.WorkspaceId))
+            .Where(w => includeBusy || !busyIds.Contains(w.WorkspaceId))
             .OrderBy(w => w.WorkspaceCode)
             .Select(w => new AvailableWorkspaceDto(
                 w.WorkspaceId, w.WorkspaceCode, w.WorkspaceName, w.WorkspaceType.TypeName,
                 w.FloorNumber, w.Capacity, w.PricePerHour, w.Equipment,
-                w.WorkspaceAmenities.Select(wa => wa.Amenity.AmenityName).ToList()))
+                w.WorkspaceAmenities.Select(wa => wa.Amenity.AmenityName).ToList(),
+                !busyIds.Contains(w.WorkspaceId)))
+            .ToList();
+    }
+
+    public async Task<List<MonthlyWorkspaceDto>> GetMonthlyWorkspacesAsync(int locationId,
+        int workspaceTypeId, DateOnly startDate, int months, CancellationToken ct = default)
+    {
+        var location = await db.Locations.AsNoTracking()
+            .FirstOrDefaultAsync(l => l.LocationId == locationId, ct)
+            ?? throw new NotFoundException("Location", locationId);
+        var type = await db.WorkspaceTypes.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.WorkspaceTypeId == workspaceTypeId, ct)
+            ?? throw new NotFoundException("WorkspaceType", workspaceTypeId);
+        if (!MonthlyTerm.MonthlyTypeCodes.Contains(type.TypeCode))
+        {
+            throw new BusinessRuleException("Only desks and cabins are booked by the month.");
+        }
+        var advanceDays = await settings.GetIntAsync(AppSettingKeys.Booking.AdvanceDays, 60, ct);
+        var window = MonthlyTerm.For(location, startDate, months, clock.UtcNow, advanceDays);
+
+        var workspaces = await BookableWorkspacesQuery(locationId, workspaceTypeId)
+            .Include(w => w.WorkspaceType)
+            .Include(w => w.WorkspaceAmenities).ThenInclude(wa => wa.Amenity)
+            .AsSplitQuery()
+            .ToListAsync(ct);
+        if (workspaces.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = workspaces.Select(w => w.WorkspaceId).ToList();
+        var booked = (await db.Bookings.AsNoTracking()
+                .Where(b => ids.Contains(b.WorkspaceId) &&
+                            Booking.OccupancyStatuses.Contains(b.Status) &&
+                            b.StartUtc < window.EndUtc && window.StartUtc < b.EndUtc)
+                .Select(b => b.WorkspaceId).Distinct().ToListAsync(ct))
+            .ToHashSet();
+        var blocked = (await db.WorkspaceBlocks.AsNoTracking()
+                .Where(k => ids.Contains(k.WorkspaceId) && k.IsActive &&
+                            k.StartUtc < window.EndUtc && window.StartUtc < k.EndUtc)
+                .Select(k => k.WorkspaceId).Distinct().ToListAsync(ct))
+            .ToHashSet();
+
+        return workspaces
+            .OrderBy(w => w.WorkspaceCode)
+            .Select(w =>
+            {
+                // Hot desks always show as booked on the monthly list.
+                var reason = MonthlyTerm.IsHotDesk(w.WorkspaceName) || booked.Contains(w.WorkspaceId) ? "Booked"
+                    : blocked.Contains(w.WorkspaceId) ? "Blocked"
+                    : w.PricePerMonth is not > 0 ? "NoMonthlyPrice"
+                    : null;
+                return new MonthlyWorkspaceDto(
+                    w.WorkspaceId, w.WorkspaceCode, w.WorkspaceName, w.WorkspaceType.TypeName,
+                    w.FloorNumber, w.Capacity, w.PricePerMonth, w.Equipment,
+                    w.WorkspaceAmenities.Select(wa => wa.Amenity.AmenityName).ToList(),
+                    reason is null, reason);
+            })
             .ToList();
     }
 

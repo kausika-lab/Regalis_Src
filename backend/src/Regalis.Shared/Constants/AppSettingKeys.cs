@@ -14,6 +14,12 @@ public static class AppSettingKeys
         public const string Email = "Company.Email";
         public const string Phone = "Company.Phone";
         public const string LogoPath = "Company.LogoPath";
+        // Printed in the bank-details strip of the tax invoice; nothing prints until the
+        // account number is set.
+        public const string BankAccountName = "Company.BankAccountName";
+        public const string BankAccountNumber = "Company.BankAccountNumber";
+        public const string BankIfsc = "Company.BankIfsc";
+        public const string BankBranch = "Company.BankBranch";
     }
 
     public static class Tax
@@ -27,6 +33,8 @@ public static class AppSettingKeys
     public static class Invoice
     {
         public const string DueDays = "Invoice.DueDays";
+        /// <summary>Printed on an invoice that carries no terms of its own.</summary>
+        public const string TermsAndConditions = "Invoice.TermsAndConditions";
     }
 
     /// <summary>Purchase orders. Shown under Settings → Billing (SettingGroup "Billing").</summary>

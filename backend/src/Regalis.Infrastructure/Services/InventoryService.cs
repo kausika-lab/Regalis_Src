@@ -18,7 +18,7 @@ namespace Regalis.Infrastructure.Services;
 /// append-only transaction ledger (Invariant 11). There is no update or delete on a
 /// transaction; a mistake is corrected with a compensating Adjustment row.
 /// </summary>
-public class InventoryService(
+public partial class InventoryService(
     RegalisDbContext db,
     INumberSequenceService numberSequence,
     ICurrentUser currentUser,
@@ -225,26 +225,7 @@ public class InventoryService(
                     $"Only {current:0.###} {item.Unit} in stock — the ledger cannot go negative.");
             }
 
-            var entry = new InventoryTransaction
-            {
-                InventoryItemId = item.InventoryItemId,
-                TransactionNumber = await numberSequence.NextAsync(SequenceKeys.InventoryTransaction, ct),
-                TransactionType = type,
-                Quantity = request.Quantity,
-                TransactionDate = request.TransactionDate ?? IstClock.IstDateOf(clock.UtcNow),
-                SourceOrDestination = request.SourceOrDestination?.Trim(),
-                ReferenceNumber = request.ReferenceNumber?.Trim(),
-                SupplierId = request.SupplierId,
-                PurchaseOrderId = request.PurchaseOrderId,
-                PurchaseInvoiceNumber = request.PurchaseInvoiceNumber?.Trim(),
-                AttachmentPath = request.AttachmentPath?.Trim(),
-                UnitCost = request.UnitCost,
-                DamageDescription = request.DamageDescription?.Trim(),
-                DamageCause = request.DamageCause?.Trim(),
-                LocationId = item.LocationId,
-                EnteredByUserId = currentUser.UserId,
-                Notes = request.Notes?.Trim()
-            };
+            var entry = await NewEntryAsync(item, request, ct);
             db.InventoryTransactions.Add(entry);
             await db.SaveChangesAsync(ct);
             await dbTransaction.CommitAsync(ct);
@@ -255,6 +236,30 @@ public class InventoryService(
                 .Where(t => t.InventoryTransactionId == transactionId))
             .FirstAsync(ct);
     }
+
+    /// <summary>A ledger row as the screen records it — numbered from the shared sequence,
+    /// entered by the caller. Excel imports build their rows here too.</summary>
+    private async Task<InventoryTransaction> NewEntryAsync(InventoryItem item,
+        CreateInventoryTransactionRequest request, CancellationToken ct) => new()
+    {
+        InventoryItemId = item.InventoryItemId,
+        TransactionNumber = await numberSequence.NextAsync(SequenceKeys.InventoryTransaction, ct),
+        TransactionType = (InventoryTransactionType)request.TransactionType,
+        Quantity = request.Quantity,
+        TransactionDate = request.TransactionDate ?? IstClock.IstDateOf(clock.UtcNow),
+        SourceOrDestination = request.SourceOrDestination?.Trim(),
+        ReferenceNumber = request.ReferenceNumber?.Trim(),
+        SupplierId = request.SupplierId,
+        PurchaseOrderId = request.PurchaseOrderId,
+        PurchaseInvoiceNumber = request.PurchaseInvoiceNumber?.Trim(),
+        AttachmentPath = request.AttachmentPath?.Trim(),
+        UnitCost = request.UnitCost,
+        DamageDescription = request.DamageDescription?.Trim(),
+        DamageCause = request.DamageCause?.Trim(),
+        LocationId = item.LocationId,
+        EnteredByUserId = currentUser.UserId,
+        Notes = request.Notes?.Trim()
+    };
 
     public async Task<PagedResult<InventoryTransactionDto>> GetTransactionsAsync(
         InventoryTransactionListRequest request, CancellationToken ct = default)
@@ -302,81 +307,6 @@ public class InventoryService(
         return new InventoryExportResult(content, "text/csv", $"inventory_{todayIst:yyyyMMdd}.csv");
     }
 
-    /// <summary>The item master as an Excel workbook, with the same filters as the Items
-    /// screen (search, category, location, below-reorder) and every matching row —
-    /// not just the page on screen. Status uses the screen's thresholds.</summary>
-    public async Task<InventoryExportResult> ExportItemsExcelAsync(InventoryItemListRequest request,
-        CancellationToken ct = default)
-    {
-        var items = await FilterItems(request).OrderBy(i => i.ItemName).ToListAsync(ct);
-        var movements = await MovementsByItemAsync(items.Select(i => i.InventoryItemId).ToList(), ct);
-        var rows = items.Select(i => ToDto(i, CurrentStock(i, movements)))
-            .Where(d => request.BelowReorder != true || d.NeedsReorder)
-            .ToList();
-        var locationIds = rows.Select(r => r.LocationId).Distinct().ToList();
-        var locations = await db.Locations.AsNoTracking()
-            .Where(l => locationIds.Contains(l.LocationId))
-            .ToDictionaryAsync(l => l.LocationId, l => l.LocationName, ct);
-
-        using var workbook = new ClosedXML.Excel.XLWorkbook();
-        var sheet = workbook.Worksheets.Add("Inventory Items");
-        string[] headers =
-        [
-            "Item Code", "Item Name", "Category", "Location", "Unit", "Unit Cost",
-            "Current Stock", "Reorder Level", "Status", "Stock Value"
-        ];
-        for (var c = 0; c < headers.Length; c++)
-        {
-            var cell = sheet.Cell(1, c + 1);
-            cell.Value = headers[c];
-            cell.Style.Font.SetBold();
-            cell.Style.Fill.SetBackgroundColor(ClosedXML.Excel.XLColor.FromHtml("#0B0B0D"));
-            cell.Style.Font.SetFontColor(ClosedXML.Excel.XLColor.FromHtml("#C9A227"));
-        }
-
-        const string money = "₹ #,##0.00";
-        for (var r = 0; r < rows.Count; r++)
-        {
-            var d = rows[r];
-            var row = r + 2;
-            sheet.Cell(row, 1).Value = d.ItemCode;
-            sheet.Cell(row, 2).Value = d.ItemName;
-            sheet.Cell(row, 3).Value = d.Category ?? "";
-            sheet.Cell(row, 4).Value = locations.GetValueOrDefault(d.LocationId, "");
-            sheet.Cell(row, 5).Value = d.Unit;
-            if (d.UnitCost is { } cost)
-            {
-                sheet.Cell(row, 6).Value = cost;
-                sheet.Cell(row, 6).Style.NumberFormat.Format = money;
-                sheet.Cell(row, 10).Value = cost * d.CurrentStock;
-                sheet.Cell(row, 10).Style.NumberFormat.Format = money;
-            }
-            sheet.Cell(row, 7).Value = d.CurrentStock;
-            sheet.Cell(row, 8).Value = d.ReorderLevel;
-            sheet.Cell(row, 9).Value = StockStatus(d.CurrentStock, d.ReorderLevel);
-        }
-        sheet.SheetView.FreezeRows(1);
-        if (rows.Count > 0)
-        {
-            sheet.Range(1, 1, rows.Count + 1, headers.Length).SetAutoFilter();
-        }
-        sheet.Columns().AdjustToContents();
-
-        using var stream = new MemoryStream();
-        workbook.SaveAs(stream);
-        var todayIst = IstClock.IstDateOf(clock.UtcNow);
-        return new InventoryExportResult(stream.ToArray(),
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            $"inventory_items_{todayIst:yyyyMMdd}.xlsx");
-    }
-
-    /// <summary>The Items screen's badge: Critical at half the reorder level or less,
-    /// Low Stock at the reorder level or less, otherwise OK.</summary>
-    private static string StockStatus(decimal stock, decimal reorderLevel) =>
-        reorderLevel > 0 && stock <= reorderLevel * 0.5m ? "Critical"
-        : reorderLevel > 0 && stock <= reorderLevel ? "Low Stock"
-        : "OK";
-
     // ── Derivation ──────────────────────────────────────────────────────────
 
     private sealed record Movement(int InventoryItemId, InventoryTransactionType TransactionType, decimal Total);
@@ -406,6 +336,22 @@ public class InventoryService(
     private IQueryable<InventoryTransaction> FilterTransactions(InventoryTransactionListRequest request)
     {
         var query = db.InventoryTransactions.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            // The goods screens' search box: item, supplier, PO#, reference, purpose, remarks.
+            var term = request.Search.Trim();
+            query = query.Where(t => t.TransactionNumber.Contains(term)
+                                     || t.InventoryItem.ItemCode.Contains(term)
+                                     || t.InventoryItem.ItemName.Contains(term)
+                                     || (t.ReferenceNumber != null && t.ReferenceNumber.Contains(term))
+                                     || (t.SourceOrDestination != null && t.SourceOrDestination.Contains(term))
+                                     || (t.PurchaseInvoiceNumber != null && t.PurchaseInvoiceNumber.Contains(term))
+                                     || (t.Notes != null && t.Notes.Contains(term))
+                                     || db.Suppliers.Any(s => s.SupplierId == t.SupplierId
+                                                              && s.SupplierName.Contains(term))
+                                     || db.PurchaseOrders.Any(p => p.PurchaseOrderId == t.PurchaseOrderId
+                                                                   && p.PoNumber.Contains(term)));
+        }
         if (request.InventoryItemId is not null)
         {
             query = query.Where(t => t.InventoryItemId == request.InventoryItemId);

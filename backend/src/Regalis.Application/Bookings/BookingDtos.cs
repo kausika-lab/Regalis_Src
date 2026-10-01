@@ -15,7 +15,57 @@ public record AvailableWorkspaceDto(
     int Capacity,
     decimal PricePerHour,
     string? Equipment,
-    IReadOnlyList<string> Amenities);
+    IReadOnlyList<string> Amenities,
+    // False only when the caller asked for taken workspaces as well.
+    bool IsAvailable = true);
+
+/// <summary>A desk or cabin on the monthly booking screen. IsAvailable is false when it is
+/// booked or blocked at any point in the term, or has no monthly price.</summary>
+public record MonthlyWorkspaceDto(
+    int WorkspaceId,
+    string WorkspaceCode,
+    string WorkspaceName,
+    string WorkspaceTypeName,
+    string? FloorNumber,
+    int Capacity,
+    decimal? PricePerMonth,
+    string? Equipment,
+    IReadOnlyList<string> Amenities,
+    bool IsAvailable,
+    // "Booked", "Blocked" or "NoMonthlyPrice" when not available.
+    string? UnavailableReason);
+
+// ── Monthly desk / cabin booking ────────────────────────────────────────────
+
+public record MonthlyBookingRequest(int WorkspaceId, DateOnly StartDate, int Months, string? Notes = null);
+
+public record MonthlyQuoteResponse(
+    int WorkspaceId,
+    string WorkspaceName,
+    string WorkspaceCode,
+    int Months,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    DateTime StartUtc,
+    DateTime EndUtc,
+    decimal PricePerMonth,
+    decimal BaseAmount,
+    decimal CgstPercent,
+    decimal CgstAmount,
+    decimal SgstPercent,
+    decimal SgstAmount,
+    decimal TotalAmount);
+
+public class MonthlyBookingRequestValidator : AbstractValidator<MonthlyBookingRequest>
+{
+    public MonthlyBookingRequestValidator()
+    {
+        RuleFor(x => x.WorkspaceId).GreaterThan(0);
+        RuleFor(x => x.Months).Must(m => m is 1 or 3 or 6 or 12)
+            .WithMessage("Choose a term of 1, 3, 6 or 12 months.");
+        RuleFor(x => x.Notes).MaximumLength(500);
+    }
+}
 
 public record AvailabilityCheckRequest(int WorkspaceId, DateTime StartUtc, DateTime EndUtc);
 
@@ -72,7 +122,9 @@ public record BookingDto(
     string? Notes,
     DateTime CreatedDate,
     // When the Pending hold lapses; null once the booking is confirmed.
-    DateTime? HoldExpiresUtc);
+    DateTime? HoldExpiresUtc,
+    // 1, 3, 6 or 12 for a monthly desk/cabin booking; null for an hourly one.
+    byte? BillingMonths = null);
 
 public class QuoteRequestValidator : AbstractValidator<QuoteRequest>
 {
@@ -102,9 +154,16 @@ public interface IAvailabilityService
     Task<List<SlotDto>> GetSlotsAsync(int locationId, int workspaceTypeId, DateOnly date,
         CancellationToken ct = default);
 
-    /// <summary>Free workspaces for a window, with price — the customer picks one.</summary>
+    /// <summary>Workspaces for a window, with price — the customer picks one. Only the free
+    /// ones, unless <paramref name="includeBusy"/>: then the taken ones come back too, with
+    /// IsAvailable = false, so the screen can show them greyed out.</summary>
     Task<List<AvailableWorkspaceDto>> GetAvailableWorkspacesAsync(int locationId, int workspaceTypeId,
-        DateTime startUtc, int durationMinutes, CancellationToken ct = default);
+        DateTime startUtc, int durationMinutes, CancellationToken ct = default, bool includeBusy = false);
+
+    /// <summary>Every bookable desk or cabin of a type for a monthly term, free or not, with
+    /// its monthly price.</summary>
+    Task<List<MonthlyWorkspaceDto>> GetMonthlyWorkspacesAsync(int locationId, int workspaceTypeId,
+        DateOnly startDate, int months, CancellationToken ct = default);
 
     /// <summary>Advisory check (no locks) — frontend convenience only. The engine
     /// re-verifies under range locks inside the booking transaction.</summary>
@@ -120,6 +179,13 @@ public interface IBookingService
     /// UPDLOCK/HOLDLOCK range locks (Design Invariant 2). Losing the race is a
     /// documented 409 SLOT_UNAVAILABLE.</summary>
     Task<BookingDto> CreateHoldAsync(CreateBookingRequest request, CancellationToken ct = default);
+
+    /// <summary>Price of a desk or cabin for a monthly term. No write.</summary>
+    Task<MonthlyQuoteResponse> QuoteMonthlyAsync(MonthlyBookingRequest request, CancellationToken ct = default);
+
+    /// <summary>A Pending hold on a desk or cabin for a whole monthly term; paid and
+    /// confirmed through the same confirm call as an hourly booking.</summary>
+    Task<BookingDto> CreateMonthlyHoldAsync(MonthlyBookingRequest request, CancellationToken ct = default);
 
     /// <summary>Design Invariant 4 — one serializable transaction produces the
     /// confirmed booking, the verified payment, the GST invoice, the access token
@@ -141,5 +207,10 @@ public interface IBookingService
 
     /// <summary>Admin list with the common filter set.</summary>
     Task<Shared.Api.PagedResult<BookingDto>> GetBookingsAsync(BookingListRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>Bookings and revenue per month of the requested year (default: this
+    /// year), under the same filters as the admin list.</summary>
+    Task<BookingMonthlyDto> GetMonthlyAsync(BookingMonthlyRequest request,
         CancellationToken ct = default);
 }

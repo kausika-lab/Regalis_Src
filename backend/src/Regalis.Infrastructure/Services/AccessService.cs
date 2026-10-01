@@ -365,6 +365,13 @@ public class AccessService(
             booking.CheckInUtc = nowUtc;
             AddHistory(booking, BookingStatus.Confirmed, BookingStatus.CheckedIn, nowUtc, "Checked in at the gate.");
         }
+        else if (direction == AccessDirection.Out && booking.Status == BookingStatus.CheckedIn
+                 && booking.BillingMonths is not null && nowUtc < booking.EndUtc)
+        {
+            // A monthly desk or cabin stays the member's until the term ends; leaving for
+            // the day records the exit but does not complete (and free) the booking.
+            booking.CheckOutUtc = nowUtc;
+        }
         else if (direction == AccessDirection.Out && booking.Status == BookingStatus.CheckedIn)
         {
             booking.Status = BookingStatus.Completed;

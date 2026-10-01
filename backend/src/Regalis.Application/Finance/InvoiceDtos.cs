@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Regalis.Shared.Api;
 
 namespace Regalis.Application.Finance;
@@ -95,3 +96,6 @@ public interface IInvoiceService
     /// edited or deleted; this is the correction path.</summary>
     Task<InvoiceDto> CancelAsync(long invoiceId, string reason, CancellationToken ct = default);
 }
+
+/// <summary>The invoice Terms & Conditions text (GET/PUT /api/invoices/terms).</summary>
+public record InvoiceTermsDto([MaxLength(4000)] string? TermsAndConditions);

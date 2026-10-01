@@ -26,7 +26,11 @@ public class JwtTokenServiceTests
             AccessTokenMinutes = 15,
             RefreshTokenDays = 7
         }),
-        new FixedClock(Now));
+        new FixedClock(Now),
+        Server);
+
+    private static readonly ServerInstance Server = new(
+        new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
 
     private static readonly User TestUser = new()
     {
@@ -53,6 +57,8 @@ public class JwtTokenServiceTests
         token.Claims.Where(c => c.Type == "perm").Select(c => c.Value)
             .Should().BeEquivalentTo("BOOKING.VIEW", "BOOKING.CREATE");
         token.Claims.Should().Contain(c => c.Type == "jti");
+        token.Claims.Single(c => c.Type == "boot").Value.Should().Be(Server.BootId,
+            "a token names the process that issued it, so a restart can refuse it");
     }
 
     [Fact]

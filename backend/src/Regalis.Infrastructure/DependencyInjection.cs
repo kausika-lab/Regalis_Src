@@ -45,6 +45,8 @@ public static class DependencyInjection
 
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
+        services.AddSingleton<ServerInstance>();
+        services.AddSingleton<IServerInstance>(sp => sp.GetRequiredService<ServerInstance>());
         services.AddSingleton<ITokenService, JwtTokenService>();
         // Singleton: the Google verifier caches Google's signing keys between calls.
         // An empty client id leaves it reporting "not configured" rather than failing.

@@ -201,6 +201,8 @@ public class MoneyCompleteTests(RegalisApiFactory factory)
         var (customer, _, _) = await SetUpAsync();
         (await customer.PostAsJsonAsync("/api/wallet/recharge", new RechargeOrderRequest(50m)))
             .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await customer.PostAsJsonAsync("/api/wallet/recharge", new RechargeOrderRequest(999m)))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         (await customer.PostAsJsonAsync("/api/wallet/recharge", new RechargeOrderRequest(90000m)))
             .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }

@@ -21,7 +21,8 @@ public record WalletStatementPdfModel(
     decimal Opening,
     decimal Closing,
     IReadOnlyList<WalletStatementLine> Lines,
-    DateTime GeneratedUtc);
+    DateTime GeneratedUtc,
+    byte[]? Logo = null);
 
 /// <summary>A customer's wallet statement for a period: opening balance, every ledger
 /// entry in date order, closing balance — the same letterhead and palette as the
@@ -75,9 +76,16 @@ public static class WalletStatementPdfGenerator
                 {
                     head.Item().Row(row =>
                     {
-                        row.ConstantItem(40).Height(40).Background(Black).AlignCenter().AlignMiddle()
-                            .Text("R").Bold().FontSize(22).FontColor(Gold);
-                        row.ConstantItem(10);
+                        if (m.Logo is { Length: > 0 })
+                        {
+                            PdfLogo.Compose(row, m.Logo);
+                        }
+                        else
+                        {
+                            row.ConstantItem(40).Height(40).Background(Black).AlignCenter().AlignMiddle()
+                                .Text("R").Bold().FontSize(22).FontColor(Gold);
+                            row.ConstantItem(10);
+                        }
                         row.RelativeItem().Column(c =>
                         {
                             c.Item().Text(m.CompanyName).Bold().FontSize(16).FontColor(Black);

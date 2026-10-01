@@ -72,4 +72,57 @@ public class ExpensesController(IExpenseService expenseService) : ApiControllerB
         var export = await expenseService.ExportAsync(request, ct);
         return File(export.Content, export.ContentType, export.FileName);
     }
+
+    /// <summary>Net totals for each month, January to December, of <c>year</c>
+    /// (default: the current year), under the same filters as the list.</summary>
+    [HttpGet("monthly")]
+    [HasPermission(PermissionCodes.Expense.View)]
+    [ProducesResponseType(typeof(ApiResponse<ExpenseMonthlyDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMonthly([FromQuery] ExpenseMonthlyRequest request,
+        CancellationToken ct) =>
+        OkEnvelope(await expenseService.GetMonthlyAsync(request, ct));
+
+    // ── Adjustments: corrections recorded against an existing expense ────────
+    // They reuse EXPENSE.* rather than new codes, so every role that can edit an
+    // expense can adjust one, with nothing to seed.
+
+    [HttpGet("adjustments")]
+    [HasPermission(PermissionCodes.Expense.View)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<ExpenseAdjustmentDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAdjustments([FromQuery] ExpenseAdjustmentListRequest request,
+        CancellationToken ct) =>
+        OkEnvelope(await expenseService.GetAdjustmentsAsync(request, ct));
+
+    [HttpGet("adjustments/{adjustmentId:long}")]
+    [HasPermission(PermissionCodes.Expense.View)]
+    [ProducesResponseType(typeof(ApiResponse<ExpenseAdjustmentDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAdjustment(long adjustmentId, CancellationToken ct) =>
+        OkEnvelope(await expenseService.GetAdjustmentAsync(adjustmentId, ct));
+
+    [HttpPost("adjustments")]
+    [HasPermission(PermissionCodes.Expense.Edit)]
+    [ProducesResponseType(typeof(ApiResponse<ExpenseAdjustmentDto>), StatusCodes.Status201Created)]
+    public async Task<IActionResult> CreateAdjustment(SaveExpenseAdjustmentRequest request,
+        CancellationToken ct)
+    {
+        var adjustment = await expenseService.CreateAdjustmentAsync(request, ct);
+        return CreatedEnvelope($"/api/expenses/adjustments/{adjustment.ExpenseAdjustmentId}",
+            adjustment, "Adjustment recorded.");
+    }
+
+    [HttpPut("adjustments/{adjustmentId:long}")]
+    [HasPermission(PermissionCodes.Expense.Edit)]
+    [ProducesResponseType(typeof(ApiResponse<ExpenseAdjustmentDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> UpdateAdjustment(long adjustmentId,
+        SaveExpenseAdjustmentRequest request, CancellationToken ct) =>
+        OkEnvelope(await expenseService.UpdateAdjustmentAsync(adjustmentId, request, ct),
+            "Adjustment updated.");
+
+    [HttpDelete("adjustments/{adjustmentId:long}")]
+    [HasPermission(PermissionCodes.Expense.Delete)]
+    public async Task<IActionResult> DeleteAdjustment(long adjustmentId, CancellationToken ct)
+    {
+        await expenseService.DeleteAdjustmentAsync(adjustmentId, ct);
+        return OkEnvelope("Adjustment deleted.");
+    }
 }

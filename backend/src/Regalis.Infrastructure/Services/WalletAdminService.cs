@@ -33,7 +33,7 @@ public class WalletAdminService(
         {
             throw new BusinessRuleException("The wallet is currently disabled.");
         }
-        var min = await settings.GetDecimalAsync(AppSettingKeys.Wallet.MinRecharge, 100m, ct);
+        var min = await settings.GetDecimalAsync(AppSettingKeys.Wallet.MinRecharge, 1000m, ct);
         var max = await settings.GetDecimalAsync(AppSettingKeys.Wallet.MaxRecharge, 50000m, ct);
         if (request.Amount < min || request.Amount > max)
         {

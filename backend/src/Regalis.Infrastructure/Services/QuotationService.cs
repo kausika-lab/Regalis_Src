@@ -917,7 +917,8 @@ public class QuotationService(
                     .Select(u => u.FullName).FirstOrDefaultAsync(ct),
             await PortalLinkAsync(quotation, ct),
             await settings.GetStringAsync(AppSettingKeys.Company.Email, "", ct),
-            await settings.GetStringAsync(AppSettingKeys.Company.Phone, "", ct));
+            await settings.GetStringAsync(AppSettingKeys.Company.Phone, "", ct),
+            Logo: await PdfLogo.LoadAsync(settings, ct));
 
     // ── decision core ───────────────────────────────────────────────────────
 

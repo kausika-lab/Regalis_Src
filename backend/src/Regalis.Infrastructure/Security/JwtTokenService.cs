@@ -11,7 +11,8 @@ namespace Regalis.Infrastructure.Security;
 
 /// <summary>Issues 15-minute JWT access tokens and 256-bit opaque refresh tokens.
 /// Refresh tokens are stored hashed (SHA-256) — the raw value is returned exactly once.</summary>
-public class JwtTokenService(IOptions<JwtOptions> options, IDateTimeProvider clock) : ITokenService
+public class JwtTokenService(IOptions<JwtOptions> options, IDateTimeProvider clock, IServerInstance server)
+    : ITokenService
 {
     private readonly JwtOptions _options = options.Value;
 
@@ -29,7 +30,9 @@ public class JwtTokenService(IOptions<JwtOptions> options, IDateTimeProvider clo
             new(JwtRegisteredClaimNames.Email, user.Email),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
             new("name", user.FullName),
-            new("user_type", ((byte)user.UserType).ToString())
+            new("user_type", ((byte)user.UserType).ToString()),
+            // The issuing process: a token from before a server restart is refused.
+            new(ServerInstance.ClaimType, server.BootId)
         };
         if (user.DefaultLocationId is not null)
         {

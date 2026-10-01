@@ -63,6 +63,27 @@ public class BookingsController(
             "Slot held. Complete payment to confirm the booking.");
     }
 
+    /// <summary>Price of a desk or cabin for a 1/3/6/12-month term. No write.</summary>
+    [HttpPost("monthly/quote")]
+    [HasPermission(PermissionCodes.Booking.View)]
+    [ProducesResponseType(typeof(ApiResponse<MonthlyQuoteResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> QuoteMonthly(MonthlyBookingRequest request, CancellationToken ct) =>
+        OkEnvelope(await bookingService.QuoteMonthlyAsync(request, ct));
+
+    /// <summary>Holds a desk or cabin for a whole monthly term while payment completes;
+    /// confirm it with POST /api/bookings/{id}/confirm like any other booking.</summary>
+    [HttpPost("monthly")]
+    [HasPermission(PermissionCodes.Booking.Create)]
+    [RequireCompleteProfile]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CreateMonthlyHold(MonthlyBookingRequest request, CancellationToken ct)
+    {
+        var booking = await bookingService.CreateMonthlyHoldAsync(request, ct);
+        return CreatedEnvelope($"/api/bookings/{booking.BookingId}", booking,
+            "Workspace held for the term. Complete payment to confirm the booking.");
+    }
+
     /// <summary>One booking — customers see only their own rows.</summary>
     [HttpGet("{id:long}")]
     [HasPermission(PermissionCodes.Booking.View)]
@@ -111,4 +132,15 @@ public class BookingsController(
         }
         return OkEnvelope(await bookingService.GetBookingsAsync(request, ct));
     }
+
+    /// <summary>Bookings and revenue per month, January to December, of <c>year</c>
+    /// (default: this year), under the admin list's filters. Staff only: it totals
+    /// every customer's bookings.</summary>
+    [HttpGet("monthly")]
+    [HasPermission(PermissionCodes.Booking.View)]
+    [StaffOnly]
+    [ProducesResponseType(typeof(ApiResponse<BookingMonthlyDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMonthly([FromQuery] BookingMonthlyRequest request,
+        CancellationToken ct) =>
+        OkEnvelope(await bookingService.GetMonthlyAsync(request, ct));
 }

@@ -62,6 +62,7 @@ public class RegalisDbContext(DbContextOptions<RegalisDbContext> options) : DbCo
     public DbSet<MaintenanceWorkItem> MaintenanceWorkItems => Set<MaintenanceWorkItem>();
     public DbSet<HousekeeperProfile> HousekeeperProfiles => Set<HousekeeperProfile>();
     public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<ExpenseAdjustment> ExpenseAdjustments => Set<ExpenseAdjustment>();
     public DbSet<Quotation> Quotations => Set<Quotation>();
     public DbSet<QuotationLine> QuotationLines => Set<QuotationLine>();
     public DbSet<QuotationStatusHistory> QuotationStatusHistories => Set<QuotationStatusHistory>();

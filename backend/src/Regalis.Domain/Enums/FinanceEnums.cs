@@ -244,3 +244,13 @@ public enum ReconciliationStatus : byte
     Matched = 2,
     Reconciled = 3
 }
+
+/// <summary>Which way an expense adjustment moves the expense's total.</summary>
+public enum ExpenseAdjustmentType : byte
+{
+    /// <summary>An extra charge on top of the original voucher (late fee, balance paid).</summary>
+    Increase = 1,
+
+    /// <summary>A refund, discount or over-booking correction that reduces the voucher.</summary>
+    Decrease = 2
+}

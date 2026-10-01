@@ -43,6 +43,10 @@ public class Booking : AuditableEntity
     public string? CancellationReason { get; set; }
     public decimal? RefundAmount { get; set; }
     public string? Notes { get; set; }
+    /// <summary>Set for a desk or cabin booked by the month (1, 3, 6 or 12): the booking
+    /// holds the workspace for the whole term, is priced at PricePerMonth x months, and a
+    /// daily check-out does not complete it. Null for an ordinary hourly booking.</summary>
+    public byte? BillingMonths { get; set; }
     public byte[] RowVersion { get; set; } = [];
 
     public User Customer { get; set; } = null!;

@@ -37,7 +37,7 @@ public partial class AuditService(RegalisDbContext db, ICurrentUser currentUser,
     private static readonly string[] KnownActions =
     [
         AuditActions.Create, AuditActions.Update, AuditActions.Delete, AuditActions.Login, AuditActions.Logout,
-        AuditActions.LoginFailed, AuditActions.Export, AuditActions.Approve, AuditActions.Reject
+        AuditActions.LoginFailed, AuditActions.Export, AuditActions.Import, AuditActions.Approve, AuditActions.Reject
     ];
 
     // ── List ────────────────────────────────────────────────────────────────

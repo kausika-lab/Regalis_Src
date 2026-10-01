@@ -394,6 +394,6 @@ public class PaymentService(
         var companyGstin = await settings.GetStringAsync(AppSettingKeys.Company.Gstin, "", ct);
 
         return ReceiptPdfGenerator.Generate(payment, customerName, invoice,
-            companyName, companyAddress, companyGstin);
+            companyName, companyAddress, companyGstin, await PdfLogo.LoadAsync(settings, ct));
     }
 }

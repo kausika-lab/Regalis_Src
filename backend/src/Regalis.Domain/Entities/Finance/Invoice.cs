@@ -52,6 +52,9 @@ public class Invoice : AuditableEntity
     public string CustomerEmail { get; set; } = string.Empty;
     public string? CustomerMobile { get; set; }
     public string? CustomerGstin { get; set; }
+    /// <summary>The customer's company (profile CompanyName, or the quotation's), printed
+    /// above the contact name under Bill To.</summary>
+    public string? CustomerCompanyName { get; set; }
     public string? BillingAddress { get; set; }
     public string CompanyName { get; set; } = string.Empty;
     public string? CompanyGstin { get; set; }

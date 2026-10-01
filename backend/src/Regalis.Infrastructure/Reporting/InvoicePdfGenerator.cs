@@ -3,178 +3,425 @@ using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using Regalis.Domain.Entities.Finance;
 using Regalis.Domain.Enums;
+using Regalis.Shared;
 
 namespace Regalis.Infrastructure.Reporting;
 
+/// <summary>What the tax invoice prints besides the invoice row itself: the logo and the
+/// company-level details (place of supply, bank strip, default terms) read from settings
+/// when the PDF is made.</summary>
+public sealed record InvoicePdfExtras(
+    byte[]? Logo = null,
+    string? PlaceOfSupply = null,
+    string? BankAccountName = null,
+    string? BankAccountNumber = null,
+    string? BankIfsc = null,
+    string? BankBranch = null,
+    string? DefaultTerms = null);
+
 /// <summary>The GST tax invoice as a PDF (QuestPDF, community license), generated on
 /// demand from the snapshotted invoice — later profile or settings edits never
-/// change what a customer already received.</summary>
+/// change who was billed or for what. Layout: logo, status stamp and company block;
+/// a "TAX INVOICE" rule; bill-to beside the invoice facts; a ruled item grid with the
+/// CGST/SGST (or IGST) split per line; totals with the amount in words; bank details,
+/// terms and signature lines.</summary>
 public static class InvoicePdfGenerator
 {
-    private const string Gold = "#C9A227";
-    private const string Black = "#0B0B0D";
+    private const string Accent = "#2E75B6";
+    private const string HeadFill = "#EAF4FB";
+    private const string Rule = "#D9DEE3";
+    private const string Muted = "#6B7280";
+    private const string Ink = "#1F2328";
+    private const string Watermark = "Regalis WorkSpace";
 
     static InvoicePdfGenerator()
     {
         QuestPDF.Settings.License = LicenseType.Community;
     }
 
-    public static byte[] Generate(Invoice invoice)
+    public static byte[] Generate(Invoice invoice, byte[]? logo = null) =>
+        Generate(invoice, new InvoicePdfExtras(Logo: logo));
+
+    public static byte[] Generate(Invoice invoice, InvoicePdfExtras extras)
     {
+        var igst = invoice.IgstAmount > 0;
+        var lines = invoice.Lines.OrderBy(l => l.LineNumber).ToList();
+        var terms = string.IsNullOrWhiteSpace(invoice.TermsAndConditions)
+            ? extras.DefaultTerms
+            : invoice.TermsAndConditions;
+
         return Document.Create(container =>
         {
             container.Page(page =>
             {
                 page.Size(PageSizes.A4);
-                page.Margin(36);
-                page.DefaultTextStyle(style => style.FontSize(10));
+                page.MarginHorizontal(36);
+                page.MarginVertical(32);
+                page.DefaultTextStyle(style => style.FontSize(9).FontColor(Ink));
 
-                page.Header().Row(row =>
+                page.Header().Column(header =>
                 {
-                    row.RelativeItem().Column(column =>
+                    header.Item().Row(row =>
                     {
-                        column.Item().Text(invoice.CompanyName).Bold().FontSize(18).FontColor(Black);
-                        if (!string.IsNullOrWhiteSpace(invoice.CompanyAddress))
+                        row.RelativeItem(1.1f).AlignLeft().AlignMiddle().Element(e =>
                         {
-                            column.Item().Text(invoice.CompanyAddress).FontColor(Colors.Grey.Darken1);
-                        }
-                        if (!string.IsNullOrWhiteSpace(invoice.CompanyGstin))
+                            if (extras.Logo is { Length: > 0 })
+                            {
+                                e.Height(68).Image(extras.Logo).FitArea();
+                            }
+                            else
+                            {
+                                e.Text(invoice.CompanyName).Bold().FontSize(16);
+                            }
+                        });
+                        row.RelativeItem(0.8f).AlignCenter().AlignMiddle().Element(e => Stamp(e, invoice.Status));
+                        row.RelativeItem(1.3f).AlignRight().Column(company =>
                         {
-                            column.Item().Text($"GSTIN: {invoice.CompanyGstin}").FontColor(Colors.Grey.Darken1);
-                        }
+                            company.Item().AlignRight().Text(invoice.CompanyName).Bold().FontSize(10.5f);
+                            if (!string.IsNullOrWhiteSpace(invoice.CompanyAddress))
+                            {
+                                company.Item().AlignRight().Text(invoice.CompanyAddress).FontSize(8.5f);
+                            }
+                            if (!string.IsNullOrWhiteSpace(invoice.CompanyGstin))
+                            {
+                                company.Item().AlignRight().Text($"GSTIN {invoice.CompanyGstin}").FontSize(8.5f);
+                            }
+                        });
                     });
-                    row.ConstantItem(180).Column(column =>
+
+                    header.Item().PaddingTop(10).Row(row =>
                     {
-                        column.Item().AlignRight().Text("TAX INVOICE").Bold().FontSize(14).FontColor(Gold);
-                        column.Item().AlignRight().Text(invoice.InvoiceNumber).Bold();
-                        column.Item().AlignRight().Text($"Date: {invoice.InvoiceDate:dd MMM yyyy}");
-                        column.Item().AlignRight().Text($"Due: {invoice.DueDate:dd MMM yyyy}");
-                        column.Item().AlignRight().Text(StatusLabel(invoice.Status)).Bold()
-                            .FontColor(invoice.Status == InvoiceStatus.Paid ? Colors.Green.Darken2 : Colors.Orange.Darken2);
+                        row.RelativeItem().AlignMiddle().LineHorizontal(1).LineColor(Rule);
+                        row.AutoItem().PaddingHorizontal(14).Text("TAX INVOICE").FontSize(15).FontColor(Accent);
+                        row.RelativeItem().AlignMiddle().LineHorizontal(1).LineColor(Rule);
                     });
                 });
 
-                page.Content().PaddingVertical(16).Column(column =>
+                page.Content().PaddingTop(14).Column(column =>
                 {
-                    column.Spacing(12);
+                    column.Spacing(14);
 
-                    column.Item().Background(Colors.Grey.Lighten4).Padding(10).Column(billTo =>
+                    column.Item().Row(row =>
                     {
-                        billTo.Item().Text("Billed to").Bold().FontColor(Colors.Grey.Darken2);
-                        billTo.Item().Text(invoice.CustomerName).Bold();
-                        billTo.Item().Text(invoice.CustomerEmail);
-                        if (!string.IsNullOrWhiteSpace(invoice.CustomerMobile))
+                        row.RelativeItem().PaddingRight(16).Column(billTo =>
                         {
-                            billTo.Item().Text(invoice.CustomerMobile);
-                        }
-                        if (!string.IsNullOrWhiteSpace(invoice.BillingAddress))
+                            billTo.Spacing(2);
+                            billTo.Item().Text("Bill To").FontSize(9.5f);
+                            if (!string.IsNullOrWhiteSpace(invoice.CustomerCompanyName))
+                            {
+                                billTo.Item().Text(invoice.CustomerCompanyName).Bold().FontSize(10.5f);
+                                billTo.Item().Text(invoice.CustomerName);
+                            }
+                            else
+                            {
+                                billTo.Item().Text(invoice.CustomerName).Bold().FontSize(10.5f);
+                            }
+                            if (!string.IsNullOrWhiteSpace(invoice.BillingAddress))
+                            {
+                                billTo.Item().Text(invoice.BillingAddress);
+                            }
+                            var contact = string.Join("  |  ", new[] { invoice.CustomerMobile, invoice.CustomerEmail }
+                                .Where(v => !string.IsNullOrWhiteSpace(v)));
+                            if (contact.Length > 0)
+                            {
+                                billTo.Item().Text(contact).FontColor(Muted);
+                            }
+                            if (!string.IsNullOrWhiteSpace(invoice.CustomerGstin))
+                            {
+                                billTo.Item().PaddingTop(2).Text(text =>
+                                {
+                                    text.Span("GSTIN ").FontColor(Muted);
+                                    text.Span(invoice.CustomerGstin).SemiBold();
+                                });
+                            }
+                        });
+                        row.ConstantItem(230).Table(facts =>
                         {
-                            billTo.Item().Text(invoice.BillingAddress);
-                        }
-                        if (!string.IsNullOrWhiteSpace(invoice.CustomerGstin))
-                        {
-                            billTo.Item().Text($"GSTIN: {invoice.CustomerGstin}");
-                        }
+                            facts.ColumnsDefinition(c =>
+                            {
+                                c.RelativeColumn(1);
+                                c.RelativeColumn(1.15f);
+                            });
+                            Fact(facts, "Invoice#", invoice.InvoiceNumber);
+                            Fact(facts, "Invoice Date", invoice.InvoiceDate.ToString("dd MMM yyyy"));
+                            Fact(facts, "Terms", TermsLabel(invoice));
+                            Fact(facts, "Due Date", invoice.DueDate.ToString("dd MMM yyyy"));
+                            if (invoice.PaidUtc is { } paid)
+                            {
+                                Fact(facts, "Paid On", IstClock.IstDateOf(paid).ToString("dd MMM yyyy"));
+                            }
+                        });
                     });
+
+                    if (!string.IsNullOrWhiteSpace(extras.PlaceOfSupply))
+                    {
+                        column.Item().Text($"Place Of Supply: {extras.PlaceOfSupply}").FontSize(8.5f);
+                    }
 
                     column.Item().Table(table =>
                     {
-                        table.ColumnsDefinition(columns =>
+                        table.ColumnsDefinition(c =>
                         {
-                            columns.ConstantColumn(24);
-                            columns.RelativeColumn(5);
-                            columns.RelativeColumn(1);
-                            columns.RelativeColumn(1.4f);
-                            columns.RelativeColumn(1.4f);
+                            c.ConstantColumn(24);
+                            c.RelativeColumn(4);
+                            c.ConstantColumn(54);
+                            c.ConstantColumn(40);
+                            c.ConstantColumn(60);
+                            if (igst)
+                            {
+                                c.ConstantColumn(64);
+                            }
+                            else
+                            {
+                                c.ConstantColumn(56);
+                                c.ConstantColumn(56);
+                            }
+                            c.ConstantColumn(70);
                         });
-                        table.Header(header =>
+                        table.Header(h =>
                         {
-                            header.Cell().Element(HeaderCell).Text("#");
-                            header.Cell().Element(HeaderCell).Text("Description");
-                            header.Cell().Element(HeaderCell).AlignRight().Text("Qty (h)");
-                            header.Cell().Element(HeaderCell).AlignRight().Text("Rate");
-                            header.Cell().Element(HeaderCell).AlignRight().Text("Amount");
+                            h.Cell().Element(Head).AlignCenter().Text("#");
+                            h.Cell().Element(Head).Text("Item & Description");
+                            h.Cell().Element(Head).AlignRight().Text("HSN/SAC");
+                            h.Cell().Element(Head).AlignRight().Text("Qty");
+                            h.Cell().Element(Head).AlignRight().Text("Rate");
+                            if (igst)
+                            {
+                                h.Cell().Element(Head).AlignRight().Text("IGST");
+                            }
+                            else
+                            {
+                                h.Cell().Element(Head).AlignRight().Text("CGST");
+                                h.Cell().Element(Head).AlignRight().Text("SGST");
+                            }
+                            h.Cell().Element(Head).AlignRight().Text("Amount");
                         });
-                        foreach (var line in invoice.Lines.OrderBy(l => l.LineNumber))
+                        foreach (var line in lines)
                         {
-                            table.Cell().Element(BodyCell).Text(line.LineNumber.ToString());
-                            table.Cell().Element(BodyCell).Text(line.Description);
-                            table.Cell().Element(BodyCell).AlignRight().Text($"{line.Quantity:0.###}");
-                            table.Cell().Element(BodyCell).AlignRight().Text($"{line.UnitPrice:N2}");
-                            table.Cell().Element(BodyCell).AlignRight().Text($"{line.LineAmount:N2}");
+                            var (title, detail) = SplitDescription(line.Description);
+                            table.Cell().Element(Body).AlignCenter().Text(line.LineNumber.ToString());
+                            table.Cell().Element(Body).Column(d =>
+                            {
+                                d.Item().Text(title);
+                                if (detail is not null)
+                                {
+                                    d.Item().Text(detail).FontSize(8).FontColor(Muted);
+                                }
+                            });
+                            table.Cell().Element(Body).AlignRight().Text(line.HsnSacCode ?? "");
+                            table.Cell().Element(Body).AlignRight().Text($"{line.Quantity:0.##}");
+                            table.Cell().Element(Body).AlignRight().Text($"{line.UnitPrice:N2}");
+                            if (igst)
+                            {
+                                TaxCell(table, line.TaxAmount, line.TaxPercent);
+                            }
+                            else
+                            {
+                                var cgst = Math.Round(line.TaxAmount / 2, 2, MidpointRounding.AwayFromZero);
+                                TaxCell(table, cgst, line.TaxPercent / 2);
+                                TaxCell(table, line.TaxAmount - cgst, line.TaxPercent / 2);
+                            }
+                            table.Cell().Element(Body).AlignRight().Text($"{line.LineAmount:N2}");
                         }
                     });
 
-                    column.Item().AlignRight().Width(240).Column(totals =>
+                    column.Item().Row(row =>
                     {
-                        totals.Spacing(2);
-                        TotalRow(totals, "Sub-total", invoice.SubTotal);
-                        if (invoice.DiscountAmount > 0)
+                        row.RelativeItem().PaddingRight(16).PaddingTop(4).Text(
+                            !string.IsNullOrWhiteSpace(invoice.Notes) ? invoice.Notes
+                            : invoice.Status == InvoiceStatus.Paid ? "Thank you for the payment."
+                            : "Thank you for your business.");
+                        row.ConstantItem(250).Column(totals =>
                         {
-                            TotalRow(totals, "Discount", -invoice.DiscountAmount);
-                        }
-                        TotalRow(totals, $"CGST @ {invoice.CgstPercent:0.##}%", invoice.CgstAmount);
-                        TotalRow(totals, $"SGST @ {invoice.SgstPercent:0.##}%", invoice.SgstAmount);
-                        if (invoice.IgstAmount > 0)
-                        {
-                            TotalRow(totals, $"IGST @ {invoice.IgstPercent:0.##}%", invoice.IgstAmount);
-                        }
-                        if (invoice.TdsAmount > 0)
-                        {
-                            TotalRow(totals,
-                                invoice.TdsLabel ?? $"TDS @ {invoice.TdsPercent:0.##}%",
-                                -invoice.TdsAmount);
-                        }
-                        if (invoice.AdjustmentAmount != 0)
-                        {
-                            TotalRow(totals, invoice.AdjustmentLabel ?? "Adjustment",
-                                invoice.AdjustmentAmount);
-                        }
-                        if (invoice.RoundOffAmount != 0)
-                        {
-                            TotalRow(totals, "Round off", invoice.RoundOffAmount);
-                        }
-                        totals.Item().BorderTop(1).BorderColor(Colors.Grey.Medium).PaddingTop(4).Row(row =>
-                        {
-                            row.RelativeItem().Text("Total").Bold();
-                            row.ConstantItem(110).AlignRight().Text($"₹ {invoice.TotalAmount:N2}").Bold();
+                            Total(totals, "Sub Total", Money(invoice.SubTotal));
+                            if (invoice.DiscountAmount > 0)
+                            {
+                                Total(totals, "Discount", $"(-) {invoice.DiscountAmount:N2}");
+                            }
+                            if (invoice.CgstAmount > 0)
+                            {
+                                Total(totals, $"CGST ({invoice.CgstPercent:0.##}%)", Money(invoice.CgstAmount));
+                            }
+                            if (invoice.SgstAmount > 0)
+                            {
+                                Total(totals, $"SGST ({invoice.SgstPercent:0.##}%)", Money(invoice.SgstAmount));
+                            }
+                            if (invoice.IgstAmount > 0)
+                            {
+                                Total(totals, $"IGST ({invoice.IgstPercent:0.##}%)", Money(invoice.IgstAmount));
+                            }
+                            if (invoice.TdsAmount > 0)
+                            {
+                                Total(totals, invoice.TdsLabel ?? $"TDS ({invoice.TdsPercent:0.##}%)",
+                                    $"(-) {invoice.TdsAmount:N2}");
+                            }
+                            if (invoice.AdjustmentAmount != 0)
+                            {
+                                Total(totals, invoice.AdjustmentLabel ?? "Adjustment", Signed(invoice.AdjustmentAmount));
+                            }
+                            if (invoice.RoundOffAmount != 0)
+                            {
+                                Total(totals, "Round Off", Signed(invoice.RoundOffAmount));
+                            }
+                            totals.Item().BorderTop(1).BorderColor(Rule).PaddingVertical(5).Row(r =>
+                            {
+                                r.RelativeItem().AlignRight().PaddingRight(12).Text("Total").Bold();
+                                r.ConstantItem(100).AlignRight().Text($"₹{invoice.TotalAmount:N2}").Bold();
+                            });
+                            if (invoice.PaidAmount > 0)
+                            {
+                                Total(totals, "Payment Made", $"(-) {invoice.PaidAmount:N2}", Colors.Red.Darken1);
+                            }
+                            totals.Item().BorderTop(1).BorderBottom(1).BorderColor(Rule).PaddingVertical(6).Row(r =>
+                            {
+                                r.RelativeItem().AlignRight().PaddingRight(12).Text("Balance Due").Bold().FontColor(Accent);
+                                r.ConstantItem(100).AlignRight().Text($"₹{invoice.OutstandingAmount:N2}").Bold().FontColor(Accent);
+                            });
+                            totals.Item().PaddingTop(6).Row(r =>
+                            {
+                                r.ConstantItem(82).Text("Total In Words:").FontSize(8.5f);
+                                r.RelativeItem().Text(IndianMoney.ToWords(invoice.TotalAmount))
+                                    .Bold().Italic().FontSize(8.5f);
+                            });
                         });
-                        TotalRow(totals, "Paid", invoice.PaidAmount);
-                        if (invoice.OutstandingAmount != 0)
-                        {
-                            TotalRow(totals, "Outstanding", invoice.OutstandingAmount);
-                        }
                     });
+
+                    if (!string.IsNullOrWhiteSpace(extras.BankAccountNumber))
+                    {
+                        column.Item().PaddingTop(4).Column(bank =>
+                        {
+                            bank.Spacing(4);
+                            bank.Item().Text(text =>
+                            {
+                                text.Span("BANK DETAILS").SemiBold();
+                                if (!string.IsNullOrWhiteSpace(extras.BankAccountName))
+                                {
+                                    text.Span($"   |   {extras.BankAccountName}");
+                                }
+                            });
+                            var parts = new List<string> { $"Account No: {extras.BankAccountNumber}" };
+                            if (!string.IsNullOrWhiteSpace(extras.BankIfsc)) parts.Add($"IFSC Code: {extras.BankIfsc}");
+                            if (!string.IsNullOrWhiteSpace(extras.BankBranch)) parts.Add($"Branch: {extras.BankBranch}");
+                            bank.Item().Text(string.Join("    |    ", parts)).FontSize(8.5f);
+                        });
+                    }
+
+                    column.Item().PaddingTop(18).ShowEntire().Row(row =>
+                    {
+                        Signature(row, "Authorized Signature", invoice.CompanyName);
+                        row.ConstantItem(36);
+                        Signature(row, "Receiver Signature", null);
+                        row.RelativeItem(0.6f);
+                    });
+
+                    // Last thing on the invoice.
+                    if (!string.IsNullOrWhiteSpace(terms))
+                    {
+                        column.Item().PaddingTop(10).Column(t =>
+                        {
+                            t.Item().Text("Terms & Conditions").FontSize(9.5f);
+                            t.Item().PaddingTop(3).Text(terms).FontSize(8).FontColor(Muted);
+                        });
+                    }
                 });
 
-                page.Footer().AlignCenter().Text(text =>
+                // Faint diagonal watermark behind every page.
+                // A zero-size anchor at the page centre, rotated, with the text shifted back
+                // by half its size so it is centred on the anchor.
+                page.Background().AlignCenter().AlignMiddle().Unconstrained().Rotate(-35)
+                    .TranslateX(-280).TranslateY(-38)
+                    .Width(560).AlignCenter().Text(Watermark).FontSize(64).Bold().FontColor("#EEF2F7");
+
+                page.Footer().Column(footer =>
                 {
-                    text.Span("Computer-generated invoice · ").FontColor(Colors.Grey.Darken1);
-                    text.Span(invoice.CompanyName).FontColor(Colors.Grey.Darken1);
+                    footer.Item().LineHorizontal(0.75f).LineColor(Rule);
+                    footer.Item().PaddingTop(4).Row(row =>
+                    {
+                        row.RelativeItem().Text("This is a computer-generated invoice.").FontSize(7).FontColor(Muted);
+                        row.AutoItem().Text(text =>
+                        {
+                            text.DefaultTextStyle(s => s.FontSize(7).FontColor(Muted));
+                            text.CurrentPageNumber();
+                        });
+                    });
                 });
             });
         }).GeneratePdf();
 
-        static QuestPDF.Infrastructure.IContainer HeaderCell(QuestPDF.Infrastructure.IContainer container) =>
-            container.Background(Black).Padding(6).DefaultTextStyle(s => s.FontColor(Colors.White).Bold());
+        static IContainer Head(IContainer c) =>
+            c.Background(HeadFill).Border(0.75f).BorderColor(Rule).PaddingVertical(7).PaddingHorizontal(6)
+                .DefaultTextStyle(s => s.FontSize(8.5f));
 
-        static QuestPDF.Infrastructure.IContainer BodyCell(QuestPDF.Infrastructure.IContainer container) =>
-            container.BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(6);
+        static IContainer Body(IContainer c) =>
+            c.Border(0.75f).BorderColor(Rule).PaddingVertical(8).PaddingHorizontal(6);
 
-        static void TotalRow(ColumnDescriptor totals, string label, decimal amount) =>
-            totals.Item().Row(row =>
+        static void TaxCell(TableDescriptor table, decimal amount, decimal percent) =>
+            table.Cell().Element(Body).AlignRight().Column(t =>
             {
-                row.RelativeItem().Text(label).FontColor(Colors.Grey.Darken2);
-                row.ConstantItem(110).AlignRight().Text($"₹ {amount:N2}");
+                t.Item().AlignRight().Text($"{amount:N2}");
+                t.Item().AlignRight().Text($"{percent:0.##}%").FontSize(7.5f).FontColor(Muted);
+            });
+
+        static void Fact(TableDescriptor facts, string label, string value)
+        {
+            facts.Cell().Background(HeadFill).Border(0.75f).BorderColor(Rule).Padding(6).Text(label);
+            facts.Cell().Border(0.75f).BorderColor(Rule).Padding(6).Text(value);
+        }
+
+        static void Total(ColumnDescriptor totals, string label, string value, string? color = null) =>
+            totals.Item().PaddingVertical(4).Row(r =>
+            {
+                r.RelativeItem().AlignRight().PaddingRight(12).Text(label);
+                var v = r.ConstantItem(100).AlignRight().Text(value);
+                if (color is not null) v.FontColor(color);
+            });
+
+        static void Signature(RowDescriptor row, string label, string? under) =>
+            row.RelativeItem().Column(s =>
+            {
+                s.Item().Text(label).FontSize(10);
+                s.Item().PaddingTop(26).LineHorizontal(1).LineColor(Ink);
+                if (under is not null)
+                {
+                    s.Item().PaddingTop(3).Text(under).FontSize(7.5f);
+                }
             });
     }
 
-    private static string StatusLabel(InvoiceStatus status) => status switch
+    private static string Money(decimal amount) => $"{amount:N2}";
+
+    private static string Signed(decimal amount) =>
+        amount < 0 ? $"(-) {-amount:N2}" : $"{amount:N2}";
+
+    /// <summary>"Due on Receipt" when due the day it was raised, else "Net N".</summary>
+    private static string TermsLabel(Invoice invoice)
     {
-        InvoiceStatus.Paid => "PAID",
-        InvoiceStatus.PartiallyPaid => "PARTIALLY PAID",
-        InvoiceStatus.Cancelled => "CANCELLED",
-        InvoiceStatus.Refunded => "REFUNDED",
-        _ => "PENDING"
-    };
+        var days = invoice.DueDate.DayNumber - invoice.InvoiceDate.DayNumber;
+        return days <= 0 ? "Due on Receipt" : $"Net {days}";
+    }
+
+    /// <summary>"Workspace booking REG-1 — Desk 09, 01 Oct" prints the part before the
+    /// dash as the item and the rest underneath it in grey.</summary>
+    private static (string Title, string? Detail) SplitDescription(string description)
+    {
+        var at = description.IndexOf(" — ", StringComparison.Ordinal);
+        if (at < 0) at = description.IndexOf(" - ", StringComparison.Ordinal);
+        return at <= 0
+            ? (description, null)
+            : (description[..at].Trim(), description[(at + 3)..].Trim());
+    }
+
+    private static void Stamp(IContainer container, InvoiceStatus status)
+    {
+        var (label, color) = status switch
+        {
+            InvoiceStatus.Paid => ("PAID", "#43A047"),
+            InvoiceStatus.PartiallyPaid => ("PARTIALLY PAID", "#EF8C00"),
+            InvoiceStatus.Cancelled => ("CANCELLED", "#D32F2F"),
+            InvoiceStatus.Refunded => ("REFUNDED", "#757575"),
+            _ => ("DUE", "#EF8C00")
+        };
+        container.Border(1.5f).BorderColor(color).PaddingVertical(4).PaddingHorizontal(12)
+            .Text(label).FontSize(14).FontColor(color);
+    }
 }

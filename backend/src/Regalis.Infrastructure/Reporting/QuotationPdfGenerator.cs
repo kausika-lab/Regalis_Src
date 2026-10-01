@@ -17,7 +17,8 @@ public record QuotationPdfContext(
     // StatusOverride: the status to print. The copy frozen on send is rendered a
     // moment before the row flips to Sent, and it must not reach the customer
     // stamped DRAFT; everywhere else this is null and the row's own status is used.
-    QuotationStatus? StatusOverride = null);
+    QuotationStatus? StatusOverride = null,
+    byte[]? Logo = null);
 
 /// <summary>
 /// Template "Regalis Standard – India GST" (document §3.8). The same A4 document
@@ -57,6 +58,7 @@ public static class QuotationPdfGenerator
                 // ── Letterhead ──────────────────────────────────────────────
                 page.Header().Row(row =>
                 {
+                    PdfLogo.Compose(row, context.Logo);
                     row.RelativeItem().Column(company =>
                     {
                         company.Item().Text(quotation.CompanyName).Bold().FontSize(17)

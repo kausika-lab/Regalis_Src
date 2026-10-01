@@ -128,6 +128,50 @@ public class InventoryTransactionListRequest : PagedRequest
 
 public record InventoryExportResult(byte[] Content, string ContentType, string FileName);
 
+/// <summary>The screens an Excel file can be imported into. Current Stock is not one:
+/// stock is derived from the ledger, so it is never imported directly.</summary>
+public static class InventoryImportKinds
+{
+    public const string Items = "items";
+    public const string Incoming = "incoming";
+    public const string Outgoing = "outgoing";
+}
+
+/// <summary>What an Items import does with a code that already exists.</summary>
+public static class InventoryImportModes
+{
+    public const string Skip = "skip";
+    public const string Update = "update";
+}
+
+/// <summary>An uploaded workbook, as the controller hands it over.</summary>
+public record InventoryImportUpload(string FileName, long Length, Stream Content);
+
+/// <summary>One row of the preview. Status is New, Update, Skip or Error; Values are
+/// the uploaded cells as text, keyed by column header, so the screen can show them.</summary>
+public record InventoryImportRowDto(
+    int RowNumber,
+    string Status,
+    List<string> Errors,
+    List<string> Notes,
+    Dictionary<string, string?> Values);
+
+/// <summary>The outcome of a preview (Saved = false) or of a save. A save stores every
+/// valid row in one database transaction and reports the rest back as errors.</summary>
+public record InventoryImportResultDto(
+    string Kind,
+    List<string> Columns,
+    List<string> IgnoredColumns,
+    int TotalRows,
+    int ValidRows,
+    int ErrorRows,
+    int SkippedRows,
+    int ExistingRows,
+    bool Saved,
+    int CreatedCount,
+    int UpdatedCount,
+    List<InventoryImportRowDto> Rows);
+
 public class SaveInventoryItemRequestValidator : AbstractValidator<SaveInventoryItemRequest>
 {
     public SaveInventoryItemRequestValidator()
@@ -214,7 +258,29 @@ public interface IInventoryService
     Task<InventoryExportResult> ExportAsync(InventoryTransactionListRequest request,
         CancellationToken ct = default);
 
-    /// <summary>The item master as an .xlsx workbook, filtered like the Items screen.</summary>
-    Task<InventoryExportResult> ExportItemsExcelAsync(InventoryItemListRequest request,
+    /// <summary>The item master as an .xlsx workbook, filtered like the Items screen.
+    /// Null when no item matches.</summary>
+    Task<InventoryExportResult?> ExportItemsExcelAsync(InventoryItemListRequest request,
         CancellationToken ct = default);
+
+    /// <summary>Incoming (In) or Outgoing (Out) goods as .xlsx, filtered like the screen.
+    /// Null when no row matches.</summary>
+    Task<InventoryExportResult?> ExportGoodsExcelAsync(InventoryTransactionListRequest request,
+        byte transactionType, CancellationToken ct = default);
+
+    /// <summary>The Current Stock screen as .xlsx. Null when no row matches.</summary>
+    Task<InventoryExportResult?> ExportStockExcelAsync(int? locationId, bool? belowReorder,
+        CancellationToken ct = default);
+
+    /// <summary>The empty import workbook: headers, an example row and instructions.</summary>
+    Task<InventoryExportResult> ImportTemplateAsync(string kind, CancellationToken ct = default);
+
+    /// <summary>Checks every row of an upload. With <paramref name="save"/> it checks again
+    /// inside one transaction and stores the valid rows.</summary>
+    Task<InventoryImportResultDto> ImportAsync(string kind, InventoryImportUpload upload,
+        string? existingMode, bool save, CancellationToken ct = default);
+
+    /// <summary>The rows of an upload that fail the checks, with an Error column.</summary>
+    Task<InventoryExportResult> ImportErrorReportAsync(string kind, InventoryImportUpload upload,
+        string? existingMode, CancellationToken ct = default);
 }

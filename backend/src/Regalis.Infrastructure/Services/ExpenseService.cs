@@ -53,7 +53,13 @@ public class ExpenseService(
         // evaluation and throws. The DTO is built once the rows are materialised.
         var totals = await query
             .GroupBy(e => e.Category)
-            .Select(g => new { Category = g.Key, Amount = g.Sum(e => e.Amount), Count = g.Count() })
+            .Select(g => new
+            {
+                Category = g.Key,
+                Amount = g.Sum(e => e.Amount + e.AdjustmentTotal),
+                Gross = g.Sum(e => e.Amount),
+                Count = g.Count()
+            })
             .OrderByDescending(row => row.Amount)
             .ToListAsync(ct);
 
@@ -61,10 +67,35 @@ public class ExpenseService(
             .Select(row => new ExpenseCategoryTotalDto(row.Category, row.Amount, row.Count))
             .ToList();
 
-        return new ExpenseSummaryDto(
-            byCategory.Sum(c => c.Amount),
-            byCategory.Sum(c => c.Count),
-            byCategory);
+        var net = byCategory.Sum(c => c.Amount);
+        var gross = totals.Sum(row => row.Gross);
+        return new ExpenseSummaryDto(net, byCategory.Sum(c => c.Count), byCategory,
+            gross, net - gross);
+    }
+
+    public async Task<ExpenseMonthlyDto> GetMonthlyAsync(ExpenseMonthlyRequest request,
+        CancellationToken ct = default)
+    {
+        var year = request.Year ?? IstClock.IstDateOf(clock.UtcNow).Year;
+        if (year is < 2000 or > 2100)
+        {
+            throw new BusinessRuleException("Choose a year between 2000 and 2100.");
+        }
+
+        var yearStart = new DateOnly(year, 1, 1);
+        var yearEnd = new DateOnly(year, 12, 31);
+        var rows = await Filter(request)
+            .Where(e => e.ExpenseDate >= yearStart && e.ExpenseDate <= yearEnd)
+            .GroupBy(e => e.ExpenseDate.Month)
+            .Select(g => new { Month = g.Key, Amount = g.Sum(e => e.Amount + e.AdjustmentTotal), Count = g.Count() })
+            .ToListAsync(ct);
+
+        var months = Enumerable.Range(1, 12)
+            .Select(m => rows.FirstOrDefault(r => r.Month == m) is { } row
+                ? new ExpenseMonthTotalDto(m, row.Amount, row.Count)
+                : new ExpenseMonthTotalDto(m, 0m, 0))
+            .ToList();
+        return new ExpenseMonthlyDto(year, months.Sum(m => m.Amount), months);
     }
 
     public async Task<List<string>> GetCategoriesAsync(CancellationToken ct = default) =>
@@ -109,6 +140,12 @@ public class ExpenseService(
 
         await GuardNotReconciledAsync(expenseId, "edited", ct);
         await GuardReferencesAsync(request, ct);
+        if (request.Amount + expense.AdjustmentTotal < 0)
+        {
+            throw new BusinessRuleException(
+                $"This expense carries {expense.AdjustmentTotal:N2} of adjustments, so its amount " +
+                $"cannot be less than {-expense.AdjustmentTotal:N2}. Change the adjustments first.");
+        }
 
         expense.ExpenseDate = request.ExpenseDate ?? expense.ExpenseDate;
         Apply(expense, request);
@@ -122,7 +159,11 @@ public class ExpenseService(
             ?? throw new NotFoundException("Expense", expenseId);
 
         await GuardNotReconciledAsync(expenseId, "deleted", ct);
-        db.Expenses.Remove(expense); // interceptor converts to soft delete
+        // The adjustments go with the voucher, so none is left pointing at a hidden row.
+        var adjustments = await db.ExpenseAdjustments
+            .Where(a => a.ExpenseId == expenseId).ToListAsync(ct);
+        db.ExpenseAdjustments.RemoveRange(adjustments);
+        db.Expenses.Remove(expense); // interceptor converts both to soft deletes
         await db.SaveChangesAsync(ct);
     }
 
@@ -134,8 +175,8 @@ public class ExpenseService(
             .ToListAsync(ct);
 
         var csv = new StringBuilder();
-        csv.AppendLine("Voucher,Date,Category,Description,Amount,Payment Mode,Remarks," +
-                       "Location,Entered By,Supplier,PO Number,Reconciled");
+        csv.AppendLine("Voucher,Date,Category,Description,Amount,Adjustments,Net Amount," +
+                       "Payment Mode,Remarks,Location,Entered By,Supplier,PO Number,Reconciled");
         foreach (var row in rows)
         {
             csv.AppendLine(string.Join(',', new[]
@@ -145,6 +186,8 @@ public class ExpenseService(
                 Csv(row.Category),
                 Csv(row.Description),
                 row.Amount.ToString("0.00", CultureInfo.InvariantCulture),
+                row.AdjustmentTotal.ToString("0.00", CultureInfo.InvariantCulture),
+                row.NetAmount.ToString("0.00", CultureInfo.InvariantCulture),
                 Csv(PaymentMethodName(row.PaymentMethod)),
                 Csv(row.Remarks),
                 Csv(row.LocationName),
@@ -158,6 +201,184 @@ public class ExpenseService(
         var fileName = $"expenses-{IstClock.IstDateOf(clock.UtcNow):yyyy-MM-dd}.csv";
         return new ExpenseExportResult(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", fileName);
     }
+
+    // ── adjustments ─────────────────────────────────────────────────────────
+
+    public async Task<PagedResult<ExpenseAdjustmentDto>> GetAdjustmentsAsync(
+        ExpenseAdjustmentListRequest request, CancellationToken ct = default)
+    {
+        // Joined to Expenses so the soft-delete filter hides adjustments of deleted vouchers.
+        var query =
+            from a in db.ExpenseAdjustments.AsNoTracking()
+            join e in db.Expenses.AsNoTracking() on a.ExpenseId equals e.ExpenseId
+            select new { a, e };
+
+        if (request.ExpenseId is not null)
+        {
+            query = query.Where(x => x.a.ExpenseId == request.ExpenseId);
+        }
+        if (request.AdjustmentType is not null)
+        {
+            query = query.Where(x => (byte)x.a.AdjustmentType == request.AdjustmentType);
+        }
+        if (!string.IsNullOrWhiteSpace(request.Category))
+        {
+            query = query.Where(x => x.e.Category == request.Category);
+        }
+        if (request.From is not null)
+        {
+            query = query.Where(x => x.a.AdjustmentDate >= request.From);
+        }
+        if (request.To is not null)
+        {
+            query = query.Where(x => x.a.AdjustmentDate <= request.To);
+        }
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var term = request.Search.Trim();
+            query = query.Where(x => x.e.ExpenseNumber.Contains(term)
+                                     || x.a.Reason.Contains(term)
+                                     || (x.a.Remarks != null && x.a.Remarks.Contains(term)));
+        }
+
+        var totalCount = await query.CountAsync(ct);
+        var rows = await ShapeAdjustments(query
+                .OrderByDescending(x => x.a.AdjustmentDate)
+                .ThenByDescending(x => x.a.ExpenseAdjustmentId)
+                .Skip((request.Page - 1) * request.PageSize)
+                .Take(request.PageSize)
+                .Select(x => x.a))
+            .ToListAsync(ct);
+        return PagedResult<ExpenseAdjustmentDto>.Create(rows, request.Page, request.PageSize, totalCount);
+    }
+
+    public async Task<ExpenseAdjustmentDto> GetAdjustmentAsync(long adjustmentId,
+        CancellationToken ct = default) =>
+        await ShapeAdjustments(db.ExpenseAdjustments.AsNoTracking()
+                .Where(a => a.ExpenseAdjustmentId == adjustmentId
+                            && db.Expenses.Any(e => e.ExpenseId == a.ExpenseId)))
+            .FirstOrDefaultAsync(ct)
+        ?? throw new NotFoundException("ExpenseAdjustment", adjustmentId);
+
+    public async Task<ExpenseAdjustmentDto> CreateAdjustmentAsync(
+        SaveExpenseAdjustmentRequest request, CancellationToken ct = default)
+    {
+        var adjustment = new ExpenseAdjustment { ExpenseId = request.ExpenseId };
+        return await SaveAdjustmentAsync(adjustment, request, isNew: true, ct);
+    }
+
+    public async Task<ExpenseAdjustmentDto> UpdateAdjustmentAsync(long adjustmentId,
+        SaveExpenseAdjustmentRequest request, CancellationToken ct = default)
+    {
+        var adjustment = await db.ExpenseAdjustments
+                             .FirstOrDefaultAsync(a => a.ExpenseAdjustmentId == adjustmentId, ct)
+                         ?? throw new NotFoundException("ExpenseAdjustment", adjustmentId);
+        if (adjustment.ExpenseId != request.ExpenseId)
+        {
+            throw new BusinessRuleException(
+                "An adjustment cannot be moved to another expense. Delete it and record a new one.");
+        }
+        return await SaveAdjustmentAsync(adjustment, request, isNew: false, ct);
+    }
+
+    public async Task DeleteAdjustmentAsync(long adjustmentId, CancellationToken ct = default)
+    {
+        var adjustment = await db.ExpenseAdjustments
+                             .FirstOrDefaultAsync(a => a.ExpenseAdjustmentId == adjustmentId, ct)
+                         ?? throw new NotFoundException("ExpenseAdjustment", adjustmentId);
+        var expense = await db.Expenses.AsNoTracking()
+                          .FirstOrDefaultAsync(e => e.ExpenseId == adjustment.ExpenseId, ct)
+                      ?? throw new NotFoundException("Expense", adjustment.ExpenseId);
+
+        // Removing an increase lowers the total, so it could take the expense below zero.
+        var others = await OtherAdjustmentsTotalAsync(adjustment.ExpenseId, adjustmentId, ct);
+        GuardNetNotNegative(expense.Amount + others, "deleted");
+
+        var strategy = db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var dbTransaction = await db.Database.BeginTransactionAsync(ct);
+            db.ExpenseAdjustments.Remove(adjustment); // interceptor converts to soft delete
+            await db.SaveChangesAsync(ct);
+            await RecomputeAdjustmentTotalAsync(adjustment.ExpenseId, ct);
+            await dbTransaction.CommitAsync(ct);
+        });
+    }
+
+    private async Task<ExpenseAdjustmentDto> SaveAdjustmentAsync(ExpenseAdjustment adjustment,
+        SaveExpenseAdjustmentRequest request, bool isNew, CancellationToken ct)
+    {
+        var expense = await db.Expenses.AsNoTracking()
+                          .FirstOrDefaultAsync(e => e.ExpenseId == request.ExpenseId, ct)
+                      ?? throw new NotFoundException("Expense", request.ExpenseId);
+
+        var type = (ExpenseAdjustmentType)request.AdjustmentType;
+        var signed = type == ExpenseAdjustmentType.Increase ? request.Amount : -request.Amount;
+        var others = await OtherAdjustmentsTotalAsync(expense.ExpenseId,
+            isNew ? null : adjustment.ExpenseAdjustmentId, ct);
+        GuardNetNotNegative(expense.Amount + others + signed, isNew ? "recorded" : "saved");
+
+        adjustment.AdjustmentType = type;
+        adjustment.Amount = request.Amount;
+        adjustment.AdjustmentDate = request.AdjustmentDate ?? IstClock.IstDateOf(clock.UtcNow);
+        adjustment.Reason = request.Reason.Trim();
+        adjustment.Remarks = string.IsNullOrWhiteSpace(request.Remarks) ? null : request.Remarks.Trim();
+
+        // The row and the expense's running total commit together.
+        var strategy = db.Database.CreateExecutionStrategy();
+        var id = await strategy.ExecuteAsync(async () =>
+        {
+            await using var dbTransaction = await db.Database.BeginTransactionAsync(ct);
+            if (isNew)
+            {
+                db.ExpenseAdjustments.Add(adjustment);
+            }
+            await db.SaveChangesAsync(ct);
+            await RecomputeAdjustmentTotalAsync(expense.ExpenseId, ct);
+            await dbTransaction.CommitAsync(ct);
+            return adjustment.ExpenseAdjustmentId;
+        });
+        return await GetAdjustmentAsync(id, ct);
+    }
+
+    private async Task<decimal> OtherAdjustmentsTotalAsync(long expenseId, long? excludeId,
+        CancellationToken ct) =>
+        await db.ExpenseAdjustments.AsNoTracking()
+            .Where(a => a.ExpenseId == expenseId && a.ExpenseAdjustmentId != excludeId)
+            .SumAsync(a => (decimal?)(a.AdjustmentType == ExpenseAdjustmentType.Increase
+                ? a.Amount : -a.Amount), ct) ?? 0m;
+
+    private static void GuardNetNotNegative(decimal net, string verb)
+    {
+        if (net < 0)
+        {
+            throw new BusinessRuleException(
+                $"The adjustment cannot be {verb}: it would take the expense below zero " +
+                $"(net {net:N2}). An expense can be reduced to nil at most.");
+        }
+    }
+
+    /// <summary>One UPDATE that re-sums the live adjustments, so the stored total can
+    /// never drift from its rows; CK_Expense_NetAmount backs up the guard above.</summary>
+    private Task<int> RecomputeAdjustmentTotalAsync(long expenseId, CancellationToken ct) =>
+        db.Expenses.Where(e => e.ExpenseId == expenseId)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.AdjustmentTotal,
+                e => db.ExpenseAdjustments
+                    .Where(a => a.ExpenseId == e.ExpenseId)
+                    .Sum(a => (decimal?)(a.AdjustmentType == ExpenseAdjustmentType.Increase
+                        ? a.Amount : -a.Amount)) ?? 0m), ct);
+
+    private IQueryable<ExpenseAdjustmentDto> ShapeAdjustments(IQueryable<ExpenseAdjustment> query) =>
+        from a in query
+        join e in db.Expenses on a.ExpenseId equals e.ExpenseId
+        select new ExpenseAdjustmentDto(
+            a.ExpenseAdjustmentId, a.ExpenseId, e.ExpenseNumber, e.Category, e.ExpenseDate,
+            e.Amount, e.Amount + e.AdjustmentTotal,
+            (byte)a.AdjustmentType, a.Amount,
+            a.AdjustmentType == ExpenseAdjustmentType.Increase ? a.Amount : -a.Amount,
+            a.AdjustmentDate, a.Reason, a.Remarks,
+            db.Users.Where(u => u.UserId == a.CreatedBy).Select(u => u.FullName).FirstOrDefault(),
+            a.CreatedDate, a.ModifiedDate);
 
     // ── helpers ─────────────────────────────────────────────────────────────
 
@@ -217,7 +438,10 @@ public class ExpenseService(
             db.BankTransactions.Where(b => b.MatchedExpenseId == e.ExpenseId)
                 .Select(b => (long?)b.BankTransactionId).FirstOrDefault(),
             db.BankTransactions.Any(b => b.MatchedExpenseId == e.ExpenseId),
-            e.CreatedDate));
+            e.CreatedDate,
+            e.AdjustmentTotal,
+            e.Amount + e.AdjustmentTotal,
+            db.ExpenseAdjustments.Count(a => a.ExpenseId == e.ExpenseId)));
 
     private async Task GuardReferencesAsync(SaveExpenseRequest request, CancellationToken ct)
     {

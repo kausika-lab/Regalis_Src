@@ -134,6 +134,11 @@ public class BookingMutationService(
             {
                 throw new BusinessRuleException("Only confirmed bookings can be rescheduled.");
             }
+            if (booking.BillingMonths is not null)
+            {
+                throw new BusinessRuleException(
+                    "A monthly desk or cabin booking cannot be rescheduled. Cancel it and book a new term instead.");
+            }
             var nowUtc = clock.UtcNow;
             if (booking.StartUtc <= nowUtc)
             {
@@ -214,6 +219,11 @@ public class BookingMutationService(
             if (booking.Status is not (BookingStatus.Confirmed or BookingStatus.CheckedIn))
             {
                 throw new BusinessRuleException("Only confirmed or checked-in bookings can be extended.");
+            }
+            if (booking.BillingMonths is not null)
+            {
+                throw new BusinessRuleException(
+                    "A monthly desk or cabin booking cannot be extended. Book the next term when this one ends.");
             }
             var nowUtc = clock.UtcNow;
             if (booking.EndUtc <= nowUtc)
@@ -303,6 +313,8 @@ public class BookingMutationService(
                 CustomerName = booking.Customer.FullName,
                 CustomerEmail = booking.Customer.Email,
                 CustomerMobile = booking.Customer.MobileNumber,
+                CustomerGstin = booking.Customer.Gstin,
+                CustomerCompanyName = booking.Customer.CompanyName,
                 BillingAddress = booking.Customer.Address,
                 CompanyName = await settings.GetStringAsync(AppSettingKeys.Company.Name, "Regalis WorkSpace", ct),
                 CompanyGstin = await settings.GetStringAsync(AppSettingKeys.Company.Gstin, "", ct),

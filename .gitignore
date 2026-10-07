@@ -16,3 +16,6 @@ api/App_Data/uploads/
 
 # ---- Editor caches -------------------------------------------------------
 .vs/
+
+# ---- Live server config (connection string, JWT key, Graph secret) ----
+api/web.config

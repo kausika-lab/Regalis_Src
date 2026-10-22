@@ -28,8 +28,10 @@ const idx = "index-DI5X4c9f.js";
 let t = fs.readFileSync(A(idx), "utf8");
 for (const [OLD, NEW] of SWAPS) {
   if (t.includes(OLD)) {
+    // mapDeps + import; PassesPage has a third since deploy/passes-split routed MyPassesPage.
     const n = t.split(OLD).length - 1;
-    if (n !== 2) throw new Error(`${idx}: expected 2 references to ${OLD}, found ${n}`);
+    const want = OLD.startsWith("PassesPage") ? [2, 3] : [2];
+    if (!want.includes(n)) throw new Error(`${idx}: expected ${want.join(" or ")} references to ${OLD}, found ${n}`);
     t = t.replaceAll(OLD, NEW);
     console.log(`OK  - ${idx}: import + mapDeps -> ${NEW}`);
   } else if (t.includes(NEW)) console.log(`OK  - ${idx}: already points at ${NEW}`);

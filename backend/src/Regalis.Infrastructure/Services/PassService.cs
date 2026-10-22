@@ -143,8 +143,17 @@ public class PassService(
         CancellationToken ct = default)
     {
         var plan = await RequireActivePlanAsync(request.PassPlanId, ct);
+        var todayIst = IstClock.IstDateOf(clock.UtcNow);
         var (cgstPercent, sgstPercent) = await TaxPercentsAsync(ct);
-        var (_, _, total) = PriceWithGst(plan.Price, cgstPercent, sgstPercent);
+        var existing = plan.PassType == PassType.DayPass
+            ? await LiveDayPassAsync(currentUser.UserId, todayIst, ct)
+            : null;
+        var quote = QuoteFor(plan, existing, todayIst, todayIst, cgstPercent, sgstPercent);
+        if (!quote.Allowed)
+        {
+            throw new BusinessRuleException(quote.Reason!);
+        }
+        var total = quote.Total;
 
         var order = await paymentGateway.CreateOrderAsync(total, "INR", $"PASS-{plan.PlanCode}", ct);
         var payment = new Payment
@@ -181,13 +190,26 @@ public class PassService(
         {
             throw new BusinessRuleException("The pass cannot start in the past.");
         }
-        var validTo = request.ValidFrom.AddDays(plan.ValidityDays - 1);
         var (cgstPercent, sgstPercent) = await TaxPercentsAsync(ct);
-        var (cgst, sgst, total) = PriceWithGst(plan.Price, cgstPercent, sgstPercent);
 
         var customerId = currentUser.UserId;
         var customer = await db.Users.AsNoTracking()
             .FirstAsync(u => u.UserId == customerId, ct);
+
+        // One live day pass at a time: a second day pass is only sold as an upgrade to a
+        // longer pack, replacing the live one with its unused days credited.
+        var existing = plan.PassType == PassType.DayPass
+            ? await LiveDayPassAsync(customerId, todayIst, ct)
+            : null;
+        var quote = QuoteFor(plan, existing, todayIst, request.ValidFrom, cgstPercent, sgstPercent);
+        if (!quote.Allowed)
+        {
+            throw new BusinessRuleException(quote.Reason!);
+        }
+        var validFrom = quote.StartsOn;
+        var validTo = validFrom.AddDays(plan.ValidityDays - 1);
+        var taxable = quote.Taxable;
+        var (cgst, sgst, total) = (quote.Cgst, quote.Sgst, quote.Total);
 
         var strategy = db.Database.CreateExecutionStrategy();
         var response = await strategy.ExecuteAsync(async () =>
@@ -255,6 +277,30 @@ public class PassService(
             }
             await db.SaveChangesAsync(ct);
 
+            // An upgrade retires the live pass: no refund (its unused days are already in
+            // the price), status Cancelled, QR revoked.
+            if (quote.IsUpgrade && existing is not null)
+            {
+                var replaced = await db.CustomerPasses
+                    .FirstAsync(p => p.CustomerPassId == existing.CustomerPassId, ct);
+                if (replaced.Status != CustomerPassStatus.Active)
+                {
+                    throw new BusinessRuleException(
+                        $"{existing.PassNumber} is no longer active; reload and try again.");
+                }
+                replaced.Status = CustomerPassStatus.Cancelled;
+                var oldTokens = await db.AccessTokens
+                    .Where(t => t.CustomerPassId == replaced.CustomerPassId &&
+                                t.Status == AccessTokenStatus.Active)
+                    .ToListAsync(ct);
+                foreach (var token in oldTokens)
+                {
+                    token.Status = AccessTokenStatus.Revoked;
+                    token.RevokedReason = "PassUpgraded";
+                }
+                await db.SaveChangesAsync(ct);
+            }
+
             var locationId = plan.LocationId
                 ?? await db.Locations.Where(l => l.IsDefault).Select(l => l.LocationId).FirstAsync(ct);
             var pass = new CustomerPass
@@ -266,10 +312,11 @@ public class PassService(
                 LocationId = locationId,
                 PassType = plan.PassType,
                 PurchaseUtc = nowUtc,
-                ValidFrom = request.ValidFrom,
+                ValidFrom = validFrom,
                 ValidTo = validTo,
                 GuestCount = 0,
-                Price = plan.Price,
+                // What was charged before GST; an upgrade's credit is already taken off.
+                Price = taxable,
                 TaxAmount = cgst + sgst,
                 TotalAmount = total,
                 Status = CustomerPassStatus.Active,
@@ -288,8 +335,8 @@ public class PassService(
                 LocationId = locationId,
                 InvoiceDate = invoiceDate,
                 DueDate = invoiceDate,
-                SubTotal = plan.Price,
-                TaxableAmount = plan.Price,
+                SubTotal = taxable,
+                TaxableAmount = taxable,
                 CgstPercent = cgstPercent,
                 SgstPercent = sgstPercent,
                 CgstAmount = cgst,
@@ -313,10 +360,14 @@ public class PassService(
             {
                 LineNumber = 1,
                 Description = $"{plan.PlanName} ({pass.PassNumber}) — valid " +
-                              $"{pass.ValidFrom:dd MMM yyyy} to {pass.ValidTo:dd MMM yyyy}",
+                              $"{pass.ValidFrom:dd MMM yyyy} to {pass.ValidTo:dd MMM yyyy}" +
+                              (quote.IsUpgrade && existing is not null
+                                  ? $"; upgrade from {existing.PassNumber}: {plan.Price:0.00} less " +
+                                    $"{quote.Credit:0.00} for its {quote.RemainingDays} unused day(s)"
+                                  : ""),
                 Quantity = 1,
-                UnitPrice = plan.Price,
-                LineAmount = plan.Price,
+                UnitPrice = taxable,
+                LineAmount = taxable,
                 TaxPercent = cgstPercent + sgstPercent,
                 TaxAmount = cgst + sgst,
                 TotalAmount = total
@@ -348,9 +399,13 @@ public class PassService(
             {
                 UserId = customerId,
                 Audience = NotificationAudience.SingleUser,
-                Title = "Pass activated",
+                Title = quote.IsUpgrade ? "Pass upgraded" : "Pass activated",
                 Message = $"{plan.PlanName} ({pass.PassNumber}) is valid " +
                           $"{pass.ValidFrom:dd MMM} – {pass.ValidTo:dd MMM yyyy}. " +
+                          (quote.IsUpgrade && existing is not null
+                              ? $"It replaces {existing.PassNumber}, whose {quote.RemainingDays} unused day(s) " +
+                                $"were credited. "
+                              : "") +
                           "Your QR access pass is ready.",
                 Category = NotificationCategory.Pass,
                 Priority = NotificationPriority.Normal,
@@ -471,6 +526,101 @@ public class PassService(
         return PagedResult<CustomerPassDto>.Create(
             items.Select(x => ToDto(x.Pass, x.FullName, x.Pass.PassPlan.PlanName)).ToList(),
             request.Page, request.PageSize, totalCount);
+    }
+
+    // ── One live day pass at a time ──────────────────────────────────────────
+
+    public async Task<PassPurchaseOptionsDto> GetPurchaseOptionsAsync(byte? passType,
+        CancellationToken ct = default)
+    {
+        var customerId = currentUser.UserId;
+        var todayIst = IstClock.IstDateOf(clock.UtcNow);
+        var (cgstPercent, sgstPercent) = await TaxPercentsAsync(ct);
+        var existing = await LiveDayPassAsync(customerId, todayIst, ct);
+
+        var query = db.PassPlans.AsNoTracking().Where(p => p.IsActive);
+        if (passType is not null)
+        {
+            query = query.Where(p => (byte)p.PassType == passType);
+        }
+        var plans = await query.OrderBy(p => p.DisplayOrder).ToListAsync(ct);
+
+        var options = plans.Select(plan =>
+        {
+            var q = QuoteFor(plan, plan.PassType == PassType.DayPass ? existing : null,
+                todayIst, todayIst, cgstPercent, sgstPercent);
+            return new PassPurchaseOptionDto(plan.PassPlanId, q.Allowed, q.Reason, q.IsUpgrade,
+                q.StartsOn, plan.Price, q.Credit, q.Taxable, q.Cgst, q.Sgst, q.Total);
+        }).ToList();
+
+        CurrentPassDto? current = null;
+        if (existing is not null)
+        {
+            var (_, totalDays, remainingDays, credit) = UnusedValue(existing, todayIst);
+            current = new CurrentPassDto(existing.CustomerPassId, existing.PassNumber,
+                existing.PassPlan?.PlanName ?? "Day pass", existing.ValidFrom, existing.ValidTo,
+                totalDays, remainingDays, credit);
+        }
+        return new PassPurchaseOptionsDto(current, options);
+    }
+
+    /// <summary>The customer's running (or not yet started) day pass, if any: Active and
+    /// not yet past its last day. Data from before the one-pass rule may hold several;
+    /// the biggest pack wins, then the one ending last.</summary>
+    private Task<CustomerPass?> LiveDayPassAsync(long customerId, DateOnly todayIst,
+        CancellationToken ct) =>
+        db.CustomerPasses.AsNoTracking()
+            .Include(p => p.PassPlan)
+            .Where(p => p.CustomerId == customerId && p.PassType == PassType.DayPass &&
+                        p.Status == CustomerPassStatus.Active && p.ValidTo >= todayIst)
+            .OrderByDescending(p => p.PassPlan.ValidityDays)
+            .ThenByDescending(p => p.ValidTo).ThenByDescending(p => p.CustomerPassId)
+            .FirstOrDefaultAsync(ct);
+
+    /// <summary>What the unused days of a live pass are worth, before GST: the price paid
+    /// × remaining days / total days. Remaining days count from today, or from the pass's
+    /// first day if that is still ahead.</summary>
+    internal static (DateOnly StartsOn, int TotalDays, int RemainingDays, decimal Credit) UnusedValue(
+        CustomerPass pass, DateOnly todayIst)
+    {
+        var startsOn = pass.ValidFrom > todayIst ? pass.ValidFrom : todayIst;
+        var totalDays = Math.Max(1, pass.ValidTo.DayNumber - pass.ValidFrom.DayNumber + 1);
+        var remainingDays = Math.Max(0, pass.ValidTo.DayNumber - startsOn.DayNumber + 1);
+        var credit = Math.Round(pass.Price * remainingDays / totalDays, 2, MidpointRounding.AwayFromZero);
+        return (startsOn, totalDays, remainingDays, credit);
+    }
+
+    private sealed record PassQuote(bool Allowed, string? Reason, bool IsUpgrade, DateOnly StartsOn,
+        int RemainingDays, decimal Credit, decimal Taxable, decimal Cgst, decimal Sgst, decimal Total);
+
+    /// <summary>The rule and the price for buying <paramref name="plan"/> now. With no live
+    /// day pass (or for a non-day plan) it is the plan price plus GST from the requested
+    /// start. With a live day pass, only a longer pack is allowed; it starts when the
+    /// live pass's unused days begin and their value is taken off the price.</summary>
+    private static PassQuote QuoteFor(PassPlan plan, CustomerPass? existing, DateOnly todayIst,
+        DateOnly requestedStart, decimal cgstPercent, decimal sgstPercent)
+    {
+        if (existing is null)
+        {
+            var (c, s, t) = PriceWithGst(plan.Price, cgstPercent, sgstPercent);
+            return new PassQuote(true, null, false, requestedStart, 0, 0m, plan.Price, c, s, t);
+        }
+
+        var (startsOn, _, remainingDays, credit) = UnusedValue(existing, todayIst);
+        var existingDays = existing.PassPlan?.ValidityDays
+                           ?? existing.ValidTo.DayNumber - existing.ValidFrom.DayNumber + 1;
+        if (plan.PassPlanId == existing.PassPlanId || plan.ValidityDays <= existingDays)
+        {
+            var (c, s, t) = PriceWithGst(plan.Price, cgstPercent, sgstPercent);
+            var reason = $"You already hold {existing.PassPlan?.PlanName ?? "a day pass"} " +
+                         $"({existing.PassNumber}), valid until {existing.ValidTo:dd MMM yyyy}. " +
+                         "While it runs you can only upgrade to a bigger pack.";
+            return new PassQuote(false, reason, false, startsOn, remainingDays, credit, plan.Price, c, s, t);
+        }
+
+        var taxable = Math.Max(0m, plan.Price - credit);
+        var (cgst, sgst, total) = PriceWithGst(taxable, cgstPercent, sgstPercent);
+        return new PassQuote(true, null, true, startsOn, remainingDays, credit, taxable, cgst, sgst, total);
     }
 
     private async Task<PassPlan> RequireActivePlanAsync(int passPlanId, CancellationToken ct) =>

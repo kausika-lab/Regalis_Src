@@ -92,6 +92,39 @@ public record PurchasePassResponse(
     string AccessTokenValue,
     string QrPayload);
 
+// ── One live day pass at a time ─────────────────────────────────────────────
+
+/// <summary>The customer's running (or not yet started) day pass and what its unused
+/// days are worth: price paid × remaining days / total days, before GST.</summary>
+public record CurrentPassDto(
+    long CustomerPassId,
+    string PassNumber,
+    string PlanName,
+    DateOnly ValidFrom,
+    DateOnly ValidTo,
+    int TotalDays,
+    int RemainingDays,
+    decimal UnusedCredit);
+
+/// <summary>Whether one plan can be bought right now and what it would cost. While a
+/// day pass is live only a longer pack is allowed (an upgrade): it starts today, or on
+/// the current pass's start date if that is still ahead, and the current pass's unused
+/// days come off the price. Amounts are what the purchase will actually charge.</summary>
+public record PassPurchaseOptionDto(
+    int PassPlanId,
+    bool Allowed,
+    string? Reason,
+    bool IsUpgrade,
+    DateOnly StartsOn,
+    decimal Price,
+    decimal Credit,
+    decimal TaxableAmount,
+    decimal CgstAmount,
+    decimal SgstAmount,
+    decimal TotalAmount);
+
+public record PassPurchaseOptionsDto(CurrentPassDto? Current, List<PassPurchaseOptionDto> Plans);
+
 public class PassListRequest : PagedRequest
 {
     public byte? PassType { get; set; }
@@ -135,8 +168,15 @@ public interface IPassService
     Task<PaymentOrderResponse> CreatePurchaseOrderAsync(PassOrderRequest request, CancellationToken ct = default);
 
     /// <summary>The atomic purchase: verified payment, TRN_CustomerPass, GST invoice,
-    /// access token valid for the whole pass window, notification.</summary>
+    /// access token valid for the whole pass window, notification. A day pass bought
+    /// while another day pass is live must be a longer pack; it replaces the live pass
+    /// (cancelled, QR revoked) and its unused days are credited against the price.</summary>
     Task<PurchasePassResponse> PurchaseAsync(PurchasePassRequest request, CancellationToken ct = default);
+
+    /// <summary>What the caller may buy right now: the live day pass, if any, and for
+    /// each active plan whether it is allowed, whether it is an upgrade, and the price
+    /// after the credit. The purchase charges exactly these amounts.</summary>
+    Task<PassPurchaseOptionsDto> GetPurchaseOptionsAsync(byte? passType, CancellationToken ct = default);
 
     Task<PagedResult<CustomerPassDto>> GetMyPassesAsync(PassListRequest request, CancellationToken ct = default);
     Task<PagedResult<CustomerPassDto>> GetPassesAsync(PassListRequest request, CancellationToken ct = default);

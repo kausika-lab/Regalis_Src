@@ -76,6 +76,15 @@ public class PassesController(IPassService passService) : ApiControllerBase
     public async Task<IActionResult> GetMy([FromQuery] PassListRequest request, CancellationToken ct) =>
         OkEnvelope(await passService.GetMyPassesAsync(request, ct));
 
+    /// <summary>What the caller may buy right now: the live day pass (if any) and, per
+    /// active plan, whether it can be bought, whether it is an upgrade, and the price
+    /// after the unused days of the current pass are credited.</summary>
+    [HttpGet("purchase-options")]
+    [HasPermission(PermissionCodes.Pass.View)]
+    [ProducesResponseType(typeof(ApiResponse<PassPurchaseOptionsDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPurchaseOptions([FromQuery] byte? type, CancellationToken ct) =>
+        OkEnvelope(await passService.GetPurchaseOptionsAsync(type, ct));
+
     /// <summary>All purchases — the admin grid.</summary>
     [HttpGet]
     [HasPermission(PermissionCodes.Pass.View)]

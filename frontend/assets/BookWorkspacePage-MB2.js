@@ -1,3 +1,5 @@
+/* Online payments switch: /env.js (deploy/offline-payments). */
+const ONLINE_PAY = window.__REGALIS_ONLINE_PAY__ !== false;
 import {
   a as ue,
   r as a,
@@ -1069,7 +1071,7 @@ function Ee() {
                       c && ` (${p(c.balance)})`,
                     ],
                   }),
-                  e.jsxs(h, {
+                  ONLINE_PAY && e.jsxs(h, {
                     size: "lg",
                     variant: "primary",
                     disabled: S !== null,
@@ -1089,7 +1091,7 @@ function Ee() {
                   children: [
                     "Wallet balance ",
                     p(c.balance),
-                    " doesn't cover this — pay online or top up from the Wallet page.",
+                    ONLINE_PAY ? " doesn't cover this — pay online or top up from the Wallet page." : " doesn't cover this — add money at the front desk (cash, UPI or card), then pay from your wallet.",
                   ],
                 }),
               e.jsx("p", {
@@ -1294,7 +1296,7 @@ function Ee() {
                       c && ` (${p(c.balance)})`,
                     ],
                   }),
-                  e.jsxs(h, {
+                  ONLINE_PAY && e.jsxs(h, {
                     size: "lg",
                     variant: "primary",
                     disabled: S !== null,
@@ -1314,7 +1316,7 @@ function Ee() {
                   children: [
                     "Wallet balance ",
                     p(c.balance),
-                    " doesn't cover this booking — pay online or top up from the Wallet page.",
+                    ONLINE_PAY ? " doesn't cover this booking — pay online or top up from the Wallet page." : " doesn't cover this booking — add money at the front desk (cash, UPI or card), then pay from your wallet.",
                   ],
                 }),
               e.jsx("p", {

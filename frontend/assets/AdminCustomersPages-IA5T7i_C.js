@@ -466,7 +466,8 @@ function AdminCustomersPage() {
           }
         },
         el("option", { value: "" }, "All Status"),
-        Object.entries(USER_STATUS).map(([value, label]) =>
+        // Locked (3) is not offered as a filter; a locked customer still shows the Locked pill.
+        Object.entries(USER_STATUS).filter(([value]) => value !== "3").map(([value, label]) =>
           el("option", { key: value, value }, label)
         )
       ),
@@ -674,8 +675,7 @@ function AdminCustomerDetailPage() {
     { key: "payments", label: "Payments", show: canViewPayments },
     { key: "invoices", label: "Invoices", show: canViewInvoices },
     { key: "wallet", label: "Wallet", show: canViewWallet },
-    { key: "support", label: "Support", show: canViewTickets },
-    { key: "notes", label: "Notes", show: true }
+    { key: "support", label: "Support", show: canViewTickets }
   ].filter((t) => t.show);
 
   return el(
@@ -1141,18 +1141,6 @@ function AdminCustomerDetailPage() {
                 emptyTitle: "No support tickets",
                 emptyDescription: "Tickets this member raises appear here."
               })
-        )
-      : null,
-
-    tab === "notes"
-      ? el(
-          Card,
-          null,
-          el(EmptyState, {
-            title: "Internal notes aren't stored yet",
-            description:
-              "The API has no customer-notes endpoint, so nothing can be saved against a member here. Add one and this tab fills itself."
-          })
         )
       : null
   );

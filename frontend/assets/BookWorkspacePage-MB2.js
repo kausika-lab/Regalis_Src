@@ -941,7 +941,7 @@ function Ee() {
                                       e.jsxs("div", {
                                         className: "choice-card__price",
                                         children: [
-                                          p(t.totalAmount),
+                                          p(t.price / VOMONTHS(t)),
                                           " ",
                                           e.jsx("span", {
                                             style: {
@@ -949,15 +949,8 @@ function Ee() {
                                               color: "var(--text-muted)",
                                               fontSize: "var(--font-size-xs)",
                                             },
-                                            children: "incl. GST",
+                                            children: "/ month",
                                           }),
-                                        ],
-                                      }),
-                                      e.jsxs("div", {
-                                        className: "choice-card__meta",
-                                        children: [
-                                          p(t.price / VOMONTHS(t)),
-                                          " per month before GST",
                                         ],
                                       }),
                                     ],
@@ -1210,6 +1203,12 @@ function Ee() {
                           addDaysIso(b, Number(voPlan.validityDays) || 30),
                         ),
                       }),
+                    ],
+                  }),
+                  e.jsxs("div", {
+                    children: [
+                      e.jsx("span", { children: "Per month" }),
+                      e.jsx("span", { children: p(voPlan.price / (VOMONTHS(voPlan) || 1)) }),
                     ],
                   }),
                   e.jsxs("div", {

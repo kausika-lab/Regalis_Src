@@ -19,3 +19,6 @@ api/App_Data/uploads/
 
 # ---- Live server config (connection string, JWT key, Graph secret) ----
 api/web.config
+
+# ---- Verification leftovers (screenshots, dumps, scripts with UAT test logins) ----
+deploy/*/evidence/

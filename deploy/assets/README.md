@@ -12,7 +12,7 @@ this build contains the Workspace types release and stops if its migration is mi
 | Migration | `db\migrations\20261016030926_AssetsModule.sql` (+ `_Rollback.sql`) |
 | Frontend | `deploy\assets\frontend\assets\*-AS1.js` (5 chunks), installed by `apply.mjs` |
 | Checks | `deploy\assets\verify.ps1` (run by the deploy) |
-| Evidence | `deploy\assets\evidence\` (kept on the server, not in git) — screenshots of the walkthrough and its script |
+| Evidence | `deploy\assets\evidence\e2e-assets.mjs` (kept on the server, not in git) — the browser walkthrough script; its screenshots were cleared on 23 Oct 2026 |
 
 ## How the spec maps onto the existing app
 

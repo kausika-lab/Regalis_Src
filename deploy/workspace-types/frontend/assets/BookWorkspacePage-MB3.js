@@ -260,17 +260,17 @@ function Ee() {
               children: [
                 e.jsx("div", { className: "field__label", children: "What would you like customised?" }),
                 e.jsx("div", {
-                  className: "wizard-steps",
-                  style: { marginBottom: 0 },
+                  style: { display: "flex", gap: "var(--space-2)", flexWrap: "wrap" },
                   children: cKinds.map((t) =>
-                    e.jsx(
+                    e.jsxs(
                       "button",
                       {
                         type: "button",
-                        className: `wizard-step${cKind === t ? " wizard-step--active" : ""}`,
-                        style: { border: "none", cursor: "pointer" },
+                        className: `slot-chip${cKind === t ? " slot-chip--selected" : ""}`,
+                        "aria-pressed": cKind === t,
+                        style: { padding: "0 var(--space-4)", display: "inline-flex", alignItems: "center", gap: 6 },
                         onClick: () => setCKind(t),
-                        children: t,
+                        children: [cKind === t && e.jsx(Te, { size: 16 }), t],
                       },
                       t,
                     ),

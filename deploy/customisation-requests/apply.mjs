@@ -17,7 +17,7 @@ import path from "path";
 
 const [front, staged] = process.argv.slice(2);
 if (!front) throw new Error("usage: node apply.mjs <frontend dir> [<staged assets dir>]");
-const REV = "custom-req-1";
+const REV = "custom-req-2";
 const MARK = "Customisation (custom-req-1)";
 
 const once = (t, from, to, where) => {
@@ -25,6 +25,45 @@ const once = (t, from, to, where) => {
   if (n !== 1) throw new Error(`${where}: expected 1 match, found ${n}; nothing written`);
   return t.replace(from, () => to);
 };
+
+// Kind picker. v1 used the faint wizard-step chips, which hardly changed when selected
+// in light mode; v2 (23 Oct 2026) uses the slot-chip look — gold fill, dark text, a tick.
+const CHIPS_V1 = `                e.jsx("div", {
+                  className: "wizard-steps",
+                  style: { marginBottom: 0 },
+                  children: cKinds.map((t) =>
+                    e.jsx(
+                      "button",
+                      {
+                        type: "button",
+                        className: \`wizard-step\${cKind === t ? " wizard-step--active" : ""}\`,
+                        style: { border: "none", cursor: "pointer" },
+                        onClick: () => setCKind(t),
+                        children: t,
+                      },
+                      t,
+                    ),
+                  ),
+                }),
+`;
+const CHIPS = `                e.jsx("div", {
+                  style: { display: "flex", gap: "var(--space-2)", flexWrap: "wrap" },
+                  children: cKinds.map((t) =>
+                    e.jsxs(
+                      "button",
+                      {
+                        type: "button",
+                        className: \`slot-chip\${cKind === t ? " slot-chip--selected" : ""}\`,
+                        "aria-pressed": cKind === t,
+                        style: { padding: "0 var(--space-4)", display: "inline-flex", alignItems: "center", gap: 6 },
+                        onClick: () => setCKind(t),
+                        children: [cKind === t && e.jsx(Te, { size: 16 }), t],
+                      },
+                      t,
+                    ),
+                  ),
+                }),
+`;
 
 const STATE = `  const isVO = !!VOT && v === String(VOT.workspaceTypeId);
 
@@ -137,24 +176,7 @@ const STATE = `  const isVO = !!VOT && v === String(VOT.workspaceTypeId);
             e.jsxs("div", {
               children: [
                 e.jsx("div", { className: "field__label", children: "What would you like customised?" }),
-                e.jsx("div", {
-                  className: "wizard-steps",
-                  style: { marginBottom: 0 },
-                  children: cKinds.map((t) =>
-                    e.jsx(
-                      "button",
-                      {
-                        type: "button",
-                        className: \`wizard-step\${cKind === t ? " wizard-step--active" : ""}\`,
-                        style: { border: "none", cursor: "pointer" },
-                        onClick: () => setCKind(t),
-                        children: t,
-                      },
-                      t,
-                    ),
-                  ),
-                }),
-              ],
+${CHIPS}              ],
             }),
             e.jsxs("div", {
               className: "field",
@@ -199,6 +221,11 @@ const STATE = `  const isVO = !!VOT && v === String(VOT.workspaceTypeId);
 function patch(file) {
   const name = path.basename(file);
   let t = fs.readFileSync(file, "utf8");
+  if (t.includes(CHIPS_V1)) {
+    fs.writeFileSync(file, once(t, CHIPS_V1, CHIPS, `${name}: kind chips`), "utf8");
+    console.log(`OK  - ${name}: kind chips restyled (v2)`);
+    return;
+  }
   if (t.includes(MARK)) {
     console.log(`OK  - ${name}: already patched`);
     return;

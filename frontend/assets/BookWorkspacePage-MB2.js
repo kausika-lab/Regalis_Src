@@ -148,6 +148,173 @@ function Ee() {
   const VOT = T.find((t) => /virtual/i.test(t.typeName ?? "")) ?? null;
   const isVO = !!VOT && v === String(VOT.workspaceTypeId);
 
+  /* Customisation (custom-req-1): a fifth card beside Virtual Office. The request is raised as
+     a support ticket in the "Workspace Customisation" category (migration
+     20261023000000), so it reaches Admin > Support tickets and the admin notification
+     centre as "Needs action", and the team replies on the ticket itself. */
+  const CUSTOM = "custom";
+  const isCustom = v === CUSTOM;
+  const CUSTOM_KINDS = ["Desk", "Cabin", "Meeting Room", "Virtual Office"];
+  const [cKind, setCKind] = a.useState(CUSTOM_KINDS[0]);
+  const [cText, setCText] = a.useState("");
+  const [cBusy, setCBusy] = a.useState(!1);
+  const [cDone, setCDone] = a.useState(null);
+  const [cCats, setCCats] = a.useState(null);
+  a.useEffect(() => {
+    if (!isCustom || cCats !== null) return;
+    fe(je.get("/ticket-categories"))
+      .then((t) => setCCats(Array.isArray(t) ? t : []))
+      .catch(() => setCCats([]));
+  }, [isCustom, cCats]);
+  const cCat =
+    (cCats ?? []).find((t) => /customi[sz]/i.test(t.categoryName ?? "")) ?? null;
+  const cKinds =
+    cCat && cCat.issueTypes?.length
+      ? cCat.issueTypes.map((t) => t.issueTypeName)
+      : CUSTOM_KINDS;
+  a.useEffect(() => {
+    cKinds.includes(cKind) || setCKind(cKinds[0]);
+  }, [cKinds.join("|")]);
+  const sendCustom = async () => {
+    const text = cText.trim();
+    if (text.length < 10) {
+      o.error("Tell us a little more about the customisation you need.");
+      return;
+    }
+    const cat =
+      cCat ??
+      (cCats ?? []).find((t) => /other/i.test(t.categoryName ?? "")) ??
+      (cCats ?? [])[0] ??
+      null;
+    const issue =
+      cat?.issueTypes?.find((t) => t.issueTypeName === cKind) ??
+      cat?.issueTypes?.find((t) => /other|general|misc/i.test(t.issueTypeName ?? "")) ??
+      cat?.issueTypes?.[0] ??
+      null;
+    if (!cat || !issue) {
+      o.error("Customisation requests can't be sent right now — please raise it under Support & Contact.");
+      return;
+    }
+    setCBusy(!0);
+    try {
+      const when = W ? dayLabel(b) : `${dayLabel(b)} to ${dayLabel(A)}`;
+      const t = await fe(
+        je.post("/tickets", {
+          ticketCategoryId: cat.ticketCategoryId,
+          ticketIssueTypeId: issue.ticketIssueTypeId,
+          subject: `Customisation request · ${cKind}`,
+          description: `${text}\n\nRequested from Book Workspace · ${cKind}${K ? ` · ${K.locationName}` : ""} · ${when}`,
+          priority: 2,
+        }),
+      );
+      setCDone(t);
+      setCText("");
+    } catch (t) {
+      o.error(t instanceof y ? t.message : "The request could not be sent. Please try again.");
+    } finally {
+      setCBusy(!1);
+    }
+  };
+  const customCard = () =>
+    e.jsxs(
+      "button",
+      {
+        type: "button",
+        className: `choice-card${isCustom ? " choice-card--selected" : ""}`,
+        style: { borderStyle: "dashed" },
+        onClick: () => Q(CUSTOM),
+        children: [
+          e.jsx("div", { className: "choice-card__title", children: "Customisation" }),
+          e.jsx("div", {
+            className: "choice-card__meta",
+            children: "Need something different? Tell us what you need",
+          }),
+        ],
+      },
+      CUSTOM,
+    );
+  const customPanel = () =>
+    cDone
+      ? e.jsx(E, {
+          icon: e.jsx(Te, { size: 44 }),
+          title: `Request ${cDone.ticketNumber} sent to the Regalis team`,
+          description:
+            "We'll set up the space as requested and reply on the request itself. You can follow it under Support & Contact.",
+          action: e.jsxs("div", {
+            style: { display: "flex", gap: "var(--space-2)", flexWrap: "wrap", justifyContent: "center" },
+            children: [
+              e.jsx(Se, {
+                to: `/support/tickets/${cDone.ticketId}`,
+                children: e.jsx(h, { variant: "outline", children: "View request" }),
+              }),
+              e.jsx(h, { variant: "ghost", onClick: () => setCDone(null), children: "Send another" }),
+            ],
+          }),
+        })
+      : e.jsxs("div", {
+          className: "form-stack",
+          children: [
+            e.jsxs("div", {
+              children: [
+                e.jsx("div", { className: "field__label", children: "What would you like customised?" }),
+                e.jsx("div", {
+                  className: "wizard-steps",
+                  style: { marginBottom: 0 },
+                  children: cKinds.map((t) =>
+                    e.jsx(
+                      "button",
+                      {
+                        type: "button",
+                        className: `wizard-step${cKind === t ? " wizard-step--active" : ""}`,
+                        style: { border: "none", cursor: "pointer" },
+                        onClick: () => setCKind(t),
+                        children: t,
+                      },
+                      t,
+                    ),
+                  ),
+                }),
+              ],
+            }),
+            e.jsxs("div", {
+              className: "field",
+              children: [
+                e.jsxs("label", {
+                  className: "field__label",
+                  htmlFor: "custom-request",
+                  children: [
+                    "Describe the customisation",
+                    e.jsx("span", { className: "field__required", "aria-hidden": !0, children: " *" }),
+                  ],
+                }),
+                e.jsx("textarea", {
+                  id: "custom-request",
+                  className: "field__input",
+                  rows: 5,
+                  maxLength: 3500,
+                  value: cText,
+                  placeholder:
+                    "e.g. A cabin for four with a whiteboard, two extra monitors and our logo on the door, ready by Monday 9 am.",
+                  style: { height: "auto", minHeight: 120, resize: "vertical" },
+                  onChange: (t) => setCText(t.target.value),
+                }),
+                e.jsx("span", {
+                  className: "field__hint",
+                  children:
+                    "Layout, seating, equipment, branding, timings — anything you need. The team replies on the request.",
+                }),
+              ],
+            }),
+            e.jsx(h, {
+              size: "lg",
+              loading: cBusy,
+              disabled: cBusy || cText.trim().length < 10,
+              onClick: sendCustom,
+              children: "Submit customisation request",
+            }),
+          ],
+        });
+
   /* A Desk or Cabin is booked by the month: a term and a start date, then one workspace
      that is free for the whole term. No time slots. */
   const isMonthlyType = (t) => !!t && MONTHLY_TYPES.test(t.typeCode ?? "");
@@ -174,7 +341,7 @@ function Ee() {
 
   /* Slots are fetched only once BOTH a date and a workspace type are chosen. */
   const I = a.useCallback(async () => {
-    if (!j || !v || !b || !W || isVO || isM) {
+    if (!j || !v || !b || !W || isVO || isM || isCustom) {
       re(null);
       return;
     }
@@ -187,7 +354,7 @@ function Ee() {
     } finally {
       G(!1);
     }
-  }, [j, v, b, W, isVO, isM]);
+  }, [j, v, b, W, isVO, isM, isCustom]);
   a.useEffect(() => {
     I();
   }, [I]);
@@ -563,7 +730,12 @@ function Ee() {
     }
   };
 
-  const X = isVO
+  const X = isCustom
+    ? [
+        { key: "when", label: "1 · What you need" },
+        { key: "done", label: "2 · Sent to the Regalis team" },
+      ]
+    : isVO
     ? [
         { key: "when", label: "1 · Term & start date" },
         { key: "pay", label: "2 · Review & pay" },
@@ -575,7 +747,7 @@ function Ee() {
         { key: "pay", label: "3 · Review & pay" },
         { key: "done", label: "4 · Confirmed" },
       ];
-  const Z = X.findIndex((t) => t.key === f);
+  const Z = isCustom && cDone ? 1 : X.findIndex((t) => t.key === f);
   const payTotal = isVO
     ? (voPlan?.totalAmount ?? null)
     : (n?.totalAmount ?? null);
@@ -657,6 +829,7 @@ function Ee() {
                     }),
                   !isVO &&
                     !isM &&
+                    !isCustom &&
                     W &&
                     e.jsx(ve, {
                       label: "Duration",
@@ -675,7 +848,9 @@ function Ee() {
               e.jsx("p", {
                 className: "choice-card__meta",
                 style: { margin: 0 },
-                children: isVO
+                children: isCustom
+                  ? "Tell us what you need for these dates — the Regalis team sets it up and replies on your request."
+                  : isVO
                   ? "A Virtual Office is sold by the month, not by the hour — the minimum term is 1 month."
                   : isM
                     ? "Desks and cabins are booked by the month. Pick a term, then choose a workspace that is free for the whole term."
@@ -689,7 +864,8 @@ function Ee() {
               }),
               e.jsx("div", {
                 className: "choice-grid",
-                children: T.map((t) =>
+                children: [
+                  ...T.map((t) =>
                   e.jsxs(
                     "button",
                     {
@@ -713,14 +889,18 @@ function Ee() {
                     t.workspaceTypeId,
                   ),
                 ),
+                  customCard(),
+                ],
               }),
 
               !v
                 ? e.jsx(E, {
                     title: "Pick a workspace type",
                     description:
-                      "Choose Desk, Cabin or Meeting Room to see live availability for the dates above — or Virtual Office for a monthly business address.",
+                      "Choose Desk, Cabin or Meeting Room to see live availability for the dates above — or Virtual Office for a monthly business address. Pick Customisation to tell us what you need.",
                   })
+                : isCustom
+                  ? customPanel()
                 : isVO
                   ? voPlans === null
                     ? e.jsx(te, { center: !0 })
@@ -866,6 +1046,7 @@ function Ee() {
                         description: `${dayLabel(b)} to ${dayLabel(A)} — both dates included. Every date is booked for the full working day, and the range is only offered if the same workspace is free on all ${nDays} days.`,
                       }),
 
+              !isCustom &&
               e.jsx(h, {
                 size: "lg",
                 disabled: !canContinue || busy,

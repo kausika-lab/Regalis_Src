@@ -16,8 +16,16 @@ import path from "path";
 
 const [front, staged] = process.argv.slice(2);
 if (!front) throw new Error("usage: node apply.mjs <frontend dir> [<staged assets dir>]");
-const REV = "my-passes-1";
+const REV = "my-passes-2";
 const MARK = "/passes/my";
+
+// v2 (23 Oct 2026): no QR action on the pass cards. The "Use a Day" / "Access" button
+// opened a check-in modal that only pointed at My QR / Access; every card now offers
+// View receipt, and live ones keep Cancel.
+const QR_OLD =
+  'children:[d.live?s.jsxs(g,{size:"sm",onClick:()=>a(t),children:[s.jsx(T,{size:14})," ",i?"Use a Day":"Access"]}):s.jsx(g,{size:"sm",variant:"outline",onClick:()=>l(t),children:"View receipt"}),d.live&&cc?';
+const QR_NEW =
+  'children:[s.jsx(g,{size:"sm",variant:"outline",onClick:()=>l(t),children:"View receipt"}),d.live&&cc?';
 
 const once = (t, from, to, where) => {
   const n = t.split(from).length - 1;
@@ -34,11 +42,14 @@ const SUMMARY =
 function patchPage(file) {
   const name = path.basename(file);
   let t = fs.readFileSync(file, "utf8");
+  const w = (what) => `${name}: ${what}`;
   if (t.includes(MARK)) {
-    console.log(`OK  - ${name}: already patched`);
+    if (t.includes(QR_OLD)) {
+      fs.writeFileSync(file, once(t, QR_OLD, QR_NEW, w("qr button")), "utf8");
+      console.log(`OK  - ${name}: QR action removed from the pass cards (v2)`);
+    } else console.log(`OK  - ${name}: already patched`);
     return;
   }
-  const w = (what) => `${name}: ${what}`;
 
   // a. page title
   t = once(t, 's.jsx(A,{title:"Passes",description:', 's.jsx(A,{title:"Book Pass",description:', w("title"));
@@ -83,8 +94,11 @@ function patchPage(file) {
     w("my passes page"),
   );
 
+  // g. (v2) no QR action on the cards
+  t = once(t, QR_OLD, QR_NEW, w("qr button"));
+
   fs.writeFileSync(file, t, "utf8");
-  console.log(`OK  - ${name}: Book Pass cards, GST summary, list moved to My Passes`);
+  console.log(`OK  - ${name}: Book Pass cards, GST summary, list moved to My Passes, no QR action`);
 }
 
 patchPage(path.join(front, "assets", "PassesPage-CxAkHUg-.js"));

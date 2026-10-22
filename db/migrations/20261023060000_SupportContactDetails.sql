@@ -5,7 +5,7 @@
    values as given on 23 Oct 2026:
      Support.ContactNumber  7483375555
      Support.Email          info@regalis.co.in
-     Support.Hours          9 AM - 6 PM
+     Support.Hours          Monday - Saturday, 9 AM - 6 PM
    Company.Email (invoices, letterheads) is not touched.
 
    Idempotent: re-running changes nothing.
@@ -18,7 +18,7 @@ DECLARE @v TABLE (K NVARCHAR(100) NOT NULL, V NVARCHAR(500) NOT NULL);
 INSERT INTO @v (K, V) VALUES
     (N'Support.ContactNumber', N'7483375555'),
     (N'Support.Email',         N'info@regalis.co.in'),
-    (N'Support.Hours',         N'9 AM - 6 PM');
+    (N'Support.Hours',         N'Monday - Saturday, 9 AM - 6 PM');
 
 UPDATE s
    SET SettingValue = v.V, ModifiedDate = GETUTCDATE()

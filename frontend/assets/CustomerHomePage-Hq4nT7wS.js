@@ -1,7 +1,7 @@
-/* Customer dashboard (home-month-1, 22 Oct 2026): "This month's bookings" replaces the
-   single "Today's booking" card, and a "Customisation available" banner under it opens
-   Book Workspace. Data: GET /bookings/my (upcoming + completed), filtered to the current
-   IST month in the browser. */
+/* Customer dashboard (home-bookings-1, 23 Oct 2026): a "My bookings" card lists the
+   customer's current bookings (running or ahead, like the Current tab of My Bookings),
+   and a "Customisation available" banner under it opens Book Workspace.
+   Data: GET /bookings/my?tab=upcoming, oldest first, first six shown. */
 import{i as k,l as N,m as w,r as c,n as B,j as e,T as b,C,Q as f,g as i,p as d,q as z,W as I,t as S,v as T}from"./index-DI5X4c9f.js";
 import{d as P}from"./reports-CNtuzowc.js";
 import{B as m}from"./Badge-BU5iAxex.js";
@@ -30,37 +30,35 @@ function ymd(dt){const o={};for(const p of ymdFmt.formatToParts(dt))o[p.type]=p.
 
 const MAX_ROWS=6;
 
-// ---- This month's bookings ------------------------------------------------------------
-function MonthBookings({dashboard:a}){
+// ---- My bookings (current: running or ahead) -------------------------------------------
+function MyBookings({dashboard:a}){
   const[rows,setRows]=c.useState(null);
   c.useEffect(()=>{
     let live=!0;
-    const today=ymd(new Date()),month=today.slice(0,7);
-    Promise.all([BK.my("upcoming",{page:1,pageSize:100}),BK.my("completed",{page:1,pageSize:100})]).then(([up,done])=>{
+    const today=ymd(new Date());
+    BK.my("upcoming",{page:1,pageSize:100}).then((up)=>{
       if(!live)return;
-      const seen=new Set,list=[];
-      for(const o of[...up?.items??[],...done?.items??[]]){
-        if(seen.has(o.bookingId))continue;seen.add(o.bookingId);
+      const list=(up?.items??[]).map((o)=>{
         const s=toDate(o.startUtc),en=toDate(o.endUtc),sd=ymd(s),ed=ymd(en);
-        if(sd.slice(0,7)<=month&&ed.slice(0,7)>=month)list.push({...o,_s:s,_e:en,_sd:sd,_ed:ed,_today:sd<=today&&ed>=today});
-      }
+        return{...o,_s:s,_e:en,_sd:sd,_ed:ed,_today:sd<=today&&ed>=today};
+      });
       list.sort((p,q2)=>p._s-q2._s);
       setRows(list);
     }).catch(()=>{live&&setRows([])});
     return()=>{live=!1};
   },[]);
   const n=rows?.length??0;
-  return e.jsxs(u,{title:"This month's bookings",actions:e.jsx(i,{to:"/bookings",children:e.jsx(d,{size:"sm",variant:"ghost",children:"View all"})}),children:[
-    e.jsxs("p",{style:{color:"var(--text-secondary)",fontSize:"var(--font-size-sm)",marginBottom:"var(--space-2)"},children:[monthFmt.format(new Date()),n>0?` · ${n} booking${n===1?"":"s"}`:""]}),
+  return e.jsxs(u,{title:"My bookings",actions:e.jsx(i,{to:"/bookings",children:e.jsx(d,{size:"sm",variant:"ghost",children:"View all"})}),children:[
+    e.jsx("p",{style:{color:"var(--text-secondary)",fontSize:"var(--font-size-sm)",marginBottom:"var(--space-2)"},children:rows===null?"Current bookings":n>0?`${n} current booking${n===1?"":"s"} · running or coming up`:"Nothing running or coming up"}),
     rows===null?e.jsx("p",{style:{color:"var(--text-muted)",fontSize:"var(--font-size-sm)",padding:"var(--space-4) 0"},children:"Loading your bookings…"})
     :n===0?e.jsxs("div",{className:"home__empty",children:[
         e.jsx("span",{className:"home__empty-icon",children:e.jsx(z,{size:22})}),
-        e.jsx("div",{style:{fontWeight:700},children:"No bookings this month"}),
-        e.jsx("p",{children:a?.nextBooking?`Next up: ${a.nextBooking.workspaceName}, ${_(a.nextBooking.startUtc)} IST`:"Nothing booked yet this month."}),
+        e.jsx("div",{style:{fontWeight:700},children:"No current bookings"}),
+        e.jsx("p",{children:a?.nextBooking?`Next up: ${a.nextBooking.workspaceName}, ${_(a.nextBooking.startUtc)} IST`:"Nothing booked right now."}),
         e.jsx(i,{to:"/book",children:e.jsxs(d,{children:[e.jsx(y,{size:16})," Book now"]})})]})
     :e.jsxs(e.Fragment,{children:[
         e.jsx("ul",{style:{listStyle:"none",margin:0,padding:0},children:rows.slice(0,MAX_ROWS).map((o,idx)=>e.jsx(Row,{b:o,first:idx===0},o.bookingId))}),
-        n>MAX_ROWS&&e.jsx(i,{to:"/bookings",style:{display:"inline-block",marginTop:"var(--space-3)",fontSize:"var(--font-size-sm)",fontWeight:600},children:`+${n-MAX_ROWS} more this month`})]})
+        n>MAX_ROWS&&e.jsx(i,{to:"/bookings",style:{display:"inline-block",marginTop:"var(--space-3)",fontSize:"var(--font-size-sm)",fontWeight:600},children:`+${n-MAX_ROWS} more under My Bookings`})]})
   ]});
 }
 
@@ -103,7 +101,7 @@ function H(){
     e.jsx(q,{banners:j}),
     e.jsx("div",{className:"home__quick",children:$.map(({to:s,icon:p,title:n,meta:l})=>e.jsxs(i,{to:s,className:"home__tile",children:[e.jsx("span",{className:"home__tile-icon",children:e.jsx(p,{size:20})}),e.jsx("span",{className:"home__tile-title",children:n}),e.jsx("span",{className:"home__tile-meta",children:l}),e.jsx(L,{size:16,className:"home__tile-arrow","aria-hidden":!0})]},s))}),
     e.jsxs("div",{className:"home__columns",children:[
-      e.jsxs("div",{className:"home__aside",children:[e.jsx(MonthBookings,{dashboard:a}),e.jsx(Promo,{})]}),
+      e.jsxs("div",{className:"home__aside",children:[e.jsx(MyBookings,{dashboard:a}),e.jsx(Promo,{})]}),
       e.jsxs("div",{className:"home__aside",children:[
         e.jsxs(u,{title:"Wallet balance",children:[e.jsx("div",{className:"home__balance",children:v(a?.walletBalance??0)}),e.jsx("p",{style:{color:"var(--text-secondary)",fontSize:"var(--font-size-sm)"},children:"Available credit for bookings, passes and services."}),e.jsx(i,{to:"/wallet",style:{display:"block",marginTop:"var(--space-4)"},children:e.jsxs(d,{variant:"outline",style:{width:"100%"},children:[e.jsx(I,{size:16})," Add money"]})})]}),
         e.jsx(u,{title:"At a glance",children:e.jsxs("ul",{className:"home__glance",children:[

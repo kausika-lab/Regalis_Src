@@ -690,12 +690,39 @@
         <!-- Badly formed XML comment ignored for member "T:Regalis.Application.Finance.InvoiceTermsDto" -->
         <!-- Badly formed XML comment ignored for member "M:Regalis.Application.Finance.InvoiceTermsDto.#ctor(System.String)" -->
         <!-- Badly formed XML comment ignored for member "P:Regalis.Application.Finance.InvoiceTermsDto.TermsAndConditions" -->
+        <member name="T:Regalis.Application.Finance.CurrentPassDto">
+            <summary>The customer's running (or not yet started) day pass and what its unused
+            days are worth: price paid × remaining days / total days, before GST.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.CurrentPassDto.#ctor(System.Int64,System.String,System.String,System.DateOnly,System.DateOnly,System.Int32,System.Int32,System.Decimal)">
+            <summary>The customer's running (or not yet started) day pass and what its unused
+            days are worth: price paid × remaining days / total days, before GST.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.PassPurchaseOptionDto">
+            <summary>Whether one plan can be bought right now and what it would cost. While a
+            day pass is live only a longer pack is allowed (an upgrade): it starts today, or on
+            the current pass's start date if that is still ahead, and the current pass's unused
+            days come off the price. Amounts are what the purchase will actually charge.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.PassPurchaseOptionDto.#ctor(System.Int32,System.Boolean,System.String,System.Boolean,System.DateOnly,System.Decimal,System.Decimal,System.Decimal,System.Decimal,System.Decimal,System.Decimal)">
+            <summary>Whether one plan can be bought right now and what it would cost. While a
+            day pass is live only a longer pack is allowed (an upgrade): it starts today, or on
+            the current pass's start date if that is still ahead, and the current pass's unused
+            days come off the price. Amounts are what the purchase will actually charge.</summary>
+        </member>
         <member name="M:Regalis.Application.Finance.IPassService.CreatePurchaseOrderAsync(Regalis.Application.Finance.PassOrderRequest,System.Threading.CancellationToken)">
             <summary>Gateway order for a pass purchase (wallet purchases skip this).</summary>
         </member>
         <member name="M:Regalis.Application.Finance.IPassService.PurchaseAsync(Regalis.Application.Finance.PurchasePassRequest,System.Threading.CancellationToken)">
             <summary>The atomic purchase: verified payment, TRN_CustomerPass, GST invoice,
-            access token valid for the whole pass window, notification.</summary>
+            access token valid for the whole pass window, notification. A day pass bought
+            while another day pass is live must be a longer pack; it replaces the live pass
+            (cancelled, QR revoked) and its unused days are credited against the price.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPassService.GetPurchaseOptionsAsync(System.Nullable{System.Byte},System.Threading.CancellationToken)">
+            <summary>What the caller may buy right now: the live day pass, if any, and for
+            each active plan whether it is allowed, whether it is an upgrade, and the price
+            after the credit. The purchase charges exactly these amounts.</summary>
         </member>
         <member name="M:Regalis.Application.Finance.IPassService.CancelAsync(System.Int64,System.Threading.CancellationToken)">
             <summary>Cancel before the pass starts: full refund to the wallet; once

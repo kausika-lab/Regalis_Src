@@ -1563,6 +1563,22 @@
             numbered MEM-000006; any other pass keeps PASS-000006. Both take the next value of
             the one CustomerPass counter, so the two series can never produce the same number.</summary>
         </member>
+        <member name="M:Regalis.Infrastructure.Services.PassService.LiveDayPassAsync(System.Int64,System.DateOnly,System.Threading.CancellationToken)">
+            <summary>The customer's running (or not yet started) day pass, if any: Active and
+            not yet past its last day. Data from before the one-pass rule may hold several;
+            the biggest pack wins, then the one ending last.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PassService.UnusedValue(Regalis.Domain.Entities.Finance.CustomerPass,System.DateOnly)">
+            <summary>What the unused days of a live pass are worth, before GST: the price paid
+            × remaining days / total days. Remaining days count from today, or from the pass's
+            first day if that is still ahead.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PassService.QuoteFor(Regalis.Domain.Entities.Masters.PassPlan,Regalis.Domain.Entities.Finance.CustomerPass,System.DateOnly,System.DateOnly,System.Decimal,System.Decimal)">
+            <summary>The rule and the price for buying <paramref name="plan"/> now. With no live
+            day pass (or for a non-day plan) it is the plan price plus GST from the requested
+            start. With a live day pass, only a longer pack is allowed; it starts when the
+            live pass's unused days begin and their value is taken off the price.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Services.ProfileService">
             <summary>Own-record profile (matrix §6: always scoped to the caller, never an id
             from the client). Email is the login and is not edited here. Invoices are

@@ -1214,6 +1214,162 @@
         <member name="M:Regalis.Application.Operations.IAnnouncementService.DeleteAsync(System.Int64,System.Threading.CancellationToken)">
             <summary>Drafts and scheduled announcements only.</summary>
         </member>
+        <member name="P:Regalis.Application.Operations.AssetItemListRequest.Kind">
+            <summary>1 Consumable, 2 Asset, 3 Service (sold on quotations, never stocked).</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.AssetItemListRequest.LocationId">
+            <summary>The asset's room, or the room a consumable is kept in.</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.AssetItemListRequest.NoLabel">
+            <summary>Assets whose QR label has never been printed.</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.AssetItemListRequest.Ids">
+            <summary>Item ids, comma-separated: "export selected" and labels for a selection.</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.AssetItemListRequest.ReceiptId">
+            <summary>The assets one receipt created — "print their labels" after posting.</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.AssetItemListRequest.SortDir">
+            <summary>asc | desc.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.AssetSummaryDto">
+            <summary>The five cards on Items, counted across every active record, never the page.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AssetSummaryDto.#ctor(System.Int32,System.Decimal,System.Int32,System.Int32,System.Collections.Generic.List{System.String},System.Int32,System.String,System.Int32,System.Int32)">
+            <summary>The five cards on Items, counted across every active record, never the page.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.CreateAssetItemRequest">
+            <summary>The item form (§5). Kind is asked first and never changes. An asset form
+            creates Quantity separate records through a posted receipt; a consumable form has no
+            opening quantity at all — its first stock comes in on Incoming Goods.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.CreateAssetItemRequest.#ctor(System.Byte,System.String,System.Nullable{System.Int32},System.String,System.String,System.Nullable{System.Decimal},System.Nullable{System.Int32},System.String,System.String,System.String,System.Nullable{System.Int32},System.String,System.Nullable{System.Int32},System.Nullable{System.Byte},System.Nullable{System.DateOnly},System.Nullable{System.DateOnly},System.String,System.String,System.Nullable{System.Decimal},System.Nullable{System.Int32},System.Boolean,System.String,System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.Nullable{System.Boolean})">
+            <summary>The item form (§5). Kind is asked first and never changes. An asset form
+            creates Quantity separate records through a posted receipt; a consumable form has no
+            opening quantity at all — its first stock comes in on Incoming Goods.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.UpdateAssetItemRequest">
+            <summary>Edits what an item IS. Never its kind, code, quantity, room or status:
+            those change only through movements.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.UpdateAssetItemRequest.#ctor(System.String,System.Nullable{System.Int32},System.String,System.String,System.Nullable{System.Decimal},System.Nullable{System.Int32},System.String,System.String,System.String,System.Nullable{System.Byte},System.Nullable{System.DateOnly},System.Nullable{System.DateOnly},System.String,System.Nullable{System.Decimal},System.Nullable{System.Int32},System.String,System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.Nullable{System.Boolean})">
+            <summary>Edits what an item IS. Never its kind, code, quantity, room or status:
+            those change only through movements.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.SaveGoodsReceiptLineRequest">
+            <summary>One line of the receipt form. A consumable line names the item. An asset
+            line names an existing asset to receive "more of" (TemplateItemId), or describes a
+            new one (ItemName, CategoryId, CodePrefix …).</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.SaveGoodsReceiptLineRequest.#ctor(System.Byte,System.Nullable{System.Int32},System.Decimal,System.Nullable{System.Decimal},System.Nullable{System.Int64},System.String,System.Nullable{System.Int32},System.String,System.String,System.String,System.String,System.Nullable{System.Int32},System.Nullable{System.Byte},System.Nullable{System.DateOnly},System.Nullable{System.DateOnly},System.String,System.String)">
+            <summary>One line of the receipt form. A consumable line names the item. An asset
+            line names an existing asset to receive "more of" (TemplateItemId), or describes a
+            new one (ItemName, CategoryId, CodePrefix …).</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.GoodsReceiptLinePreviewDto">
+            <summary>What posting each line will do, worked out before posting (§6.3).</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.GoodsReceiptLinePreviewDto.#ctor(System.Int32,System.Byte,System.String,System.Collections.Generic.List{System.String},System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.String,System.Boolean,System.String)">
+            <summary>What posting each line will do, worked out before posting (§6.3).</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.PurchaseOrderReceiptLineDto">
+            <summary>The lines a purchase order still has to deliver, for "Against purchase order".</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.PurchaseOrderReceiptLineDto.#ctor(System.Int64,System.Nullable{System.Int32},System.String,System.String,System.Nullable{System.Byte},System.String,System.Decimal,System.Decimal,System.Decimal,System.Decimal)">
+            <summary>The lines a purchase order still has to deliver, for "Against purchase order".</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.StockLedgerRequest.Kind">
+            <summary>1 Consumable, 2 Asset.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.IAssetService">
+            <summary>The Assets module. On hand is never stored: it is always the sum of the
+            item's ledger rows. Nothing is deleted — items are made inactive, assets are scrapped
+            or lost, posted documents are reversed.</summary>
+        </member>
+        <member name="T:Regalis.Application.Operations.AssetRules">
+            <summary>The Assets rules that are pure arithmetic or text, kept apart so they can be
+            unit-tested and shared by the service, the import and the PO receive path.</summary>
+        </member>
+        <member name="F:Regalis.Application.Operations.AssetRules.BookValueFloor">
+            <summary>"Never below 5% of cost while the asset is in use" (§11.3).</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AssetRules.BookValue(System.Nullable{System.Decimal},System.Nullable{System.DateOnly},System.Nullable{System.Decimal},Regalis.Domain.Enums.AssetStatus,System.DateOnly)">
+            <summary>
+            Straight-line book value (§11.3): cost × (1 − age ÷ useful life), age in years =
+            days ÷ 365, never below 5% of cost while the asset is still in the register.
+            Scrapped, lost and returned assets are worth 0. No cost → null (shown as a dash,
+            never a zero). No useful life (a consumable category) or no purchase date → the
+            cost itself, undepreciated.
+            </summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AssetRules.AssetCode(System.String,System.Int32)">
+            <summary>R-2W-E-EAC + 1 → R-2W-E-EAC-001. Three digits, more when the prefix
+            passes 999 — a number is never reused.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AssetRules.DocumentNumber(System.String,System.Int32)">
+            <summary>IN-2026 + 7 → IN-2026-0007.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AssetRules.CodeRange(System.Collections.Generic.IReadOnlyList{System.String})">
+            <summary>"R-2W-E-EGC-015 to -022" — the way the receipt form and the import say it.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AssetRules.NormalisePrefix(System.String)">
+            <summary>
+            The prefix as Regalis writes it, tidied the way the import needs: trimmed (the
+            sheet's "R-2W-E-ES " must not become a second prefix), upper case, inner spaces
+            removed, no trailing hyphen. Null when nothing usable is left.
+            </summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AssetRules.IsValidPrefix(System.String)">
+            <summary>Letters, digits, hyphens and slashes; starts with a letter or digit.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AssetRules.QrText(System.String,System.String,System.String,System.String,System.Nullable{System.DateOnly},System.String,System.String)">
+            <summary>
+            The plain text the QR code carries (§9.1), one field per line, ASCII only. Not a
+            URL: any phone camera reads it with no app, no internet and no login. Brand and
+            Bought are skipped when they are not known.
+            </summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AssetRules.CodeFromScan(System.String)">
+            <summary>The code inside a scanned sticker ("Code: R-2W-E-EAC-001" line), or the
+            text itself when it is a bare code typed or scanned by a USB reader.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AssetRules.Ascii(System.String)">
+            <summary>
+            ASCII only, so every scanner shows the same text: long dashes become "-", the
+            rupee sign "Rs.", smart quotes plain ones, accents are dropped and anything else
+            outside ASCII becomes "?".
+            </summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AssetRules.StatusForRoom(System.Boolean)">
+            <summary>An asset received or moved into a store room is In store; anywhere else
+            it is In use.</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AssetRules.ParseCondition(System.String)">
+            <summary>Good / Fair / Needs attention / Damaged from free text (the import).</summary>
+        </member>
+        <member name="M:Regalis.Application.Operations.AssetRules.WhitespaceRegex">
+            <remarks>
+            Pattern:<br/>
+            <code>\\s+</code><br/>
+            Explanation:<br/>
+            <code>
+            ○ Match a whitespace character atomically at least once.<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="M:Regalis.Application.Operations.AssetRules.PrefixRegex">
+            <remarks>
+            Pattern:<br/>
+            <code>^[A-Z0-9][A-Z0-9\\-/]*$</code><br/>
+            Explanation:<br/>
+            <code>
+            ○ Match if at the beginning of the string.<br/>
+            ○ Match a character in the set [0-9A-Z].<br/>
+            ○ Match a character in the set [-/-9A-Z] atomically any number of times.<br/>
+            ○ Match if at the end of the string or if before an ending newline.<br/>
+            </code>
+            </remarks>
+        </member>
         <member name="P:Regalis.Application.Operations.HousekeepingListRequest.WorkspaceId">
             <summary>Workspace the schedule blocks or takes place in.</summary>
         </member>
@@ -1251,6 +1407,9 @@
         </member>
         <member name="P:Regalis.Application.Operations.InventoryItemListRequest.ItemType">
             <summary>1 Goods, 2 Service.</summary>
+        </member>
+        <member name="P:Regalis.Application.Operations.InventoryItemListRequest.Kind">
+            <summary>1 Consumable, 2 Asset. Unset leaves asset units out.</summary>
         </member>
         <member name="T:Regalis.Application.Operations.InventoryImportKinds">
             <summary>The screens an Excel file can be imported into. Current Stock is not one:
@@ -1422,6 +1581,88 @@
         </member>
         <member name="M:Regalis.Application.Reporting.IReportService.ExportAsync(System.String,System.String,Regalis.Application.Reporting.ReportFilterRequest,System.Threading.CancellationToken)">
             <summary>format: xlsx | pdf.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.WhitespaceRegex_0">
+            <summary>Custom <see cref="T:System.Text.RegularExpressions.Regex"/>-derived type for the WhitespaceRegex method.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.WhitespaceRegex_0.Instance">
+            <summary>Cached, thread-safe singleton instance.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.WhitespaceRegex_0.#ctor">
+            <summary>Initializes the instance.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.WhitespaceRegex_0.RunnerFactory">
+            <summary>Provides a factory for creating <see cref="T:System.Text.RegularExpressions.RegexRunner"/> instances to be used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.WhitespaceRegex_0.RunnerFactory.CreateInstance">
+            <summary>Creates an instance of a <see cref="T:System.Text.RegularExpressions.RegexRunner"/> used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.WhitespaceRegex_0.RunnerFactory.Runner">
+            <summary>Provides the runner that contains the custom logic implementing the specified regular expression.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.WhitespaceRegex_0.RunnerFactory.Runner.Scan(System.ReadOnlySpan{System.Char})">
+            <summary>Scan the <paramref name="inputSpan"/> starting from base.runtextstart for the next match.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.WhitespaceRegex_0.RunnerFactory.Runner.TryFindNextPossibleStartingPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Search <paramref name="inputSpan"/> starting from base.runtextpos for the next location a match could possibly start.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if a possible match was found; false if no more matches are possible.</returns>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.WhitespaceRegex_0.RunnerFactory.Runner.TryMatchAtCurrentPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Determine whether <paramref name="inputSpan"/> at base.runtextpos is a match for the regular expression.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if the regular expression matches at the current position; otherwise, false.</returns>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.PrefixRegex_1">
+            <summary>Custom <see cref="T:System.Text.RegularExpressions.Regex"/>-derived type for the PrefixRegex method.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.PrefixRegex_1.Instance">
+            <summary>Cached, thread-safe singleton instance.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.PrefixRegex_1.#ctor">
+            <summary>Initializes the instance.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.PrefixRegex_1.RunnerFactory">
+            <summary>Provides a factory for creating <see cref="T:System.Text.RegularExpressions.RegexRunner"/> instances to be used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.PrefixRegex_1.RunnerFactory.CreateInstance">
+            <summary>Creates an instance of a <see cref="T:System.Text.RegularExpressions.RegexRunner"/> used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.PrefixRegex_1.RunnerFactory.Runner">
+            <summary>Provides the runner that contains the custom logic implementing the specified regular expression.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.PrefixRegex_1.RunnerFactory.Runner.Scan(System.ReadOnlySpan{System.Char})">
+            <summary>Scan the <paramref name="inputSpan"/> starting from base.runtextstart for the next match.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.PrefixRegex_1.RunnerFactory.Runner.TryFindNextPossibleStartingPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Search <paramref name="inputSpan"/> starting from base.runtextpos for the next location a match could possibly start.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if a possible match was found; false if no more matches are possible.</returns>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.PrefixRegex_1.RunnerFactory.Runner.TryMatchAtCurrentPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Determine whether <paramref name="inputSpan"/> at base.runtextpos is a match for the regular expression.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if the regular expression matches at the current position; otherwise, false.</returns>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.Utilities">
+            <summary>Helper methods used by generated <see cref="T:System.Text.RegularExpressions.Regex"/>-derived implementations.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout">
+            <summary>Default timeout value set in <see cref="T:System.AppContext"/>, or <see cref="F:System.Text.RegularExpressions.Regex.InfiniteMatchTimeout"/> if none was set.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_hasTimeout">
+            <summary>Whether <see cref="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout"/> is non-infinite.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.Utilities.IndexOfAnyWhiteSpace(System.ReadOnlySpan{System.Char})">
+            <summary>Finds the next index of any character that matches a whitespace character.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_asciiExceptWhiteSpace">
+            <summary>Supports searching for characters in or not in "\0\u0001\u0002\u0003\u0004\u0005\u0006\a\b\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f!\"#$%&amp;'()*+,-./0123456789:;&lt;=&gt;?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\u007f".</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_ascii_A0FF03FEFFFF0700000000">
+            <summary>Supports searching for characters in or not in "-/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ".</summary>
         </member>
     </members>
 </doc>

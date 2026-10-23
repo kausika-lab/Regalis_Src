@@ -108,6 +108,21 @@
         <member name="F:Regalis.Shared.Constants.AppSettingKeys.Maintenance.ShiftHours">
             <summary>"Morning=06:00-14:00;Evening=14:00-22:00;Night=22:00-06:00" (IST) — drives "On duty now".</summary>
         </member>
+        <member name="T:Regalis.Shared.Constants.AppSettingKeys.Assets">
+            <summary>Assets: QR labels and warranty alerts (Settings, group "Assets").</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Assets.LabelContactEmail">
+            <summary>"If found, contact …" on every QR label.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Assets.LabelOwnerName">
+            <summary>"Property of …" on every QR label.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Assets.WarrantyAlertDays">
+            <summary>Days before Warranty until that the item is flagged "Expiring soon".</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.AppSettingKeys.Assets.Units">
+            <summary>Comma-separated units the consumable form offers.</summary>
+        </member>
         <member name="F:Regalis.Shared.Constants.AppSettingKeys.Wallet.LowBalanceThreshold">
             <summary>A balance below this is "low": the admin list filter, the amber
             highlight and any low-balance reminder all read it. Shown under Settings → Billing.</summary>
@@ -149,6 +164,21 @@
         <member name="F:Regalis.Shared.Constants.PermissionCodes.Access.Override">
             <summary>The device-down manual fallback — a distinct, separately grantable,
             separately audited privilege (Design Invariant 9).</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.PermissionCodes.Inventory.Receive">
+            <summary>Record and post Incoming Goods.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.PermissionCodes.Inventory.Issue">
+            <summary>Record and post Outgoing Goods, including moves and repairs.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.PermissionCodes.Inventory.Labels">
+            <summary>Print QR labels.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.PermissionCodes.Inventory.Count">
+            <summary>Start and confirm a stock count.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.PermissionCodes.Inventory.Reverse">
+            <summary>Reverse a posted receipt or issue — it changes history.</summary>
         </member>
         <member name="F:Regalis.Shared.Constants.PermissionCodes.Quotation.Approve">
             <summary>Held by the customer: this is the accept/reject decision.</summary>

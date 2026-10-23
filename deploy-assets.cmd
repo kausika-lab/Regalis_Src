@@ -18,9 +18,12 @@ REM    - Purchase orders: "Receive" now posts an Incoming Goods receipt.
 REM    - New permissions INVENTORY.RECEIVE / ISSUE / LABELS / COUNT (roles that can
 REM      add items today) and INVENTORY.REVERSE (Administrator only).
 REM
-REM  REQUIRES the Workspace types release first (deploy-workspace-types.cmd): this
-REM  build contains it, and its migration must already be on the database. The
-REM  script checks and stops if it is not.
+REM  Since 23 Oct 2026 this builds from C:\Users\Administrator\Downloads\Regalis-live
+REM  (branch feature/assets-live = the live UAT API from feature/pass-upgrade, plus
+REM  the Assets module). It does NOT contain the Workspace types release, which
+REM  stays on hold, so that migration is no longer needed first.
+REM  After the Assets migration, 20261023070000_AssetRoomsLinkCabins links the rooms
+REM  Private Cabin 1-3 and 8 Seater Cabin to the renamed cabins by workspace code.
 REM
 REM  Database: migration 20261016030926_AssetsModule, one transaction. Opening
 REM  quantities typed on the old item form become an opening-balance receipt; a
@@ -37,11 +40,11 @@ REM ===========================================================================
 setlocal
 cd /d "%~dp0"
 
-set SRC=C:\Users\Administrator\Downloads\Regalis-assets\backend
+set SRC=C:\Users\Administrator\Downloads\Regalis-live\backend
 set STAGE=%TEMP%\regalis-api-assets
 set TARGET=%~dp0api
 set FRONT=%~dp0frontend
-set BACKUP=C:\inetpub\wwwroot\Regalis_backup_20261016_assets
+set BACKUP=C:\inetpub\wwwroot\Regalis_backup_20261023_assets
 set POOL=regalis-api
 set APPCMD=%SystemRoot%\System32\inetsrv\appcmd.exe
 set DB=RegalisWorkSpace_UAT
@@ -59,13 +62,6 @@ if not exist %SQLCMD% ( echo ERROR: sqlcmd not found at %SQLCMD% & pause & exit 
 if not exist "%~dp0deploy\assets\frontend\assets\AssetItemsPage-AS1.js" ( echo ERROR: staged frontend missing & pause & exit /b 1 )
 where node >nul 2>&1
 if errorlevel 1 ( echo ERROR: node is not on the PATH. & pause & exit /b 1 )
-set WT=
-for /f %%c in ('call %SQLCMD% -S localhost -d %DB% -E -C -h-1 -W -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM __EFMigrationsHistory WHERE MigrationId = '20261014075619_WorkspaceTypeManagement'"') do set WT=%%c
-if not "%WT%"=="1" (
-  echo ERROR: the Workspace types release is not on %DB% yet.
-  echo        Run deploy-workspace-types.cmd first - this build contains it.
-  pause & exit /b 1
-)
 echo OK.
 
 echo.
@@ -76,7 +72,7 @@ robocopy "%FRONT%" "%BACKUP%\frontend" sw.js /NFL /NDL /NJH /NJS /NP
 robocopy "%FRONT%\assets" "%BACKUP%\frontend\assets" index-DI5X4c9f.js /NFL /NDL /NJH /NJS /NP
 REM A bare file name lands in SQL Server's own Backup folder, which its service
 REM account can write to (MSSQL17.MSSQLSERVER\MSSQL\Backup).
-%SQLCMD% -S localhost -E -C -b -Q "BACKUP DATABASE [%DB%] TO DISK = N'%DB%_20261016_assets.bak' WITH COPY_ONLY, INIT"
+%SQLCMD% -S localhost -E -C -b -Q "BACKUP DATABASE [%DB%] TO DISK = N'%DB%_20261023_assets.bak' WITH COPY_ONLY, INIT"
 if errorlevel 1 ( echo Database backup failed. Nothing has been changed. & pause & exit /b 1 )
 echo Backed up to %BACKUP% and SQL Server's Backup folder.
 if exist "%STAGE%" rmdir /s /q "%STAGE%"
@@ -92,6 +88,8 @@ REM would break every item query. The old code ignores the new columns and table
 REM -I: the new tables carry filtered unique indexes (QUOTED_IDENTIFIER must be ON).
 %SQLCMD% -S localhost -d %DB% -E -C -I -b -i "%~dp0db\migrations\20261016030926_AssetsModule.sql"
 if errorlevel 1 ( echo. & echo The migration failed; it runs in a transaction, so nothing was kept. Nothing else has been changed. & pause & exit /b 1 )
+%SQLCMD% -S localhost -d %DB% -E -C -I -b -W -i "%~dp0db\migrations\20261023070000_AssetRoomsLinkCabins.sql"
+if errorlevel 1 ( echo The room-link script failed - the rooms stay unlinked, the module still works. Fix and re-run it. )
 echo Migration applied.
 
 echo.

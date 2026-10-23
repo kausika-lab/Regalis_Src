@@ -109,6 +109,83 @@
             <summary>The device-down fallback. Requires the distinct ACCESS.OVERRIDE
             permission; every use writes an exception log row and an audit entry (A10).</summary>
         </member>
+        <member name="T:Regalis.API.Controllers.AdminAssetsController">
+            <summary>
+            Assets (Regalis_WorkSpace_Assets_Feature_Specification §11.4): Items, Incoming Goods,
+            Outgoing Goods, Current Stock, stock counts and QR labels. Staff only, whatever a role
+            mapping says; every permission is checked here again, hiding a button is not security
+            (§13). There is no route anywhere that accepts a stock figure.
+            </summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.#ctor(Regalis.Application.Operations.IAssetService)">
+            <summary>
+            Assets (Regalis_WorkSpace_Assets_Feature_Specification §11.4): Items, Incoming Goods,
+            Outgoing Goods, Current Stock, stock counts and QR labels. Staff only, whatever a role
+            mapping says; every permission is checked here again, hiding a button is not security
+            (§13). There is no route anywhere that accepts a stock figure.
+            </summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.GetItems(Regalis.Application.Operations.AssetItemListRequest,System.Threading.CancellationToken)">
+            <summary>The master list: one page of rows (50, set by the server), the total, and
+            the five summary figures counted across all records.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.ExportItems(Regalis.Application.Operations.AssetItemListRequest,System.Threading.CancellationToken)">
+            <summary>Same filters as the list, every row, in the team's column order. 204 when empty.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.NextCodes(System.String,System.Int32,System.Threading.CancellationToken)">
+            <summary>The next free codes for a prefix, without taking them.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.ByCode(System.String,System.Threading.CancellationToken)">
+            <summary>A QR sticker scanned inside the app: the code, or the whole text the
+            sticker carries. 404 when no item has that code.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.Labels(Regalis.Application.Operations.AssetItemListRequest,System.Threading.CancellationToken)">
+            <summary>The label sheet for a set of items: ids, or the list's filters.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.ImportPreview(Microsoft.AspNetCore.Http.IFormFile,System.Nullable{System.DateOnly},System.Threading.CancellationToken)">
+            <summary>Checks the team's sheet and shows what would be created. Nothing is saved.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.Import(Microsoft.AspNetCore.Http.IFormFile,System.Nullable{System.DateOnly},System.Threading.CancellationToken)">
+            <summary>Checks the sheet again and, when every row is clean, posts it as one
+            opening-balance receipt.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.CreateItem(Regalis.Application.Operations.CreateAssetItemRequest,System.Threading.CancellationToken)">
+            <summary>One consumable, or N asset records through a posted receipt.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.CloseRepair(System.Int32,System.Int64,Regalis.Application.Operations.CloseRepairRequest,System.Threading.CancellationToken)">
+            <summary>A finished repair: the asset comes back to In use / In store.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.AddDocument(System.Int32,Microsoft.AspNetCore.Http.IFormFile,System.Byte,System.Threading.CancellationToken)">
+            <summary>Purchase invoice, warranty card or photo: .pdf .jpg .png, up to 10 MB.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.OpenPurchaseOrders(System.Nullable{System.Int32},System.Threading.CancellationToken)">
+            <summary>Purchase orders still waiting for goods — "Against purchase order".</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.PreviewReceipt(Regalis.Application.Operations.SaveGoodsReceiptRequest,System.Threading.CancellationToken)">
+            <summary>What posting each line will do — the codes it will take, the stock it will
+            leave. Nothing is saved or reserved.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.CreateReceipt(Regalis.Application.Operations.SaveGoodsReceiptRequest,System.Threading.CancellationToken)">
+            <summary>Creates a draft; with Post = true, creates and posts it in one step.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.PostReceipt(System.Int64,Regalis.Application.Operations.PostGoodsReceiptRequest,System.Threading.CancellationToken)">
+            <summary>Applies it: allocates codes, creates the assets, writes the movements. The
+            irreversible step — a mistake afterwards is reversed.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.CreateIssue(Regalis.Application.Operations.CreateGoodsIssueRequest,System.Threading.CancellationToken)">
+            <summary>Posts a movement out. Stock never goes below zero; an asset in repair
+            cannot move until the repair is closed.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.Stock(System.Nullable{System.DateOnly},System.Nullable{System.DateOnly},System.Nullable{System.Int32},System.Nullable{System.Boolean},System.Threading.CancellationToken)">
+            <summary>Per consumable: opening, in, out, on hand, value, flag — for the period
+            (default: this month so far). Nothing here is stored.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.Ledger(Regalis.Application.Operations.StockLedgerRequest,System.Threading.CancellationToken)">
+            <summary>Every movement, newest first, with the running balance beside each row.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminAssetsController.StartStockCount(Regalis.Application.Operations.StartStockCountRequest,System.Threading.CancellationToken)">
+            <summary>Starts a count: a sheet of every consumable with its recorded quantity hidden.</summary>
+        </member>
         <member name="T:Regalis.API.Controllers.AdminNotificationsController">
             <summary>
             The admin portal's Notifications page: the incoming feed, read state (per admin) and

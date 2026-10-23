@@ -1,8 +1,8 @@
 # Assets module — staged release (16 Oct 2026)
 
-Built from `Regalis_WorkSpace_Assets_Feature_Specification.docx`. **Not deployed.**
-Deploy with `deploy-assets.cmd` (elevated) **after** `deploy-workspace-types.cmd` —
-this build contains the Workspace types release and stops if its migration is missing.
+Built from `Regalis_WorkSpace_Assets_Feature_Specification.docx`. **DEPLOYED to UAT on 23 Oct 2026**
+with `deploy-assets.cmd`, built from `DownloadsRegalis-live` (branch `feature/assets-live`: the live
+API plus Assets, without the Workspace types release, which stays on hold).
 
 ## What is where
 

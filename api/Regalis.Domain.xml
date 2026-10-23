@@ -723,6 +723,144 @@
         <member name="P:Regalis.Domain.Entities.Operations.Announcement.DeliveryNote">
             <summary>What the channels did, e.g. "Email NOT sent: no mail server configured".</summary>
         </member>
+        <member name="T:Regalis.Domain.Entities.Operations.AssetRepair">
+            <summary>TRN_AssetRepair (§11.1 item_repair). Opened by a "Sent for repair" movement;
+            while it is open the asset cannot be moved or issued. Closing it puts the asset back.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.AssetRepair.ReturnStatus">
+            <summary>The status it goes back to: In use or In store.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.ItemEvent">
+            <summary>TRN_ItemEvent (§11.1 item_event): every action on an item, with who did it
+            and when. Append-only — the drawer's Movements tab and "Last movements" read it.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.ItemEvent.EventType">
+            <summary>RECEIVED, MOVED, SENT_FOR_REPAIR, REPAIR_CLOSED, RETURNED, SCRAPPED, LOST,
+            USED_UP, COUNTED, REVERSED, LABEL_PRINTED, EDITED, DEACTIVATED, DOCUMENT_ADDED.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.ItemEvent.EventDate">
+            <summary>The business date (the movement's date), not when it was typed.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.ItemDocument">
+            <summary>TRN_ItemDocument: purchase invoice, warranty card, photos (drawer Documents tab).</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.StockCount">
+            <summary>TRN_StockCount (§8.4). The counter writes what is on the shelf without seeing
+            the recorded figure; confirming writes one adjustment movement per difference. The
+            recorded figure is never overwritten.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.StockCount.CountNumber">
+            <summary>SC-2026-0003.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.StockCount.AssetLocationId">
+            <summary>Only the consumables kept here; null counts every consumable.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.StockCountLine.RecordedQuantity">
+            <summary>The ledger figure when the count was confirmed.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.AssetCategory">
+            <summary>MST_AssetCategory (Assets spec §3.4). Admin-edited, never hard-coded: the
+            default kind and code prefix only pre-fill the item form.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.AssetCategory.CodePrefix">
+            <summary>Suggested code prefix, e.g. R-2W-E-E. The admin may change it per item.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.AssetCategory.UsefulLifeYears">
+            <summary>Straight-line life for book value (§11.3). Null: not depreciated.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.AssetLocation">
+            <summary>MST_AssetLocation (§3.5): a room inside the building, not a city — that is
+            MST_Location. Linked to a workspace when the room is one, so "what is in Private
+            Cabin 3" can be answered from either side.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.AssetLocation.IsStore">
+            <summary>A store room: an asset received or moved here is In store, not In use.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.AssetDetail">
+            <summary>MST_AssetDetail (§11.1 item_asset): the asset-only half of an item, one row
+            per physical unit. Status is set by receipts and movements; book value is computed
+            on read and never stored.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.AssetDetail.CodePrefix">
+            <summary>R-2W-E-EAC — the code is <c>{CodePrefix}-{CodeNumber:000}</c>.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.AssetDetail.LabelPrintedUtc">
+            <summary>When its QR label was last printed. Null: no sticker on it yet.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.AssetDetail.GoodsReceiptLineId">
+            <summary>The receipt line it was born from.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.AssetDetail.RetiredValue">
+            <summary>Amount recovered when scrapped, or credit when returned.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.CodeSequence">
+            <summary>MST_CodeSequence (§11.1 code_sequence): the last running number issued per
+            prefix — asset codes (R-2W-E-EAC → 004) and document numbers (IN-2026 → 0007). The
+            row is locked while numbers are issued, inside the posting transaction, so two admins
+            posting at once never get the same number; numbers are never handed out twice.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.GoodsReceipt">
+            <summary>TRN_GoodsReceipt — Incoming Goods (Assets spec §6). The only way stock goes
+            up and the only way an asset record is born. A draft changes nothing; posting moves
+            stock and creates the assets; a posted receipt is never edited, only reversed by an
+            opposite receipt that stays beside it.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.GoodsReceipt.ReceiptNumber">
+            <summary>IN-2026-0007.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.GoodsReceipt.ReceiptDate">
+            <summary>The day the goods arrived, not the day they were typed in.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.GoodsReceipt.IsOpeningBalance">
+            <summary>The reserved "Opening balance" supplier: stock that was already here.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.GoodsReceipt.IntoLocationId">
+            <summary>Where it physically went. Null only on an import, whose rows carry rooms.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.GoodsReceiptLine">
+            <summary>TRN_GoodsReceiptLine. A consumable line names its item. An asset line
+            describes what to create — name, category, prefix, room, cost — and posting it with a
+            quantity of 8 creates eight separate asset records, each with its own code.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.GoodsReceiptLine.InventoryItemId">
+            <summary>Consumable: the item. Asset: the existing asset it is "more of", if any.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.GoodsReceiptLine.Rate">
+            <summary>Rate each. Null on an asset line means the cost is missing.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.GoodsReceiptLine.SerialNumber">
+            <summary>Only when one unit arrives; several units get theirs from the item page.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.GoodsReceiptLine.FirstCode">
+            <summary>The codes posting created: R-2W-E-EGC-015 … R-2W-E-EGC-022.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.GoodsIssue">
+            <summary>TRN_GoodsIssue — Outgoing Goods (§7). Used up, moved, sent for repair,
+            returned, scrapped or lost. The only way stock goes down and the only way an asset
+            changes room or status. Never deleted; a mistake is reversed.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.GoodsIssue.IssueNumber">
+            <summary>OUT-2026-0042.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.GoodsIssue.RepairVendor">
+            <summary>Sent for repair: who it went to.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.GoodsIssue.CreditNoteRaised">
+            <summary>Returned to supplier: whether a credit note was raised.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.GoodsIssue.AmountRecovered">
+            <summary>Scrapped: what was recovered.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.GoodsIssue.ReportedBy">
+            <summary>Lost: who reported it.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.GoodsIssue.ReasonText">
+            <summary>Returned, scrapped: the reason.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Operations.GoodsIssueLine">
+            <summary>TRN_GoodsIssueLine. For an asset it keeps the status and room before and
+            after, so a reversal can put them back exactly.</summary>
+        </member>
         <member name="T:Regalis.Domain.Entities.Operations.HousekeeperProfile">
             <summary>MST_HousekeeperProfile — the housekeeping details of a staff user (HK-000018).
             The person is an MST_User (Staff, role HOUSEKEEPING) so they can sign in to see their
@@ -759,6 +897,19 @@
         <member name="P:Regalis.Domain.Entities.Operations.InventoryItem.IsNonTaxable">
             <summary>Outside GST altogether, which is not the same as a 0% rate.</summary>
         </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryItem.BrandModel">
+            <summary>Blue Star, Godrej, Featherlite — kept out of the name.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryItem.SupplierId">
+            <summary>Who it was bought from, when that supplier is in the Suppliers module.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryItem.VendorName">
+            <summary>The vendor as written (the team's sheet has names, not supplier records).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryItem.KeptInLocationId">
+            <summary>Consumables: the room it is kept in (Pantry Area, Store). Assets keep their
+            room on <see cref="P:Regalis.Domain.Entities.Operations.InventoryItem.AssetDetail"/>.</summary>
+        </member>
         <member name="T:Regalis.Domain.Entities.Operations.InventoryTransaction">
             <summary>TRN_InventoryTransaction — append-only. There is no update or delete
             endpoint; a mistake is corrected with a compensating Adjustment row.</summary>
@@ -778,6 +929,12 @@
         </member>
         <member name="P:Regalis.Domain.Entities.Operations.InventoryTransaction.AttachmentPath">
             <summary>Delivery note or bill scan. PhotoPath stays damage-specific.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryTransaction.IssueReason">
+            <summary>For an issue row, why it left; read by the ledger and the reports.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Operations.InventoryTransaction.AssetLocationId">
+            <summary>The room the goods came into or were taken from (MST_AssetLocation).</summary>
         </member>
         <member name="T:Regalis.Domain.Entities.Operations.MaintenanceWorkItem">
             <summary>TRN_MaintenanceWorkItem — one checklist task (MW-000142). A work item is the
@@ -815,6 +972,45 @@
         </member>
         <member name="F:Regalis.Domain.Enums.AccessResult.DeviceError">
             <summary>Invariant 9: a DeviceError result never implies a grant.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.ItemKind">
+            <summary>What an item is. Asked first on the item form and never changed afterwards:
+            every movement already recorded against an item assumes its kind. Services (sold on
+            quotations, never stocked) stay <see cref="F:Regalis.Domain.Enums.InventoryItemType.Service"/> items and
+            keep Consumable here.</summary>
+        </member>
+        <member name="F:Regalis.Domain.Enums.ItemKind.Consumable">
+            <summary>A quantity with a unit and a reorder level: coffee, A4 paper.</summary>
+        </member>
+        <member name="F:Regalis.Domain.Enums.ItemKind.Asset">
+            <summary>One physical thing with its own code and QR sticker.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.AssetStatus">
+            <summary>The only statuses an asset can be in (Assets spec §10.4). Set by receipts
+            and movements, never typed.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.GoodsReceiptStatus">
+            <summary>Draft changes nothing; Posted has moved stock and created assets and can
+            only be reversed; Imported came from the first Excel import and behaves as Posted.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.GoodsReceiptSource">
+            <summary>Where a receipt came from.</summary>
+        </member>
+        <member name="F:Regalis.Domain.Enums.GoodsReceiptSource.ItemForm">
+            <summary>The "+ New item" form for assets: it posts a receipt behind the scenes,
+            so every asset is still born from one.</summary>
+        </member>
+        <member name="F:Regalis.Domain.Enums.GoodsReceiptSource.Legacy">
+            <summary>Written by the migration from rows the old Incoming screen recorded.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.GoodsIssueReason">
+            <summary>Why something left (Outgoing Goods). The reason decides the rest of the form.</summary>
+        </member>
+        <member name="F:Regalis.Domain.Enums.GoodsIssueReason.Reversal">
+            <summary>The opposite of a posted issue (reverse), never chosen on the form.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Enums.StockSource">
+            <summary>What wrote a row into the stock ledger (TRN_InventoryTransaction).</summary>
         </member>
         <member name="F:Regalis.Domain.Enums.BookingStatus.Pending">
             <summary>Holds the slot for Booking.PendingHoldMinutes while payment completes.</summary>

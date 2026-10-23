@@ -606,6 +606,18 @@
         <member name="M:Regalis.Infrastructure.Persistence.Migrations.InvoiceCustomerCompanyName.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.AssetsModule">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AssetsModule.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AssetsModule.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.AssetsModule.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="T:Regalis.Infrastructure.Persistence.Seed.DatabaseSeeder">
             <summary>
             Idempotent seeding of the state defined by ROLE_PERMISSION_MATRIX.md and
@@ -983,6 +995,213 @@
         <member name="M:Regalis.Infrastructure.Services.AnnouncementService.Recipients(Regalis.Domain.Enums.AnnouncementAudience,System.Nullable{System.Int64})">
             <summary>Active customers in the audience. Companies and individuals are told
             apart by whether the profile has a company name.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.AssetOperations">
+            <summary>
+            The Assets ledger operations shared by the Assets screens and the purchase order
+            "Receive" action, so both create assets and move stock the same way:
+            running numbers issued under a row lock, on hand summed from the ledger, the item
+            history, and posting a receipt. Every method runs inside the caller's transaction —
+            none of them opens or commits one.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetOperations.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider)">
+            <summary>
+            The Assets ledger operations shared by the Assets screens and the purchase order
+            "Receive" action, so both create assets and move stock the same way:
+            running numbers issued under a row lock, on hand summed from the ledger, the item
+            history, and posting a receipt. Every method runs inside the caller's transaction —
+            none of them opens or commits one.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetOperations.LockSequenceAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Locks the prefix's MST_CodeSequence row (creating it the first time) and returns
+            its last number. The lock is held until the caller's transaction ends, so a second
+            admin posting the same prefix waits instead of being handed the same number.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetOperations.NextDocumentNumberAsync(System.String,System.DateOnly,System.Threading.CancellationToken)">
+            <summary>IN-2026-0007 / OUT-2026-0042 / SC-2026-0003, counted per calendar year.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetOperations.AllocateCodeNumbersAsync(System.String,System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            The next <paramref name="count"/> unused numbers for an asset prefix, issued one at
+            a time and never reused. A number whose code already exists (an item typed in
+            before the sequence knew the prefix) is skipped rather than handed out twice.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetOperations.PeekCodeNumbersAsync(System.String,System.Int32,System.Collections.Generic.IReadOnlyDictionary{System.String,System.Int32},System.Threading.CancellationToken)">
+            <summary>What <see cref="M:Regalis.Infrastructure.Services.AssetOperations.AllocateCodeNumbersAsync(System.String,System.Int32,System.Threading.CancellationToken)"/> would hand out now, without
+            taking anything: the receipt form's "Will create … R-2W-E-EGC-015 to -022".
+            <paramref name="alreadyPlanned"/> carries numbers earlier lines of the same form
+            will take.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetOperations.OnHandAsync(System.Collections.Generic.IReadOnlyCollection{System.Int32},System.Threading.CancellationToken)">
+            <summary>On hand per item: the legacy opening quantity plus the signed sum of
+            every ledger row. Computed on read; there is no column that holds it.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetOperations.Signed(Regalis.Domain.Enums.InventoryTransactionType,System.Decimal)">
+            <summary>Signed effect of a ledger row on stock.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetOperations.LedgerRowAsync(Regalis.Domain.Entities.Operations.InventoryItem,Regalis.Domain.Enums.InventoryTransactionType,System.Decimal,System.DateOnly,Regalis.Domain.Enums.StockSource,System.Int64,System.String,System.Nullable{System.Int32},System.Threading.CancellationToken,System.Nullable{Regalis.Domain.Enums.GoodsIssueReason})">
+            <summary>A ledger row numbered from the shared ITX- sequence.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetOperations.DefaultBranchIdAsync(System.Threading.CancellationToken)">
+            <summary>The branch (MST_Location) every item row needs. Assets and consumables
+            carry their room separately.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetOperations.PostReceiptAsync(Regalis.Domain.Entities.Operations.GoodsReceipt,System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Applies a receipt (§6): consumable lines write one ledger row each; asset lines
+            create one asset record per unit, each with the next code under its prefix, and a
+            ledger row and a history row for each. <paramref name="updatePurchaseOrder"/>
+            moves the PO lines' received quantities (the Incoming Goods path; the PO's own
+            Receive action has already done it). The caller holds the transaction.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetOperations.RefreshPurchaseOrderStatusAsync(System.Int64,System.String,System.Threading.CancellationToken)">
+            <summary>Sets a purchase order to Received / Partially received / Sent from its
+            lines, with a status history row when it changes.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetOperations.IsReceivable(Regalis.Domain.Enums.PurchaseOrderStatus)">
+            <summary>A purchase order goods can be received against.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.AssetService">
+            <summary>
+            Assets (Regalis_WorkSpace_Assets_Feature_Specification, Oct 2026): Items, Incoming
+            Goods, Outgoing Goods, Current Stock and QR labels. The rules it never breaks:
+            on hand is always summed from the ledger and never typed; stock never goes below
+            zero (checked inside the writing transaction); posted receipts and issues are
+            reversed, never edited; nothing is deleted; codes are never reused; kind never
+            changes; every figure is counted on the server across all rows.
+            </summary>
+            <summary>
+            Bringing in the list Regalis already has (§12): the team's own sheet, in its own
+            columns, becomes ONE opening-balance receipt. A row with Quantity 8 becomes eight
+            asset records, each with its own code under the row's Asset ID prefix. Nothing is
+            written until every row is clean; the preview shows the codes first.
+            </summary>
+            <summary>Outgoing Goods (§7): the only way stock goes down and the only way an asset
+            changes room or status. The reason chosen decides everything after it.</summary>
+            <summary>Incoming Goods (§6): the only way stock goes up and the only way an asset
+            record is born.</summary>
+            <summary>Current Stock (§8): every figure worked out from the movements, none stored.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Infrastructure.Services.AssetOperations,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Services.StorageOptions})">
+            <summary>
+            Assets (Regalis_WorkSpace_Assets_Feature_Specification, Oct 2026): Items, Incoming
+            Goods, Outgoing Goods, Current Stock and QR labels. The rules it never breaks:
+            on hand is always summed from the ledger and never typed; stock never goes below
+            zero (checked inside the writing transaction); posted receipts and issues are
+            reversed, never edited; nothing is deleted; codes are never reused; kind never
+            changes; every figure is counted on the server across all rows.
+            </summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Services.AssetService.ItemsPageSize">
+            <summary>"Fifty rows a page, with the page size set by the server" (§4.5).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.InTransactionAsync``1(System.Func{System.Threading.Tasks.Task{``0}},System.Threading.CancellationToken)">
+            <summary>Serializable, like the ledger's own writes: the stock check and the write
+            it guards happen in one transaction, so two admins cannot both pass it.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.ConsumableStockAsync(System.Threading.CancellationToken)">
+            <summary>On hand for every active consumable — the Below reorder card and filter
+            work on derived stock, so they are worked out across all of them.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.SummaryAsync(System.Threading.CancellationToken)">
+            <summary>The five cards, counted across every active record (§4.2).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.CreateAssetsAsync(Regalis.Application.Operations.CreateAssetItemRequest,System.Threading.CancellationToken)">
+            <summary>The asset form (§5.1). "How many are you adding?" = 4 creates FOUR records,
+            -001 to -004, through a posted receipt — so even these assets are born from Incoming
+            Goods, with a movement behind each.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.SetActiveAsync(System.Int32,System.Boolean,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Items are made inactive, never deleted. An asset leaves the register through a
+            movement (scrapped, lost, returned) — so only a retired asset can be made inactive.
+            A consumable must have nothing on hand, so stock never vanishes without a row.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.CloseRepairAsync(System.Int32,System.Int64,Regalis.Application.Operations.CloseRepairRequest,System.Threading.CancellationToken)">
+            <summary>"A repair that is finished is closed from the item page, which writes a
+            matching movement back in" (§7.2): the asset goes back to In use / In store.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.GetLabelsAsync(Regalis.Application.Operations.AssetItemListRequest,System.Threading.CancellationToken)">
+            <summary>The label sheet (§9): one label per asset still in the register. Consumables
+            are skipped — there is no single thing to stick a label on — and counted.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.MarkLabelsPrintedAsync(Regalis.Application.Operations.MarkLabelsPrintedRequest,System.Threading.CancellationToken)">
+            <summary>Records when each label was printed — what empties the "No QR printed"
+            card. Reprinting is always allowed; the code never changes.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.MatchCategory(System.String,System.Collections.Generic.List{Regalis.Domain.Entities.Operations.AssetCategory})">
+            <summary>The sheet's three category words, mapped to the admin's categories: an exact
+            name first, then the obvious family ("Electrical" → Electrical / Appliance).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.PlanIssueAsync(Regalis.Application.Operations.CreateGoodsIssueRequest,System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Works out, line by line, whether the movement may happen. Shared by the preview
+            (which only reports) and posting (which runs it again inside the transaction, so
+            the stock it checks is the stock it writes against).
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.ReverseIssueAsync(System.Int64,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Nothing on Outgoing Goods is deleted: a mistake is corrected by the opposite entry
+            (§7.1). Consumables come back in; an asset goes back to the room and status it had —
+            but only while it is still exactly as this movement left it.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.SaveReceiptCoreAsync(System.Nullable{System.Int64},Regalis.Application.Operations.SaveGoodsReceiptRequest,Regalis.Domain.Enums.GoodsReceiptSource,System.Threading.CancellationToken)">
+            <summary>Saves (and with <c>Post</c>, posts) a receipt inside the caller's transaction.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.BuildReceiptLinesAsync(Regalis.Application.Operations.SaveGoodsReceiptRequest,Regalis.Domain.Enums.GoodsReceiptSource,System.Threading.CancellationToken)">
+            <summary>Turns the form's lines into receipt lines. An asset line that names an
+            existing asset ("more of these") takes its name, category, prefix, brand and vendor
+            wherever the form left them blank.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.ValidateReceiptForPostAsync(Regalis.Domain.Entities.Operations.GoodsReceipt,System.Boolean,System.Threading.CancellationToken)">
+            <summary>Everything posting needs, checked before anything moves.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.ReverseReceiptAsync(System.Int64,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Writes the opposite receipt and keeps both (§6.1). Consumables go back out — never
+            below zero. Assets it created are taken out of the register and made inactive, but
+            only while they are still exactly as they arrived; their codes stay retired.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.PreviewReceiptAsync(Regalis.Application.Operations.SaveGoodsReceiptRequest,System.Threading.CancellationToken)">
+            <summary>"Under every line the form states, in plain words, exactly what posting
+            will cause" (§6.3): the actual codes an asset line will take, and the before and
+            after stock of a consumable line. Nothing is saved or reserved.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.GetOpenPurchaseOrdersAsync(System.Nullable{System.Int32},System.Threading.CancellationToken)">
+            <summary>Purchase orders still waiting for goods, with what each line has left, so
+            "Against purchase order" can fill the receipt lines in one click.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.GetAssetsByLocationAsync(System.Threading.CancellationToken)">
+            <summary>One row per room: how many assets, what they are worth, how many are in
+            repair. No "on hand" for assets — each is counted individually.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.AssetService.LedgerSqlRow">
+            <summary>A ledger row with its running balance, read straight from SQL: the window
+            runs over every row of the item, before any filter, so the balance is exact on
+            any page.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.SubmitStockCountAsync(System.Int64,Regalis.Application.Operations.SubmitStockCountRequest,System.Threading.CancellationToken)">
+            <summary>Takes the counted figures and shows the differences against the ledger:
+            "Coffee — recorded 7, counted 5, short 2". Nothing is written to the ledger yet.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.ConfirmStockCountAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Writes one adjustment movement per difference, with the reason "stock
+            count", the date and who counted (§8.4). The recorded figure is never overwritten:
+            it is corrected by a movement, like everything else.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.AssetService.ExportItemsAsync(Regalis.Application.Operations.AssetItemListRequest,System.Threading.CancellationToken)">
+            <summary>Every filtered row, in the column order of the team's own asset sheet,
+            then the fields the app adds.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Services.AttendanceRecorder">
             <summary>
@@ -1397,6 +1616,10 @@
             <summary>A ledger row as the screen records it — numbered from the shared sequence,
             entered by the caller. Excel imports build their rows here too.</summary>
         </member>
+        <member name="M:Regalis.Infrastructure.Services.InventoryService.EnsureNotAsset(Regalis.Domain.Entities.Operations.InventoryItem)">
+            <summary>Assets are one record per physical unit and only move through the Assets
+            screens (receipts, movements), never through these older item routes.</summary>
+        </member>
         <member name="M:Regalis.Infrastructure.Services.InventoryService.ExportItemsExcelAsync(Regalis.Application.Operations.InventoryItemListRequest,System.Threading.CancellationToken)">
             <summary>The item master as an Excel workbook, with the same filters as the Items
             screen (search, category, location, below-reorder) and every matching row —
@@ -1628,12 +1851,13 @@
              with Cancelled reachable until goods arrive. Only a Draft can be edited; from Sent
              the PO is frozen. Each step writes a status-history row and a named audit row.
             
-             Receiving goods writes the incoming TRN_InventoryTransaction rows, the line
-             receipts and the header status inside one serializable transaction — stock and the
-             order can never disagree (Invariant 11).
+             Receiving goods posts an Incoming Goods receipt (TRN_GoodsReceipt) for the lines tied
+             to the item master — the same posting the Assets screens use, so asset lines become
+             coded asset records — together with the line receipts and the header status inside
+             one serializable transaction: stock and the order can never disagree (Invariant 11).
              </summary>
         </member>
-        <member name="M:Regalis.Infrastructure.Services.PurchaseOrderService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Regalis.Application.Abstractions.ISettingService,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Services.StorageOptions})">
+        <member name="M:Regalis.Infrastructure.Services.PurchaseOrderService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Regalis.Application.Abstractions.ISettingService,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Services.StorageOptions},Regalis.Infrastructure.Services.AssetOperations)">
              <summary>
              Purchase orders (document §4). Three rules carry the weight here.
             
@@ -1647,9 +1871,10 @@
              with Cancelled reachable until goods arrive. Only a Draft can be edited; from Sent
              the PO is frozen. Each step writes a status-history row and a named audit row.
             
-             Receiving goods writes the incoming TRN_InventoryTransaction rows, the line
-             receipts and the header status inside one serializable transaction — stock and the
-             order can never disagree (Invariant 11).
+             Receiving goods posts an Incoming Goods receipt (TRN_GoodsReceipt) for the lines tied
+             to the item master — the same posting the Assets screens use, so asset lines become
+             coded asset records — together with the line receipts and the header status inside
+             one serializable transaction: stock and the order can never disagree (Invariant 11).
              </summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.PurchaseOrderService.ApplyAsync(Regalis.Domain.Entities.Finance.PurchaseOrder,Regalis.Application.Finance.SavePurchaseOrderRequest,Regalis.Domain.Entities.Finance.Supplier,Regalis.Domain.Entities.Masters.Location,System.Threading.CancellationToken)">

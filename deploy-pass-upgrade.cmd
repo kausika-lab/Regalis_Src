@@ -2,7 +2,9 @@
 REM ===========================================================================
 REM  One day pass at a time (23 Oct 2026).
 REM
-REM  API (source: Downloads\Regalis-passes, branch feature/pass-upgrade):
+REM  API (source since 23 Oct: Downloads\Regalis-live, branch feature/assets-live,
+REM  which contains feature/pass-upgrade plus Assets; building from Regalis-passes
+REM  would remove Assets from UAT):
 REM    - GET /api/passes/purchase-options?type=1: the live day pass and, per plan,
 REM      whether it can be bought, whether it is an upgrade, and the price after the
 REM      unused days of the live pass are credited (price paid x remaining / total).
@@ -20,7 +22,7 @@ REM        git checkout the Passes chunk and sw.js.
 REM ===========================================================================
 setlocal
 cd /d "%~dp0"
-set SRC=C:\Users\Administrator\Downloads\Regalis-passes\backend
+set SRC=C:\Users\Administrator\Downloads\Regalis-live\backend
 set STAGE=%TEMP%\regalis-api-publish-passes
 set TARGET=%~dp0api
 set BACKUP=C:\inetpub\wwwroot\Regalis_backup_20261023_pass_upgrade

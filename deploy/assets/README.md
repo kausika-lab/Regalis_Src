@@ -1,15 +1,15 @@
 # Assets module — staged release (16 Oct 2026)
 
 Built from `Regalis_WorkSpace_Assets_Feature_Specification.docx`. **DEPLOYED to UAT on 23 Oct 2026**
-with `deploy-assets.cmd`, built from `DownloadsRegalis-live` (branch `feature/assets-live`: the live
+with `deploy-assets.cmd`, built from `Downloads\Regalis-live` (branch `feature/assets-live`: the live
 API plus Assets, without the Workspace types release, which stays on hold).
 
 ## What is where
 
 | Part | Location |
 |---|---|
-| API source | `C:\Users\Administrator\Downloads\Regalis-assets` (git worktree, branch `feature/assets`, uncommitted, on top of the Workspace types changes) |
-| Migration | `db\migrations\20261016030926_AssetsModule.sql` (+ `_Rollback.sql`) |
+| API source | `C:\Users\Administrator\Downloads\Regalis-live` (git worktree, branch `feature/assets-live`, committed: the live UAT API plus Assets). The original build in `Regalis-assets` (`feature/assets`) also carries Workspace types |
+| Migration | `db\migrations\20261016030926_AssetsModule.sql` (+ `_Rollback.sql`), then `20261023070000_AssetRoomsLinkCabins.sql` |
 | Frontend | `deploy\assets\frontend\assets\*-AS1.js` (5 chunks), installed by `apply.mjs` |
 | Checks | `deploy\assets\verify.ps1` (run by the deploy) |
 | Evidence | `deploy\assets\evidence\e2e-assets.mjs` (kept on the server, not in git) — the browser walkthrough script; its screenshots were cleared on 23 Oct 2026 |

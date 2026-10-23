@@ -65,15 +65,15 @@ public class User : AuditableEntity
     /// </summary>
     public bool IsProfileComplete =>
         UserType != UserType.Customer ||
+        // Company name and GSTIN are optional (23 Oct 2026): an individual member has
+        // neither, and their invoice is simply issued without them.
         (!string.IsNullOrWhiteSpace(MobileNumber) &&
-         !string.IsNullOrWhiteSpace(CompanyName) &&
          !string.IsNullOrWhiteSpace(AddressLine1) &&
          !string.IsNullOrWhiteSpace(AddressLine2) &&
          !string.IsNullOrWhiteSpace(City) &&
          !string.IsNullOrWhiteSpace(State) &&
          !string.IsNullOrWhiteSpace(Country) &&
          !string.IsNullOrWhiteSpace(PostalCode) &&
-         !string.IsNullOrWhiteSpace(Gstin) &&
          DateOfBirth is not null &&
          Gender is not null);
 

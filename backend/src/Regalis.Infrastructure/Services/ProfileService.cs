@@ -166,8 +166,8 @@ public class ProfileService(
             if (!present) missing.Add(name);
         }
 
+        // Company name and GSTIN are optional (23 Oct 2026), as in User.IsProfileComplete.
         Require("mobileNumber", !string.IsNullOrWhiteSpace(user.MobileNumber));
-        Require("companyName", !string.IsNullOrWhiteSpace(user.CompanyName));
         Require("addressLine1", !string.IsNullOrWhiteSpace(user.AddressLine1));
         Require("addressLine2", !string.IsNullOrWhiteSpace(user.AddressLine2));
         Require("city", !string.IsNullOrWhiteSpace(user.City));
@@ -176,7 +176,6 @@ public class ProfileService(
         Require("postalCode", !string.IsNullOrWhiteSpace(user.PostalCode));
         Require("dateOfBirth", user.DateOfBirth is not null);
         Require("gender", user.Gender is not null);
-        Require("gstin", !string.IsNullOrWhiteSpace(user.Gstin));
         return missing;
     }
 

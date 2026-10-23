@@ -45,7 +45,8 @@ public class CompleteOnboardingRequestValidator : AbstractValidator<CompleteOnbo
             .Matches(@"^\+?[0-9]{10,15}$")
             .WithMessage("Enter a valid mobile number (10–15 digits).");
 
-        RuleFor(x => x.CompanyName).NotEmpty().MaximumLength(200);
+        // Optional (23 Oct 2026): individual members have no company.
+        RuleFor(x => x.CompanyName).MaximumLength(200);
 
         RuleFor(x => x.AddressLine1).NotEmpty().MaximumLength(200);
         RuleFor(x => x.AddressLine2).NotEmpty().MaximumLength(200);
@@ -73,10 +74,11 @@ public class CompleteOnboardingRequestValidator : AbstractValidator<CompleteOnbo
 
         // Case-insensitive here and upper-cased on save, so someone typing their GSTIN in
         // lower case is not told it is invalid when it plainly is not.
+        // Optional (23 Oct 2026), but checked when one is given.
         RuleFor(x => x.Gstin)
-            .NotEmpty()
             .Matches(@"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+            .When(x => !string.IsNullOrWhiteSpace(x.Gstin))
             .WithMessage("Enter a valid 15-character GSTIN.");
     }
 }

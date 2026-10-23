@@ -79,9 +79,11 @@ public class OnboardingTests(RegalisApiFactory factory)
 
         status.IsComplete.Should().BeFalse();
         status.MissingFields.Should().Contain([
-            "mobileNumber", "companyName", "addressLine1", "addressLine2",
-            "city", "state", "country", "postalCode", "dateOfBirth", "gender", "gstin"
+            "mobileNumber", "addressLine1", "addressLine2",
+            "city", "state", "country", "postalCode", "dateOfBirth", "gender"
         ]);
+        // Company name and GSTIN are optional since 23 Oct 2026.
+        status.MissingFields.Should().NotContain("companyName").And.NotContain("gstin");
         // Whatever Google did give us is echoed back so the form can pre-fill.
         status.Profile.FullName.Should().Be("Google Member");
         status.Profile.IsGoogleLinked.Should().BeTrue();

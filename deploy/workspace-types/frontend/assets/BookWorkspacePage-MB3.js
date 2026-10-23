@@ -59,6 +59,29 @@ function eachDay(from, to) {
 function addDaysIso(iso, n) {
   return new Date(dms(iso) + n * 864e5).toISOString().slice(0, 10);
 }
+/* The first day a booking can still start, in IST: today until the last half-hour slot
+   of the working day has begun, otherwise the next working day (deploy/next-open-day). */
+function istNow() {
+  const p = {};
+  for (const x of new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date()))
+    p[x.type] = x.value;
+  return { date: `${p.year}-${p.month}-${p.day}`, minutes: Number(p.hour) * 60 + Number(p.minute) };
+}
+function firstOpenDay(loc) {
+  const now = istNow();
+  const days = String(loc?.workingDays ?? "").toUpperCase().split(",").map((s) => s.trim()).filter(Boolean);
+  /* No closing time known (location not loaded yet): today stays open. */
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(loc?.workingHoursEnd ?? ""));
+  const endMin = m ? Number(m[1]) * 60 + Number(m[2]) : 24 * 60;
+  for (let i = 0; i < 14; i++) {
+    const d = addDaysIso(now.date, i);
+    const wd = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][new Date(`${d}T12:00:00Z`).getUTCDay()];
+    if (days.length && !days.includes(wd)) continue;
+    if (i === 0 && now.minutes >= endMin - 30) continue;
+    return d;
+  }
+  return now.date;
+}
 const VO_CODE = /^MEM-VIRTUAL-(\d+)M$/;
 function VOMONTHS(t) {
   const m = VO_CODE.exec(t?.planCode ?? "");
@@ -123,7 +146,7 @@ function Ee() {
   const z = ye((t) => t.locationId);
   const [j, M] = a.useState("");
   const [v, Q] = a.useState("");
-  const w = new Date().toISOString().slice(0, 10);
+  const w = firstOpenDay(null);
   const [b, ie] = a.useState(w);
   const [A, q] = a.useState(w);
   const W = b === A;
@@ -144,6 +167,19 @@ function Ee() {
   const [voPlan, setVoPlan] = a.useState(null);
   const [voDone, setVoDone] = a.useState(null);
   const K = g.find((t) => String(t.locationId) === j) ?? null;
+
+  /* Move the dates on when today is over or closed (deploy/next-open-day). */
+  const [openTick, setOpenTick] = a.useState(0);
+  a.useEffect(() => {
+    const id = setInterval(() => setOpenTick((x) => x + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
+  const minDay = firstOpenDay(K);
+  a.useEffect(() => {
+    if (!K) return;
+    if (b < minDay) ie(minDay);
+    if (A < minDay) q(minDay);
+  }, [K?.locationId, openTick, minDay]);
 
   /* A Virtual Office is a business address, not a room: no slots, no workspace to
      pick, and it is sold by the month as a MEM-VIRTUAL-* pass plan. */
@@ -815,7 +851,7 @@ function Ee() {
                     label: isVO || isM ? "Starts on" : "From date",
                     type: "date",
                     value: b,
-                    min: w,
+                    min: minDay,
                     onChange: (t) => {
                       const s = t.target.value;
                       ie(s);
@@ -828,7 +864,7 @@ function Ee() {
                       label: "To date",
                       type: "date",
                       value: A,
-                      min: b || w,
+                      min: b || minDay,
                       onChange: (t) => q(t.target.value),
                     }),
                   !isVO &&

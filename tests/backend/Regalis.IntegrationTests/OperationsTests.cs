@@ -172,10 +172,11 @@ public class OperationsTests(RegalisApiFactory factory)
 
     // ── Inventory: derived stock over an append-only ledger ─────────────────
 
-    private static SaveInventoryItemRequest ItemRequest(string code, decimal opening = 10m,
+    // No opening quantity on an item (Assets spec §5.2): stock arrives as a movement.
+    private static SaveInventoryItemRequest ItemRequest(string code,
         decimal reorder = 5m) => new(
         ItemCode: code, ItemName: $"Item {code}", Category: "Pantry", Unit: "Nos",
-        OpeningQuantity: opening, ReorderLevel: reorder, UnitCost: 25m, LocationId: 1,
+        OpeningQuantity: 0m, ReorderLevel: reorder, UnitCost: 25m, LocationId: 1,
         Description: null);
 
     [Fact]
@@ -186,7 +187,7 @@ public class OperationsTests(RegalisApiFactory factory)
         var created = await admin.PostAsJsonAsync("/api/inventory/items", ItemRequest(code));
         created.StatusCode.Should().Be(HttpStatusCode.Created);
         var item = (await created.Content.ReadFromJsonAsync<ApiResponse<InventoryItemDto>>())!.Data!;
-        item.CurrentStock.Should().Be(10m);
+        item.CurrentStock.Should().Be(0m, "an item starts with nothing until a movement brings stock in");
 
         async Task PostTxnAsync(byte type, decimal qty, string? damage = null)
         {
@@ -196,6 +197,7 @@ public class OperationsTests(RegalisApiFactory factory)
             r.StatusCode.Should().Be(HttpStatusCode.Created);
         }
 
+        await PostTxnAsync(4, 10m);            // Opening balance: 10
         await PostTxnAsync(1, 20m);            // In: 30
         await PostTxnAsync(2, 12m);            // Out: 18
         await PostTxnAsync(3, 3m, "Broken");   // Damage: 15
@@ -249,7 +251,7 @@ public class OperationsTests(RegalisApiFactory factory)
 
         // An edit that does not send the sales fields leaves them alone.
         var edited = await admin.PutAsJsonAsync($"/api/inventory/items/{item.InventoryItemId}",
-            ItemRequest(code) with { OpeningQuantity = 0m });
+            ItemRequest(code));
         edited.EnsureSuccessStatusCode();
         var after = (await edited.Content.ReadFromJsonAsync<ApiResponse<InventoryItemDto>>())!.Data!;
         after.SellingRate.Should().Be(1799m);
@@ -286,8 +288,12 @@ public class OperationsTests(RegalisApiFactory factory)
         var admin = await AdminClientAsync();
         var code = $"INV-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}";
         var created = await admin.PostAsJsonAsync("/api/inventory/items",
-            ItemRequest(code, opening: 5m, reorder: 1m));
+            ItemRequest(code, reorder: 1m));
         var item = (await created.Content.ReadFromJsonAsync<ApiResponse<InventoryItemDto>>())!.Data!;
+        (await admin.PostAsJsonAsync("/api/inventory/transactions",
+            new CreateInventoryTransactionRequest(item.InventoryItemId, 4, 5m,
+                null, "Opening balance", null, null, null, null, null)))
+            .StatusCode.Should().Be(HttpStatusCode.Created);
 
         // Issuing more than the stock is refused.
         var overdraw = await admin.PostAsJsonAsync("/api/inventory/transactions",
@@ -308,7 +314,7 @@ public class OperationsTests(RegalisApiFactory factory)
         // Append-only: there is no update or delete route on the ledger.
         var txns = (await admin.GetFromJsonAsync<ApiResponse<PagedResult<InventoryTransactionDto>>>(
             $"/api/inventory/transactions?inventoryItemId={item.InventoryItemId}"))!.Data!;
-        txns.TotalCount.Should().Be(1);
+        txns.TotalCount.Should().Be(2, "the opening balance and the adjustment");
         var txnId = txns.Items[0].InventoryTransactionId;
         (await admin.PutAsJsonAsync($"/api/inventory/transactions/{txnId}", new { }))
             .StatusCode.Should().BeOneOf(HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed);

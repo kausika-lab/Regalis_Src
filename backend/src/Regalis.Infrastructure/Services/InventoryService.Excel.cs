@@ -555,7 +555,11 @@ public partial class InventoryService
             var description = row.Text("Description");
             if (description is { Length: > 500 }) errors.Add("Description is longer than 500 characters.");
 
-            if (code is not null && existingByCode.TryGetValue(code, out var existing))
+            if (code is not null && existingByCode.TryGetValue(code, out var existing) && existing.Kind == ItemKind.Asset)
+            {
+                errors.Add($"{existing.ItemCode} is an asset: edit it on Assets → Items.");
+            }
+            else if (code is not null && existingByCode.TryGetValue(code, out existing))
             {
                 check.Existing = existing;
                 if (mode == InventoryImportModes.Skip)
@@ -631,6 +635,11 @@ public partial class InventoryService
             else if (item.ItemType == InventoryItemType.Service)
             {
                 errors.Add($"{item.ItemCode} is a service, so it has no stock to move.");
+                item = null;
+            }
+            else if (item.Kind == ItemKind.Asset)
+            {
+                errors.Add($"{item.ItemCode} is an asset: it moves through Assets → Incoming / Outgoing Goods.");
                 item = null;
             }
 

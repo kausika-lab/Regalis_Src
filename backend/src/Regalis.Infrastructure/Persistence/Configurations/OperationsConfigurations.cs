@@ -28,6 +28,19 @@ public class InventoryItemConfiguration : IEntityTypeConfiguration<InventoryItem
 
         builder.HasOne<Location>().WithMany()
             .HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Restrict);
+
+        // Assets module. Kind has no EF default for the same reason as the bools above;
+        // the migration backfills existing rows as consumables.
+        builder.Property(x => x.BrandModel).HasMaxLength(150);
+        builder.Property(x => x.VendorName).HasMaxLength(150);
+        builder.Property(x => x.Remarks).HasMaxLength(500);
+        builder.HasIndex(x => new { x.Kind, x.AssetCategoryId }).HasDatabaseName("IX_InventoryItem_Kind_Category");
+        builder.HasOne(x => x.AssetCategory).WithMany()
+            .HasForeignKey(x => x.AssetCategoryId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Regalis.Domain.Entities.Finance.Supplier>().WithMany()
+            .HasForeignKey(x => x.SupplierId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<AssetLocation>().WithMany()
+            .HasForeignKey(x => x.KeptInLocationId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -60,6 +73,12 @@ public class InventoryTransactionConfiguration : IEntityTypeConfiguration<Invent
 
         builder.HasOne(x => x.InventoryItem).WithMany(x => x.Transactions)
             .HasForeignKey(x => x.InventoryItemId).OnDelete(DeleteBehavior.Restrict);
+
+        // The document behind a row: Current Stock's ledger links back to it.
+        builder.HasIndex(x => new { x.SourceType, x.SourceId }).HasDatabaseName("IX_InvTxn_Source")
+            .HasFilter("[SourceType] IS NOT NULL");
+        builder.HasOne<AssetLocation>().WithMany()
+            .HasForeignKey(x => x.AssetLocationId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

@@ -47,6 +47,11 @@ public partial class InventoryService(
             var type = (InventoryItemType)request.ItemType.Value;
             query = query.Where(i => i.ItemType == type);
         }
+        // Asset units (one row per physical thing, Assets module) stay off the pickers this
+        // list feeds — quotations, purchase orders — unless asked for by kind.
+        query = request.Kind is { } kind
+            ? query.Where(i => i.Kind == (ItemKind)kind)
+            : query.Where(i => i.Kind != ItemKind.Asset);
         return query;
     }
 
@@ -95,6 +100,10 @@ public partial class InventoryService(
         CancellationToken ct = default)
     {
         var code = request.ItemCode.Trim().ToUpperInvariant();
+        if (request.OpeningQuantity != 0)
+        {
+            throw new BusinessRuleException(NoOpeningQuantity);
+        }
         if (await db.InventoryItems.AnyAsync(i => i.ItemCode == code, ct))
         {
             throw new ConflictException($"Item code {code} is already in use.");
@@ -116,14 +125,13 @@ public partial class InventoryService(
         var item = await db.InventoryItems
             .FirstOrDefaultAsync(i => i.InventoryItemId == itemId, ct)
             ?? throw new NotFoundException("InventoryItem", itemId);
-        // The code and the opening quantity are frozen once the ledger has rows —
-        // history must keep meaning what it meant.
+        EnsureNotAsset(item);
+        // The code and the opening quantity are frozen: stock only ever changes through a
+        // movement (Assets spec §5.2) — history must keep meaning what it meant.
         var hasLedger = await db.InventoryTransactions.AnyAsync(t => t.InventoryItemId == itemId, ct);
-        if (hasLedger && item.OpeningQuantity != request.OpeningQuantity)
+        if (item.OpeningQuantity != request.OpeningQuantity)
         {
-            throw new BusinessRuleException(
-                "This item has ledger entries. Correct the stock with an Adjustment transaction, " +
-                "not by editing the opening quantity.");
+            throw new BusinessRuleException(NoOpeningQuantity);
         }
         if (hasLedger && request.ItemType == (byte)InventoryItemType.Service
             && item.ItemType != InventoryItemType.Service)
@@ -141,6 +149,7 @@ public partial class InventoryService(
         var item = await db.InventoryItems
             .FirstOrDefaultAsync(i => i.InventoryItemId == itemId, ct)
             ?? throw new NotFoundException("InventoryItem", itemId);
+        EnsureNotAsset(item);
         if (await db.InventoryTransactions.AnyAsync(t => t.InventoryItemId == itemId, ct))
         {
             throw new BusinessRuleException(
@@ -155,7 +164,7 @@ public partial class InventoryService(
     {
         // Services hold no stock, so they have no place on the stock view.
         var itemsQuery = db.InventoryItems.AsNoTracking()
-            .Where(i => i.ItemType != InventoryItemType.Service);
+            .Where(i => i.ItemType != InventoryItemType.Service && i.Kind != ItemKind.Asset);
         if (locationId is not null)
         {
             itemsQuery = itemsQuery.Where(i => i.LocationId == locationId);
@@ -211,6 +220,7 @@ public partial class InventoryService(
                 throw new BusinessRuleException(
                     $"{item.ItemName} is a service, so it has no stock to move.");
             }
+            EnsureNotAsset(item);
 
             var movements = await MovementsByItemAsync([item.InventoryItemId], ct);
             var current = CurrentStock(item, movements);
@@ -305,6 +315,21 @@ public partial class InventoryService(
             .Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
         var todayIst = IstClock.IstDateOf(clock.UtcNow);
         return new InventoryExportResult(content, "text/csv", $"inventory_{todayIst:yyyyMMdd}.csv");
+    }
+
+    private const string NoOpeningQuantity =
+        "There is no opening quantity: an item's stock only comes from movements. " +
+        "Record the first stock on Assets → Incoming Goods as an opening balance.";
+
+    /// <summary>Assets are one record per physical unit and only move through the Assets
+    /// screens (receipts, movements), never through these older item routes.</summary>
+    private static void EnsureNotAsset(InventoryItem item)
+    {
+        if (item.Kind == ItemKind.Asset)
+        {
+            throw new BusinessRuleException(
+                $"{item.ItemCode} is an asset. It is edited on Assets → Items and moves through Incoming / Outgoing Goods.");
+        }
     }
 
     // ── Derivation ──────────────────────────────────────────────────────────

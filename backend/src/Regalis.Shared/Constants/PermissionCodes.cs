@@ -152,6 +152,18 @@ public static class PermissionCodes
         public const string Edit = "INVENTORY.EDIT";
         public const string Delete = "INVENTORY.DELETE";
         public const string Export = "INVENTORY.EXPORT";
+
+        // Assets spec §13. VIEW is assets.view; CREATE and EDIT together are assets.manage.
+        /// <summary>Record and post Incoming Goods.</summary>
+        public const string Receive = "INVENTORY.RECEIVE";
+        /// <summary>Record and post Outgoing Goods, including moves and repairs.</summary>
+        public const string Issue = "INVENTORY.ISSUE";
+        /// <summary>Print QR labels.</summary>
+        public const string Labels = "INVENTORY.LABELS";
+        /// <summary>Start and confirm a stock count.</summary>
+        public const string Count = "INVENTORY.COUNT";
+        /// <summary>Reverse a posted receipt or issue — it changes history.</summary>
+        public const string Reverse = "INVENTORY.REVERSE";
     }
 
     public static class Supplier

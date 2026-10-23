@@ -32,9 +32,10 @@ namespace Regalis.Infrastructure.Services;
 /// with Cancelled reachable until goods arrive. Only a Draft can be edited; from Sent
 /// the PO is frozen. Each step writes a status-history row and a named audit row.
 ///
-/// Receiving goods writes the incoming TRN_InventoryTransaction rows, the line
-/// receipts and the header status inside one serializable transaction — stock and the
-/// order can never disagree (Invariant 11).
+/// Receiving goods posts an Incoming Goods receipt (TRN_GoodsReceipt) for the lines tied
+/// to the item master — the same posting the Assets screens use, so asset lines become
+/// coded asset records — together with the line receipts and the header status inside
+/// one serializable transaction: stock and the order can never disagree (Invariant 11).
 /// </summary>
 public class PurchaseOrderService(
     RegalisDbContext db,
@@ -42,7 +43,8 @@ public class PurchaseOrderService(
     ICurrentUser currentUser,
     IDateTimeProvider clock,
     ISettingService settings,
-    IOptions<StorageOptions> storageOptions) : IPurchaseOrderService
+    IOptions<StorageOptions> storageOptions,
+    AssetOperations assetOperations) : IPurchaseOrderService
 {
     private const int MaxAttachments = 10;
     private const long MaxAttachmentBytes = 10 * 1024 * 1024;
@@ -347,6 +349,7 @@ public class PurchaseOrderService(
                     nameof(request.ReceivedDate))]);
             }
 
+            var receiptLines = new List<GoodsReceiptLine>();
             foreach (var lineRequest in request.Lines)
             {
                 var line = order.Lines
@@ -364,34 +367,66 @@ public class PurchaseOrderService(
 
                 // Only a line tied to the stock master moves inventory; a PO for a
                 // service or a one-off purchase still records its receipt on the line.
-                if (line.InventoryItemId is null)
+                if (line.InventoryItemId is null || lineRequest.ReceivedQuantity <= 0)
                 {
                     continue;
                 }
 
-                var item = await db.InventoryItems
+                var item = await db.InventoryItems.AsNoTracking().Include(i => i.AssetDetail)
                     .FirstOrDefaultAsync(i => i.InventoryItemId == line.InventoryItemId, ct)
                     ?? throw new NotFoundException("InventoryItem", line.InventoryItemId);
-
-                db.InventoryTransactions.Add(new InventoryTransaction
+                if (item.ItemType == InventoryItemType.Service)
                 {
-                    InventoryItemId = item.InventoryItemId,
-                    TransactionNumber = await numberSequence
-                        .NextAsync(SequenceKeys.InventoryTransaction, ct),
-                    TransactionType = InventoryTransactionType.In,
-                    Quantity = lineRequest.ReceivedQuantity,
-                    TransactionDate = receivedDate,
-                    SourceOrDestination = order.Supplier?.SupplierName,
-                    ReferenceNumber = order.PoNumber,
+                    continue;
+                }
+
+                var amount = Math.Round(lineRequest.ReceivedQuantity * line.Rate, 2, MidpointRounding.AwayFromZero);
+                receiptLines.Add(item.Kind == ItemKind.Asset
+                    // More of an asset already in the register: new units under its prefix.
+                    ? new GoodsReceiptLine
+                    {
+                        LineNumber = receiptLines.Count + 1, Kind = ItemKind.Asset,
+                        InventoryItemId = item.InventoryItemId, Quantity = lineRequest.ReceivedQuantity,
+                        Rate = line.Rate, Amount = amount, PurchaseOrderLineId = line.PurchaseOrderLineId,
+                        ItemName = item.ItemName, AssetCategoryId = item.AssetCategoryId,
+                        CodePrefix = item.AssetDetail?.CodePrefix, BrandModel = item.BrandModel,
+                        Description = item.Description, AssetLocationId = item.AssetDetail?.AssetLocationId,
+                        Condition = AssetCondition.Good, PurchaseDate = receivedDate,
+                        VendorName = order.Supplier?.SupplierName
+                    }
+                    : new GoodsReceiptLine
+                    {
+                        LineNumber = receiptLines.Count + 1, Kind = ItemKind.Consumable,
+                        InventoryItemId = item.InventoryItemId, Quantity = lineRequest.ReceivedQuantity,
+                        Rate = line.Rate, Amount = amount, PurchaseOrderLineId = line.PurchaseOrderLineId
+                    });
+            }
+
+            if (receiptLines.Count > 0)
+            {
+                var receipt = new GoodsReceipt
+                {
+                    ReceiptNumber = await assetOperations.NextDocumentNumberAsync("IN", receivedDate, ct),
+                    ReceiptDate = receivedDate,
+                    Source = GoodsReceiptSource.PurchaseOrder,
                     SupplierId = order.SupplierId,
+                    InvoiceNumber = request.PurchaseInvoiceNumber?.Trim(),
                     PurchaseOrderId = order.PurchaseOrderId,
-                    PurchaseInvoiceNumber = request.PurchaseInvoiceNumber?.Trim(),
-                    AttachmentPath = request.AttachmentPath?.Trim(),
-                    UnitCost = line.Rate,
-                    LocationId = item.LocationId,
-                    EnteredByUserId = currentUser.UserId,
                     Notes = request.Notes?.Trim()
-                });
+                };
+                foreach (var receiptLine in receiptLines) receipt.Lines.Add(receiptLine);
+                db.GoodsReceipts.Add(receipt);
+                await db.SaveChangesAsync(ct);
+                // The PO lines were moved above; the receipt only moves stock.
+                await assetOperations.PostReceiptAsync(receipt, updatePurchaseOrder: false, ct);
+                if (!string.IsNullOrWhiteSpace(request.AttachmentPath))
+                {
+                    foreach (var row in db.ChangeTracker.Entries<InventoryTransaction>().Select(e => e.Entity)
+                                 .Where(r => r.SourceType == StockSource.GoodsReceipt && r.SourceId == receipt.GoodsReceiptId))
+                    {
+                        row.AttachmentPath = request.AttachmentPath.Trim();
+                    }
+                }
             }
 
             var from = order.Status;

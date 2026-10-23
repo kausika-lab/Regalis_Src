@@ -33,5 +33,14 @@ public class InventoryTransaction : AuditableEntity
     public long EnteredByUserId { get; set; }
     public string? Notes { get; set; }
 
+    // The document behind the row (Assets spec §11.1 stock_movement). Null on rows the old
+    // screens wrote directly.
+    public StockSource? SourceType { get; set; }
+    public long? SourceId { get; set; }
+    /// <summary>For an issue row, why it left; read by the ledger and the reports.</summary>
+    public GoodsIssueReason? IssueReason { get; set; }
+    /// <summary>The room the goods came into or were taken from (MST_AssetLocation).</summary>
+    public int? AssetLocationId { get; set; }
+
     public InventoryItem InventoryItem { get; set; } = null!;
 }

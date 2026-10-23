@@ -79,6 +79,19 @@ public class RegalisDbContext(DbContextOptions<RegalisDbContext> options) : DbCo
     // Operations
     public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
+    public DbSet<AssetCategory> AssetCategories => Set<AssetCategory>();
+    public DbSet<AssetLocation> AssetLocations => Set<AssetLocation>();
+    public DbSet<AssetDetail> AssetDetails => Set<AssetDetail>();
+    public DbSet<CodeSequence> CodeSequences => Set<CodeSequence>();
+    public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
+    public DbSet<GoodsReceiptLine> GoodsReceiptLines => Set<GoodsReceiptLine>();
+    public DbSet<GoodsIssue> GoodsIssues => Set<GoodsIssue>();
+    public DbSet<GoodsIssueLine> GoodsIssueLines => Set<GoodsIssueLine>();
+    public DbSet<AssetRepair> AssetRepairs => Set<AssetRepair>();
+    public DbSet<ItemEvent> ItemEvents => Set<ItemEvent>();
+    public DbSet<ItemDocument> ItemDocuments => Set<ItemDocument>();
+    public DbSet<StockCount> StockCounts => Set<StockCount>();
+    public DbSet<StockCountLine> StockCountLines => Set<StockCountLine>();
     public DbSet<HousekeepingSchedule> HousekeepingSchedules => Set<HousekeepingSchedule>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<AdminNotification> AdminNotifications => Set<AdminNotification>();

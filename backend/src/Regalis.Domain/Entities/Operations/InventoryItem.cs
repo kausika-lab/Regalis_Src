@@ -31,5 +31,23 @@ public class InventoryItem : AuditableEntity
     /// <summary>Outside GST altogether, which is not the same as a 0% rate.</summary>
     public bool IsNonTaxable { get; set; } = true;
 
+    // Assets module (Assets spec §3). An asset is one physical unit: its own row, its own
+    // code and its own MST_AssetDetail row. A consumable is one row whose quantity is the
+    // sum of its ledger rows. Kind is set when the item is created and never changes.
+    public ItemKind Kind { get; set; } = ItemKind.Consumable;
+    public int? AssetCategoryId { get; set; }
+    /// <summary>Blue Star, Godrej, Featherlite — kept out of the name.</summary>
+    public string? BrandModel { get; set; }
+    /// <summary>Who it was bought from, when that supplier is in the Suppliers module.</summary>
+    public int? SupplierId { get; set; }
+    /// <summary>The vendor as written (the team's sheet has names, not supplier records).</summary>
+    public string? VendorName { get; set; }
+    public string? Remarks { get; set; }
+    /// <summary>Consumables: the room it is kept in (Pantry Area, Store). Assets keep their
+    /// room on <see cref="AssetDetail"/>.</summary>
+    public int? KeptInLocationId { get; set; }
+
+    public AssetCategory? AssetCategory { get; set; }
+    public AssetDetail? AssetDetail { get; set; }
     public ICollection<InventoryTransaction> Transactions { get; set; } = new List<InventoryTransaction>();
 }

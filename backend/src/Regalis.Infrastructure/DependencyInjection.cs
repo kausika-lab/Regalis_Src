@@ -122,6 +122,8 @@ public static class DependencyInjection
         services.AddScoped<IMaintenanceService, MaintenanceService>();
         services.AddHostedService<MaintenanceOverdueSweeper>();
         services.AddScoped<IInventoryService, InventoryService>();
+        services.AddScoped<AssetOperations>();
+        services.AddScoped<IAssetService, AssetService>();
         services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
         services.AddScoped<ITicketService, TicketService>();
 

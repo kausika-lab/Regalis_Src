@@ -115,6 +115,19 @@ public static class AppSettingKeys
         public const string ShiftHours = "Maintenance.ShiftHours";
     }
 
+    /// <summary>Assets: QR labels and warranty alerts (Settings, group "Assets").</summary>
+    public static class Assets
+    {
+        /// <summary>"If found, contact …" on every QR label.</summary>
+        public const string LabelContactEmail = "Assets.LabelContactEmail";
+        /// <summary>"Property of …" on every QR label.</summary>
+        public const string LabelOwnerName = "Assets.LabelOwnerName";
+        /// <summary>Days before Warranty until that the item is flagged "Expiring soon".</summary>
+        public const string WarrantyAlertDays = "Assets.WarrantyAlertDays";
+        /// <summary>Comma-separated units the consumable form offers.</summary>
+        public const string Units = "Assets.Units";
+    }
+
     public static class Wallet
     {
         public const string MinRecharge = "Wallet.MinRecharge";

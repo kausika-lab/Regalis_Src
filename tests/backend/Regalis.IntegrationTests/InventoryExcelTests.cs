@@ -44,10 +44,14 @@ public class InventoryExcelTests(RegalisApiFactory factory)
     private static async Task<InventoryItemDto> CreateItemAsync(HttpClient admin, string code,
         string category = "Pantry", decimal opening = 0m, decimal reorder = 0m, byte type = 1)
     {
+        // No opening quantity on the item itself (Assets spec §5.2): it arrives as an
+        // opening-balance movement, dated a month back so date-ranged checks stay clear of it.
         var response = await admin.PostAsJsonAsync("/api/inventory/items", new SaveInventoryItemRequest(
-            code, $"Item {code}", category, "Nos", opening, reorder, 25m, 1, null, ItemType: type));
+            code, $"Item {code}", category, "Nos", 0m, reorder, 25m, 1, null, ItemType: type));
         response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
-        return (await response.Content.ReadFromJsonAsync<ApiResponse<InventoryItemDto>>())!.Data!;
+        var item = (await response.Content.ReadFromJsonAsync<ApiResponse<InventoryItemDto>>())!.Data!;
+        if (opening > 0) await MoveAsync(admin, item.InventoryItemId, 4, opening, DaysAgo(30));
+        return item;
     }
 
     private static async Task MoveAsync(HttpClient admin, int itemId, byte type, decimal qty, string date,
@@ -413,8 +417,8 @@ public class InventoryExcelTests(RegalisApiFactory factory)
         (await StockOfAsync(admin, service.InventoryItemId)).Should().Be(0m);
 
         var ledger = (await admin.GetFromJsonAsync<ApiResponse<PagedResult<InventoryTransactionDto>>>(
-            $"/api/inventory/transactions?inventoryItemId={goods.InventoryItemId}"))!.Data!.Items;
-        ledger.Should().HaveCount(2);
+            $"/api/inventory/transactions?inventoryItemId={goods.InventoryItemId}&transactionType=1"))!.Data!.Items;
+        ledger.Should().HaveCount(2, "the two imported rows; the opening balance is a row of its own");
         ledger.Should().OnlyContain(r => r.TransactionType == 1 && r.TransactionNumber != ""
                                          && r.EnteredByName != "");
         ledger.Should().Contain(r => r.SupplierName == $"Supplier {t}" && r.UnitCost == 45.5m

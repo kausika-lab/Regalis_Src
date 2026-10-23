@@ -186,7 +186,10 @@ public class DashboardService(
             .SumAsync(p => (decimal?)p.TotalAmount, ct) ?? 0m;
 
         // Stock is derived from the ledger (Invariant 11), never a stored column.
+        // Consumables only: an asset is one unit with no reorder level (Assets module), and
+        // a service holds no stock.
         var items = await db.InventoryItems
+            .Where(i => i.Kind == ItemKind.Consumable && i.ItemType == InventoryItemType.Goods)
             .Select(i => new { i.InventoryItemId, i.OpeningQuantity, i.ReorderLevel })
             .ToListAsync(ct);
         var movements = await db.InventoryTransactions

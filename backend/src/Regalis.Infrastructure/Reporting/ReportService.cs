@@ -1278,7 +1278,8 @@ public class ReportService(RegalisDbContext db, IDateTimeProvider clock) : IRepo
     private async Task<(List<ReportColumn>, List<Dictionary<string, object?>>, List<ReportSummaryItem>, int)>
         BuildInventoryAsync(ReportFilterRequest filters, CancellationToken ct)
     {
-        var itemsQuery = db.InventoryItems.AsNoTracking();
+        // Stock by quantity: asset units are reported on Assets → Current Stock by room.
+        var itemsQuery = db.InventoryItems.AsNoTracking().Where(i => i.Kind != ItemKind.Asset);
         if (filters.LocationId is not null)
         {
             itemsQuery = itemsQuery.Where(i => i.LocationId == filters.LocationId);

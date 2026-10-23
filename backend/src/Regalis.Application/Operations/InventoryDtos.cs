@@ -113,6 +113,8 @@ public class InventoryItemListRequest : PagedRequest
     public bool? BelowReorder { get; set; }
     /// <summary>1 Goods, 2 Service.</summary>
     public byte? ItemType { get; set; }
+    /// <summary>1 Consumable, 2 Asset. Unset leaves asset units out.</summary>
+    public byte? Kind { get; set; }
 }
 
 public class InventoryTransactionListRequest : PagedRequest

@@ -1005,11 +1005,22 @@ function Ee() {
                     ? le
                       ? e.jsx(te, { center: !0 })
                       : !D || D.length === 0
-                        ? e.jsx(E, {
-                            title: "Closed on this date",
-                            description:
-                              "Pick another date — the location has no working hours that day.",
-                          })
+                        ? (() => {
+                            /* Empty slots: the location is shut that day, or nothing of this
+                               type can be booked (under maintenance or disabled). */
+                            const wd = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][new Date(`${b}T12:00:00Z`).getUTCDay()];
+                            const open = !K?.workingDays || String(K.workingDays).toUpperCase().split(",").map((x) => x.trim()).includes(wd);
+                            const tn = (T.find((x) => String(x.workspaceTypeId) === v)?.typeName ?? "workspace").toLowerCase();
+                            return open
+                              ? e.jsx(E, {
+                                  title: `No ${tn} available to book`,
+                                  description: `Every ${tn} is out of service on this date. Please pick another type or contact the front desk.`,
+                                })
+                              : e.jsx(E, {
+                                  title: "Closed on this date",
+                                  description: "Pick another date — the location has no working hours that day.",
+                                });
+                          })()
                         : e.jsxs("div", {
                             children: [
                               e.jsx("div", {

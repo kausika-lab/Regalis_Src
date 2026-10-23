@@ -73,7 +73,7 @@ const ICONS = {
 const FIELDS = [
   ["Full Name",      "fullName",     ICONS.user,     { autoComplete: "name", placeholder: "Enter full name" }],
   ["Phone Number",   "mobileNumber", ICONS.phone,    { autoComplete: "tel", placeholder: "10-digit mobile number" }],
-  ["Company Name",   "companyName",  ICONS.building, { placeholder: "Registered business name" }],
+  ["Company Name",   "companyName",  ICONS.building, { placeholder: "Registered business name", optional: true }],
   ["Address Line 1", "addressLine1", ICONS.pin,      { autoComplete: "address-line1", placeholder: "Flat / building / street" }],
   ["Address Line 2", "addressLine2", ICONS.pin,      { autoComplete: "address-line2", placeholder: "Area / landmark" }],
   ["City",           "city",         ICONS.pin,      { autoComplete: "address-level2", placeholder: "Enter city" }],
@@ -81,7 +81,7 @@ const FIELDS = [
   ["Country",        "country",      ICONS.globe,    { autoComplete: "country-name", placeholder: "Enter country" }],
   ["Postal Code",    "postalCode",   ICONS.pin,      { autoComplete: "postal-code", placeholder: "6-digit PIN", inputMode: "numeric", maxLength: 6 }],
   ["Date of Birth",  "dateOfBirth",  ICONS.calendar, { autoComplete: "bday", type: "date" }],
-  ["GST Number",     "gstin",        ICONS.receipt,  { placeholder: "15-character GSTIN", maxLength: 15, style: { textTransform: "uppercase" } }]
+  ["GST Number",     "gstin",        ICONS.receipt,  { placeholder: "15-character GSTIN", maxLength: 15, style: { textTransform: "uppercase" }, optional: true }]
 ];
 
 const EMPTY = {
@@ -213,7 +213,7 @@ export function OnboardingPage() {
       className: "auth__subtitle",
       children: [
         "We need a few more details before you can book a workspace — your invoices are ",
-        "issued against them. All fields are required.",
+        "issued against them. Fields marked * are required; company name and GST number are optional.",
         " ",
         jsx.jsx("span", { className: "auth__required", children: "*" }, "r")
       ]

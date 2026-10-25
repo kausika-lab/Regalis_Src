@@ -186,6 +186,16 @@
         <member name="F:Regalis.Shared.Constants.PermissionCodes.Bank.Reconcile">
             <summary>Confirming a match -- the reconciliation sign-off.</summary>
         </member>
+        <member name="F:Regalis.Shared.Constants.PermissionCodes.Report.Finance">
+            <summary>The Revenue &amp; tax group, the money figures on the overview and
+            Money owed (Reports &amp; Analysis spec §13).</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.PermissionCodes.Report.Customers">
+            <summary>The Customers group: names, phone numbers and email addresses.</summary>
+        </member>
+        <member name="F:Regalis.Shared.Constants.PermissionCodes.Report.Manage">
+            <summary>Edit or stop any schedule, including another admin's.</summary>
+        </member>
         <member name="T:Regalis.Shared.Constants.RoleCodes">
             <summary>Codes of the seeded <c>MST_Role</c> rows (ROLE_PERMISSION_MATRIX §3).
             Roles are data — these constants exist only for seeding and tests.</summary>

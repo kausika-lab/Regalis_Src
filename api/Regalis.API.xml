@@ -212,6 +212,53 @@
         <member name="M:Regalis.API.Controllers.AdminNotificationSettingsController.#ctor(Regalis.Application.Operations.IAdminNotificationService)">
             <summary>The logged-in admin's own channels per event type (in-app is always on).</summary>
         </member>
+        <member name="T:Regalis.API.Controllers.AdminReportsController">
+            <summary>
+            Reports &amp; Analysis (Reports &amp; Analysis spec §9.4): the overview, the report
+            catalogue, running and exporting any report, favourites and schedules. Every route
+            is staff-only and checks the report's own permission again on the server — hiding a
+            button is presentation, not security (§13).
+            </summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminReportsController.#ctor(Regalis.Application.Reporting.Analytics.IReportOverviewService,Regalis.Application.Reporting.Analytics.IReportCatalogService,Regalis.Application.Reporting.Analytics.IReportRunService,Regalis.Application.Reporting.Analytics.IReportScheduleService,Regalis.Application.Reporting.Analytics.IDailyMetricsService)">
+            <summary>
+            Reports &amp; Analysis (Reports &amp; Analysis spec §9.4): the overview, the report
+            catalogue, running and exporting any report, favourites and schedules. Every route
+            is staff-only and checks the report's own permission again on the server — hiding a
+            button is presentation, not security (§13).
+            </summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminReportsController.Overview(Regalis.Application.Reporting.Analytics.OverviewRequest,System.Threading.CancellationToken)">
+            <summary>Everything the overview screen needs, in one response.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminReportsController.OverviewPdf(Regalis.Application.Reporting.Analytics.OverviewRequest,System.Threading.CancellationToken)">
+            <summary>The overview as a PDF, with the date range printed on it.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminReportsController.Definitions(System.Threading.CancellationToken)">
+            <summary>The catalogue the library is drawn from, filtered to what this admin may see.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminReportsController.Customers(System.String,System.Threading.CancellationToken)">
+            <summary>Type-ahead for the Customer filter: name, company, phone or email.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminReportsController.StopSchedule(System.Int64,System.Threading.CancellationToken)">
+            <summary>Stops a schedule. It is kept, so it can be turned back on.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminReportsController.Download(System.String,System.Threading.CancellationToken)">
+            <summary>A large export built in the background, by the token in its emailed link.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminReportsController.RebuildMetrics(System.DateOnly,System.DateOnly,System.Threading.CancellationToken)">
+            <summary>Re-builds RPT_DailyMetric for a range of completed days.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminReportsController.Run(System.String,Regalis.Application.Reporting.Analytics.ReportRunRequest,System.Threading.CancellationToken)">
+            <summary>Runs a report: summary figures, chart series, one page of rows and the
+            true totals over every matching row — in one response.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminReportsController.Export(System.String,Regalis.Application.Reporting.Analytics.ReportExportRequest,System.Threading.CancellationToken)">
+            <summary>The file itself, or 202 with a message when it is built in the background.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.AdminReportsController.SavePreferences(System.String,Regalis.Application.Reporting.Analytics.ReportPreferenceRequest,System.Threading.CancellationToken)">
+            <summary>Remembers which columns this admin shows, per report.</summary>
+        </member>
         <member name="T:Regalis.API.Controllers.AdminWalletsController">
             <summary>Admin wallet screens (Billing &amp; Finance → Wallet). Read-only aggregates
             over the append-only ledger; money-moving actions stay on WalletController.</summary>

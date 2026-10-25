@@ -233,6 +233,24 @@
             one grouped alert per sweep (Maintenance spec §4.4).
             </summary>
         </member>
+        <member name="T:Regalis.Infrastructure.BackgroundJobs.ReportWorker">
+            <summary>
+            Reports &amp; Analysis in the background (spec §7.4, §7.5, §12.2). Every minute: send
+            the schedules that are due (compared in IST) and build queued large exports. At
+            02:00 IST: roll yesterday up into RPT_DailyMetric. On start-up it also fills any day
+            the rollup missed, so the overview is fast again after downtime. The spec asks for a
+            15-minute tick; a one-minute tick sends on time and keeps retries ten minutes apart.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.BackgroundJobs.ReportWorker.#ctor(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.BackgroundJobs.ReportWorker})">
+            <summary>
+            Reports &amp; Analysis in the background (spec §7.4, §7.5, §12.2). Every minute: send
+            the schedules that are due (compared in IST) and build queued large exports. At
+            02:00 IST: roll yesterday up into RPT_DailyMetric. On start-up it also fills any day
+            the rollup missed, so the overview is fast again after downtime. The spec asks for a
+            15-minute tick; a one-minute tick sends on time and keeps retries ten minutes apart.
+            </summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Excel.ExcelCellKind">
             <summary>How an export cell is written, so numbers stay numbers and dates stay dates.</summary>
         </member>
@@ -618,6 +636,18 @@
         <member name="M:Regalis.Infrastructure.Persistence.Migrations.AssetsModule.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.ReportsAnalysis">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.ReportsAnalysis.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.ReportsAnalysis.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.ReportsAnalysis.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="T:Regalis.Infrastructure.Persistence.Seed.DatabaseSeeder">
             <summary>
             Idempotent seeding of the state defined by ROLE_PERMISSION_MATRIX.md and
@@ -649,6 +679,458 @@
         <member name="T:Regalis.Infrastructure.QueryableExtensions">
             <summary>EF Core 8 has no ToHashSetAsync (it arrives in EF 9); this fills the gap
             for the seeders and admin services. In scope everywhere under Regalis.Infrastructure.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ChartDtoBuilder">
+            <summary>Shapes chart series on the server, so the browser only draws (spec §14.3).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ChartDtoBuilder.Slices(System.Collections.Generic.IEnumerable{System.ValueTuple{System.String,System.Decimal,System.Int32}})">
+            <summary>Slices with whole-number shares that add to 100.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ChartDtoBuilder.DailyPoints(System.DateOnly,System.DateOnly,System.Collections.Generic.IReadOnlyDictionary{System.DateOnly,System.ValueTuple{System.Decimal,System.Decimal}})">
+            <summary>One column per day across the whole range — a quiet day is a zero, not a gap.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ChartDtoBuilder.Highest(System.Collections.Generic.IReadOnlyList{Regalis.Application.Reporting.Analytics.ChartPointDto})">
+            <summary>Index of the largest value, for the label above the busiest column.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ChartDtoBuilder.Buckets(System.DateOnly,System.DateOnly)">
+            <summary>Groups a daily range into columns: by day under three weeks, else by week.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ReportLookups">
+            <summary>Option lists the filter bars are drawn from, loaded once per request.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.Filters">
+            <summary>The filter controls a report can offer.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ReportRunContext">
+            <summary>Everything a report query needs: the period, the filter values (defaults
+            already filled in), today in IST, and the database.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.Figure">
+            <summary>A summary figure before the engine adds its comparison.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.Figure.#ctor(System.String,System.String,System.Nullable{System.Decimal},System.String,System.Boolean,System.Boolean,System.String)">
+            <summary>A summary figure before the engine adds its comparison.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.Col">
+            <summary>A column: Property is the row property it reads (the key is its camelCase).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.Col.#ctor(System.String,System.String,System.String,Regalis.Infrastructure.Reporting.Analytics.Total,System.Boolean,System.Boolean,System.Boolean)">
+            <summary>A column: Property is the row property it reads (the key is its camelCase).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ReportHandler">
+            <summary>
+            A report definition: what the library lists, the filters it offers, its columns
+            and default sort, and the permission that shows it (spec §6 NOTE). Adding a report
+            is adding one of these — not a screen.
+            </summary>
+        </member>
+        <member name="P:Regalis.Infrastructure.Reporting.Analytics.ReportHandler.Group">
+            <summary>bookings | revenue | customers | operations.</summary>
+        </member>
+        <member name="P:Regalis.Infrastructure.Reporting.Analytics.ReportHandler.Chip">
+            <summary>The library's category chip: the group, or occupancy / operations.</summary>
+        </member>
+        <member name="P:Regalis.Infrastructure.Reporting.Analytics.ReportHandler.DefaultRange">
+            <summary>last30 | all — "all" for registers that are not about a period.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportHandler.AllRowsAsync(Regalis.Infrastructure.Reporting.Analytics.ReportRunContext,System.String,System.Threading.CancellationToken)">
+            <summary>Every matching row, in order, for an export — streamed in batches.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportHandler.TotalsAsync(Regalis.Infrastructure.Reporting.Analytics.ReportRunContext,System.Threading.CancellationToken)">
+            <summary>The totals row and the row count, without loading a page.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportHandler.LiveFigureAsync(Regalis.Infrastructure.Reporting.Analytics.ReportRunContext,System.Threading.CancellationToken)">
+            <summary>A live figure for the library row ("₹1,20,000 owed"), or null for the hint.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ReportHandler`1">
+            <summary>
+            The generic half of every report. Rows come from one IQueryable with the filters
+            already applied in SQL (or, for reports whose rows are themselves aggregates, from
+            a server-side list); the engine sorts, searches, counts, totals and pages over it.
+            Totals and summary figures are aggregate queries over every matching row — never
+            the sum of the page (spec §8.1).
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportHandler`1.QueryAsync(Regalis.Infrastructure.Reporting.Analytics.ReportRunContext,System.Threading.CancellationToken)">
+            <summary>Rows matching the filters.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportHandler`1.CustomTotalsAsync(Regalis.Infrastructure.Reporting.Analytics.ReportRunContext,System.Linq.IQueryable{`0},System.Collections.Generic.Dictionary{System.String,System.Object},System.Threading.CancellationToken)">
+            <summary>Totals the engine cannot SUM in SQL (ratios, subquery columns).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportHandler`1.FromList(System.Collections.Generic.IEnumerable{`0})">
+            <summary>Every row of a list-backed report sits in memory on the server; still
+            never in the browser.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ReportFilterParser">
+            <summary>Reads the JSON filter values the browser sends, fills in defaults and
+            validates the dates before any query runs (spec §7.2).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportFilterParser.Resolve(Regalis.Infrastructure.Reporting.Analytics.ReportHandler,Regalis.Infrastructure.Reporting.Analytics.ReportLookups,System.Collections.Generic.Dictionary{System.String,System.Collections.Generic.List{System.String}},System.DateOnly)">
+            <summary>Defaults for the keys the request left out; the date range is resolved
+            into "from"/"to".</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ReportCategories">
+            <summary>
+            The categories money and bookings are split into, each with a fixed palette slot
+            (spec §10.1: colour follows the thing, not its rank). Workspace types that have at
+            least one space come first, in their display order, then passes, then services.
+            Slots run 1–5; anything after the fifth folds into "Other" (slot 0) rather than
+            taking a sixth colour. The list does not depend on the date range or the filters,
+            so removing a category never repaints the others.
+            </summary>
+        </member>
+        <member name="P:Regalis.Infrastructure.Reporting.Analytics.ReportCategories.Ordered">
+            <summary>Every category in palette order, "Other" excluded.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.RevenueFact">
+            <summary>One payment received, or one refund paid back (negative), with what it was for.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.RevenueDayRow">
+            <summary>Revenue grouped by IST day and category.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.RevenueDayRow.#ctor(System.DateOnly,System.Byte,System.Nullable{System.Int32},System.Nullable{System.Int32},System.Decimal)">
+            <summary>Revenue grouped by IST day and category.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.RevenueFacts">
+            <summary>
+            Revenue means money received, net of refunds, in IST (spec §8.2):
+              + successful payments, on the day they were paid, for a booking, a pass, a service
+                order or an invoice — wallet top-ups are NOT revenue;
+              + the wallet spent on a booking, pass or service order, on the day it was spent,
+                read from the wallet debit (the matching wallet-method payment is skipped so a
+                spend is never counted twice);
+              − refunds, on the day they were paid back. Regalis refunds to the customer's
+                wallet (TRN_WalletTransaction, category Refund / Cancellation, credit).
+            Every query applies its filters in SQL and aggregates there.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.RevenueFacts.WalletSpends(Regalis.Infrastructure.Persistence.RegalisDbContext,System.DateTime,System.DateTime)">
+            <summary>The wallet spent on a booking, pass or service order — revenue on the day
+            it is spent (spec §8.2), from the wallet ledger itself.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.RevenueFacts.ByDayAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,System.DateOnly,System.DateOnly,System.Nullable{System.Int32},System.Nullable{System.Int64},System.Threading.CancellationToken)">
+            <summary>Net revenue per IST day and category, payments and refunds together.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.RevenueFacts.ByCustomerAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,System.DateOnly,System.DateOnly,System.Nullable{System.Int32},System.Threading.CancellationToken)">
+            <summary>Net revenue per customer in the range.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.BookingRules">
+            <summary>Which bookings count (spec §8.5).</summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Reporting.Analytics.BookingRules.Kept">
+            <summary>Counted as a booking and in occupancy: kept, including no-shows.
+            Pending holds and expired holds were never bookings; cancelled ones are counted
+            separately.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.BookingRules.ExcludeInternal(System.Linq.IQueryable{Regalis.Domain.Entities.Booking.Booking})">
+            <summary>Internal and staff bookings: the "customer" is not a customer account.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.BookingRules.StatusesFor(System.String)">
+            <summary>The booking report's status options → stored statuses.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.OccupancySpace">
+            <summary>One bookable space with the opening hours of its location.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.OccupancySpace.#ctor(System.Int32,System.String,System.String,System.Int32,System.String,System.Int32,System.Int32,System.TimeOnly,System.TimeOnly,System.Collections.Generic.HashSet{System.DayOfWeek})">
+            <summary>One bookable space with the opening hours of its location.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.OccupancyDay">
+            <summary>Per space, per IST day: space-hours booked, blocked and open.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.OccupancyDay.#ctor(System.Int32,System.DateOnly,System.Decimal,System.Decimal,System.Decimal)">
+            <summary>Per space, per IST day: space-hours booked, blocked and open.</summary>
+        </member>
+        <member name="P:Regalis.Infrastructure.Reporting.Analytics.OccupancyResult.Hours">
+            <summary>[weekday, hour] → booked minutes, open minutes, booked seat-minutes, matching days.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.OccupancyCalculator">
+            <summary>
+            Occupancy = hours booked ÷ hours available (spec §9.3). A booking takes the whole
+            space, so the unit is the space-hour: each bookable space contributes its location's
+            opening hours on its opening days, minus any time it was blocked or under
+            maintenance (so a closed room does not look empty), and a booking contributes the
+            part of it that falls inside opening hours. Cancelled bookings never count; internal
+            bookings count only when asked for.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.OccupancyCalculator.Overlap(System.Collections.Generic.List{System.ValueTuple{System.DateTime,System.DateTime}},System.DateTime,System.DateTime)">
+            <summary>Minutes of the spans that fall inside [start, end).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.OccupancyCalculator.Step(System.Nullable{System.Decimal})">
+            <summary>Five steps, light to dark: 0–20, 20–45, 45–65, 65–80, 80+ (spec §3.6).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.OccupancyCalculator.Band(System.Decimal)">
+            <summary>The band a busiest-workspace bar takes its colour from.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.OccupancyCalculator.Heatmap(Regalis.Infrastructure.Reporting.Analytics.OccupancyResult)">
+            <summary>The weekday × hour heatmap, averaged across every matching weekday.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ReportChips">
+            <summary>The applied-filter chips, and the same filters as one line of plain English
+            for the top of an export (spec §4.2, §11.1).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ReportFileBuilder">
+            <summary>Builds the Excel and PDF files every report exports to — the same rows and
+            the same server totals the screen shows, so the two agree to the rupee (spec §11.3).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportFileBuilder.#ctor(Regalis.Application.Abstractions.ISettingService)">
+            <summary>Builds the Excel and PDF files every report exports to — the same rows and
+            the same server totals the screen shows, so the two agree to the rupee (spec §11.3).</summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Reporting.Analytics.ReportFileBuilder.RupeeFormat">
+            <summary>₹2,70,900.00 in Excel: Indian grouping by number format, so the cell stays a number.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.IReportMailer.SendAsync(System.Collections.Generic.IReadOnlyCollection{System.String},System.String,System.String,System.Collections.Generic.IReadOnlyCollection{System.ValueTuple{System.String,System.String,System.Byte[]}},System.Threading.CancellationToken)">
+            <summary>Sends one email to every recipient. Returns null on success, or the
+            reason it could not be sent — never throws for a delivery failure.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ReportMailer">
+            <summary>
+            Mail for scheduled reports and large exports. Microsoft Graph when the tenant is
+            configured (as on UAT), SMTP otherwise; with neither, the send fails with a reason
+            the schedule shows — a schedule that silently sends nothing is worse than none.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportMailer.#ctor(Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Adapters.GraphMailOptions},Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Adapters.SmtpOptions},Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Reporting.Analytics.ReportMailer})">
+            <summary>
+            Mail for scheduled reports and large exports. Microsoft Graph when the tenant is
+            configured (as on UAT), SMTP otherwise; with neither, the send fails with a reason
+            the schedule shows — a schedule that silently sends nothing is worse than none.
+            </summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Reporting.Analytics.ReportMailer.MaxAttachmentBytes">
+            <summary>Graph takes inline attachments up to about 3 MB per message.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ReportMath">
+            <summary>
+            The rules every number follows (Reports &amp; Analysis spec §8), in one place so the
+            screen, the Excel file, the PDF and the scheduled email can never disagree.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportMath.Compare(System.Nullable{System.Decimal},System.Nullable{System.Decimal})">
+            <summary>(now − before) ÷ before × 100, one decimal (§8.6). Before zero: "none"
+            (no comparison — never infinity, never 100%). Before negative: the absolute change.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportMath.SharesTo100(System.Collections.Generic.IReadOnlyList{System.Decimal})">
+            <summary>Whole-number shares that add to exactly 100; the rounding remainder goes
+            to the largest share (§8.6). All zero → all zero.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportMath.PreviousPeriod(System.DateOnly,System.DateOnly)">
+            <summary>The previous period: the same number of days immediately before (§8.3).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportMath.DaysIn(System.DateOnly,System.DateOnly)">
+            <summary>Inclusive at both ends: 1–30 Sep is 30 days.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportMath.IstStartUtc(System.DateOnly)">
+            <summary>The UTC instant an IST day starts.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportMath.FinancialYear(System.DateOnly)">
+            <summary>The Indian financial year containing a day: 1 April – 31 March.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportMath.Money(System.Nullable{System.Decimal},System.Boolean)">
+            <summary>₹2,70,900 — Indian grouping, whole rupees unless paise matter.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportMath.Day(System.DateOnly)">
+            <summary>"12 Oct 2026".</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportMath.Range(System.DateOnly,System.DateOnly)">
+            <summary>"1 September – 12 October 2026", dropping the repeated year.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportMath.FriendlyIst(System.DateTime,System.DateTime)">
+            <summary>"Today, 21:00" / "Mon, 19 Oct" / "1 Nov 2026" (spec §5.4), in IST.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportMath.ToPaise(System.Decimal)">
+            <summary>Money stored as decimal rupees → whole paise for RPT_DailyMetric.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportMath.WeekStart(System.DateOnly)">
+            <summary>The Monday a day's week starts on.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ReportCacheVersion">
+            <summary>A version number the overview cache keys on. It moves whenever a booking,
+            payment, invoice, refund, pass or customer is saved, so a cached overview never
+            outlives the data behind it (spec §14.2: clear the cache when a payment or booking
+            is recorded).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.MetricsCalculator">
+            <summary>
+            Totals each IST day, per location, per category — the one calculation behind both
+            the nightly rollup and the live figures, so a rolled-up day and a live day can
+            never disagree.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.MetricsCalculator.FirstActivityAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,System.DateOnly,System.Threading.CancellationToken)">
+            <summary>The first IST day anything happened. Days before it have nothing to roll
+            up, so they count as built — or a range reaching back past the first booking
+            (a financial year, its previous period) would be calculated live for ever.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ReportOverviewService">
+            <summary>
+            The overview (spec §3): every card and chart in one response. Completed days come
+            from RPT_DailyMetric; today is calculated live. If any completed day was never rolled
+            up, the whole range is calculated live, a warning is logged and the page says so —
+            it never shows a partial figure as if it were current (§7.5).
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportOverviewService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Caching.Memory.IMemoryCache,Regalis.Infrastructure.Reporting.Analytics.ReportCacheVersion,Regalis.Infrastructure.Reporting.Analytics.ReportFileBuilder,Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Reporting.Analytics.ReportOverviewService})">
+            <summary>
+            The overview (spec §3): every card and chart in one response. Completed days come
+            from RPT_DailyMetric; today is calculated live. If any completed day was never rolled
+            up, the whole range is calculated live, a warning is logged and the page says so —
+            it never shows a partial figure as if it were current (§7.5).
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportOverviewService.MetricsAsync(System.DateOnly,System.DateOnly,System.Nullable{System.Int32},Regalis.Infrastructure.Reporting.Analytics.ReportCategories,System.Threading.CancellationToken)">
+            <summary>Metric rows for a range: rolled-up days plus today, or all live.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportOverviewService.SparkBuckets(System.DateOnly,System.DateOnly)">
+            <summary>Up to 14 equal slices of the range for a card's sparkline.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportOverviewService.QuietSpaceAsync(System.DateOnly,System.Nullable{System.Int32},System.Threading.CancellationToken)">
+            <summary>The space that has been under 40% for three weeks or more, longest first.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ReportRegistry">
+            <summary>The report catalogue (spec §6): one definition per report, in four groups.</summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Reporting.Analytics.ReportRegistry.Starters">
+            <summary>Shown as "Most used" before anyone has opened anything.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportRegistry.CanSee(Regalis.Application.Abstractions.ICurrentUser,Regalis.Infrastructure.Reporting.Analytics.ReportHandler)">
+            <summary>Every report needs REPORT.VIEW plus the permission of its group (spec §13).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ReportRunService">
+            <summary>Running, exporting and finding reports. Reads only — the only rows it
+            writes are favourites, preferences and the export log (spec §1 NOTE).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportRunService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Regalis.Infrastructure.Reporting.Analytics.ReportFileBuilder)">
+            <summary>Running, exporting and finding reports. Reads only — the only rows it
+            writes are favourites, preferences and the export log (spec §1 NOTE).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.BookingFilters">
+            <summary>The booking report's filters, applied in SQL and shared by every report
+            that lists bookings.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.BookingFilters.Scope(Regalis.Infrastructure.Reporting.Analytics.ReportRunContext,System.Linq.IQueryable{Regalis.Domain.Entities.Booking.Booking},System.Boolean)">
+            <summary>Everything except the date window.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.BookingReport">
+            <summary>Every booking with customer, workspace, type, date and time, hours, amount
+            and status (spec §4 — the worked example).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.EventBookingsReport">
+            <summary>Bookings of an event space. Regalis has no event-space type and records no
+            add-ons or headcount yet, so this lists what exists — space capacity stands in for
+            headcount — and is empty until an event space is added.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.EventBookingsReport.CustomTotalsAsync(Regalis.Infrastructure.Reporting.Analytics.ReportRunContext,System.Linq.IQueryable{Regalis.Infrastructure.Reporting.Analytics.EventRow},System.Collections.Generic.Dictionary{System.String,System.Object},System.Threading.CancellationToken)">
+            <summary>SQL Server cannot SUM a column that is itself a subquery, so the
+            invoiced total is its own aggregate over the same bookings.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.CustomerFacts">
+            <summary>What the Customers group shares.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.CustomerFacts.Spend(Regalis.Infrastructure.Persistence.RegalisDbContext)">
+            <summary>Lifetime spend, the revenue rule without refunds: payments for bookings,
+            passes, services and invoices, plus the wallet when it is spent. Top-ups are not
+            spend; wallet-method payments are skipped because their wallet debit counts.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.CustomerFacts.SpendOfAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,System.Linq.IQueryable{System.Int64},System.Threading.CancellationToken)">
+            <summary>Lifetime spend of every customer in the filtered set, as one aggregate.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.CustomerListReport">
+            <summary>The customer register. Regalis keeps no separate KYC record; a profile
+            is complete once the address, date of birth and gender are filled in (the same
+            test the onboarding gate uses).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.TopCustomersReport.RankAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,System.DateOnly,System.DateOnly,System.Nullable{System.Int32},System.Threading.CancellationToken)">
+            <summary>Revenue and bookings per customer — shared with the overview's Top customers.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.GoneQuietReport">
+            <summary>Customers who booked before but have nothing — past or upcoming — within the
+            quiet window before the end of the range.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.WalletBalancesReport">
+            <summary>Money Regalis is still holding, summed from the wallet ledger as of the end
+            of the range — never read from the stored balance.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.DeskOccupancyReport">
+            <summary>Occupancy per bookable space: hours used out of hours available (§9.3).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.CheckInLogReport">
+            <summary>Who came in and when. Regalis records no Wi-Fi sessions, so the matching
+            Wi-Fi column the spec mentions has nothing to show and is left out.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.MaintenanceTicketsReport">
+            <summary>Maintenance work raised in the period. A work item is tied to an area or
+            workspace rather than to an asset record, so that is what the Area column shows.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.AssetRegisterReport">
+            <summary>
+            Every asset, valued straight-line over its category's useful life as of the end of
+            the range. Scrapped and lost assets are worth nothing; an asset whose category has no
+            useful life is held at cost. Assets with no purchase date are always listed.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.RevenueByMonthReport">
+            <summary>Revenue (money received, net of refunds) per month, beside the same months a year earlier.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.RevenueByCategoryReport.BiggestMover(System.Collections.Generic.IEnumerable{System.ValueTuple{System.String,System.Decimal,System.Decimal}},System.Int32)">
+            <summary>"Meeting Room grew the most: up ₹12,400 (18.2%) on the previous 30 days."</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.GstSummaryReport">
+            <summary>Taxable value and output tax by rate, split into CGST / SGST / IGST and
+            B2B / B2C, the way GSTR-1 asks for it. Invoiced, never "revenue" (spec §8.2).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.MoneyOwedReport">
+            <summary>
+            Unpaid and part-paid invoices, aged by due date on the unpaid balance (spec §9.3).
+            An invoice is owed regardless of when it was raised, so the range only sets the
+            latest invoice date: opened from the overview, it shows exactly the overview's card.
+            </summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.RefundsReport">
+            <summary>Refunds paid back. Regalis refunds to the customer's wallet and issues no
+            separate credit notes, so every refund is a wallet credit with its original booking
+            or pass.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ScheduleClock">
+            <summary>
+            When a schedule runs and which dates it covers — always in IST (spec §12.2 NOTE: a
+            monthly report for the 1st at 07:00 compared in UTC would go out on the last day of
+            the month before).
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ScheduleClock.PeriodFor(Regalis.Domain.Enums.ReportFrequency,System.DateTime)">
+            <summary>The rolling period a run covers: yesterday, last week (Mon–Sun) or last
+            month — the dates move with each run and are never frozen (§12.1).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportScheduleService.StopAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Stop keeps the schedule, so it can be turned back on (spec §5.4).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.ReportBackgroundService">
+            <summary>
+            The background half: schedules that are due, exports too large to build while the
+            browser waits, and expired export files. Called every minute by ReportWorker.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportBackgroundService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.IDateTimeProvider,Regalis.Infrastructure.Reporting.Analytics.ReportFileBuilder,Regalis.Infrastructure.Reporting.Analytics.IReportMailer,Regalis.Application.Abstractions.ISettingService,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Services.StorageOptions},Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Reporting.Analytics.ReportBackgroundService})">
+            <summary>
+            The background half: schedules that are due, exports too large to build while the
+            browser waits, and expired export files. Called every minute by ReportWorker.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.ReportBackgroundService.TellCreatorAsync(Regalis.Domain.Entities.Reporting.ReportSchedule,System.String,System.Boolean,System.Threading.CancellationToken)">
+            <summary>A silent failed schedule is worse than none: the creator hears about it.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Reporting.Analytics.SvgCharts">
+            <summary>
+            Draws a server-shaped chart as SVG for the PDF exports and the scheduled emails,
+            which are built with no browser. Same palette and rules as the screen (spec §10):
+            five fixed colours by slot, grey for "Other", one warm scale for occupancy, light
+            recessive gridlines, value axes from zero, never two y-axes.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Reporting.Analytics.SvgCharts.NiceTop(System.Decimal)">
+            <summary>Axis ticks: 0 and three more, the top a clean 1 / 2 / 2.5 / 5 × 10ⁿ.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Reporting.InvoicePdfExtras">
             <summary>What the tax invoice prints besides the invoice row itself: the logo and the

@@ -970,6 +970,79 @@
         <member name="P:Regalis.Domain.Entities.Operations.TicketMessage.IsInternalNote">
             <summary>Never returned to the customer.</summary>
         </member>
+        <member name="T:Regalis.Domain.Entities.Reporting.DailyMetric">
+             <summary>
+             One completed IST day, per location, per category, totalled by the nightly rollup
+             (Reports &amp; Analysis spec §9.2). The overview page adds these rows up and calculates
+             only today live; reports never read this table.
+            
+             Every built day also carries one marker row (<see cref="F:Regalis.Domain.Entities.Reporting.DailyMetric.DayMarker"/>, location 0),
+             which holds the location-independent new-customer count. A day with no marker has
+             not been built, so a quiet day (no other rows) is never mistaken for a missing one.
+             </summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Reporting.DailyMetric.LocationId">
+            <summary>0 on the day marker row.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Reporting.DailyMetric.Category">
+            <summary>The revenue/booking category: a workspace type name, "Passes &amp; memberships",
+            "Services &amp; coffee" or "Other" — or <see cref="F:Regalis.Domain.Entities.Reporting.DailyMetric.DayMarker"/>.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Reporting.DailyMetric.HoursBooked">
+            <summary>Space-hours booked inside opening hours.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Reporting.DailyMetric.HoursAvailable">
+            <summary>Space-hours open for booking, less blocked time.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Reporting.ReportFavourite">
+            <summary>A report an admin starred. Per admin, never shared.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Reporting.ReportPreference">
+            <summary>
+            What an admin last did with a report: the filters, the columns and sort they chose,
+            and how often they open it. ReportKey "_overview" holds the overview's range,
+            location and Compare setting, so the page reopens where they left it.
+            </summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Reporting.ReportSchedule">
+            <summary>A report that emails itself (spec §12). Stopping keeps the row.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Reporting.ReportSchedule.FiltersJson">
+            <summary>The filters as they were when saved, without dates: each run covers
+            the period before it (yesterday / last week / last month).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Reporting.ReportSchedule.DayOfWeek">
+            <summary>Weekly: 0 Sunday … 6 Saturday.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Reporting.ReportSchedule.DayOfMonth">
+            <summary>Monthly: 1–28, or 0 for the last day of the month.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Reporting.ReportSchedule.Recipients">
+            <summary>Addresses separated by commas.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Reporting.ReportSchedule.Attempt">
+            <summary>Failed attempts of the current run; the retries go out ten minutes apart.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Reporting.ReportSchedule.FailingSinceUtc">
+            <summary>When the run of failures began; a week of failures disables the schedule.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Reporting.ReportScheduleRun">
+            <summary>Every attempt a schedule makes, kept for the record.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Reporting.ReportExport">
+            <summary>The export log (spec §11.3). Append only: who took which report, with
+            which filters, how many rows, and when.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Reporting.ReportExportJob">
+            <summary>An export too large to build while the browser waits: built in the
+            background, then emailed as a link that expires.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Reporting.ReportExportJob.Token">
+            <summary>Unguessable id used in the download link.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Reporting.ReportExportJob.PortalBaseUrl">
+            <summary>The admin portal origin the request came from, for the emailed link.</summary>
+        </member>
         <member name="F:Regalis.Domain.Enums.AccessResult.DeviceError">
             <summary>Invariant 9: a DeviceError result never implies a grant.</summary>
         </member>
@@ -1138,6 +1211,9 @@
         </member>
         <member name="T:Regalis.Domain.Enums.AnnouncementAudience">
             <summary>Companies / individuals are told apart by whether the profile has a company name.</summary>
+        </member>
+        <member name="F:Regalis.Domain.Enums.ReportRunOutcome.SkippedEmpty">
+            <summary>"Only if there is data" was ticked and the run found no rows.</summary>
         </member>
     </members>
 </doc>

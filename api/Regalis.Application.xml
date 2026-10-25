@@ -1532,6 +1532,97 @@
         <member name="M:Regalis.Application.Operations.ITicketService.GetTicketsAsync(Regalis.Application.Operations.TicketListRequest,System.Threading.CancellationToken)">
             <summary>The admin triage grid; customer callers fall back to own rows.</summary>
         </member>
+        <member name="T:Regalis.Application.Reporting.Analytics.ReportFilterDefinition">
+            <summary>One control in a report's filter bar. Kind: dateRange | location | select |
+            multi | customer | toggle. The filter bar is one component driven by these.</summary>
+        </member>
+        <member name="M:Regalis.Application.Reporting.Analytics.ReportFilterDefinition.#ctor(System.String,System.String,System.String,System.Collections.Generic.List{Regalis.Application.Reporting.Analytics.ReportOption},System.Collections.Generic.List{System.String},System.String)">
+            <summary>One control in a report's filter bar. Kind: dateRange | location | select |
+            multi | customer | toggle. The filter bar is one component driven by these.</summary>
+        </member>
+        <member name="T:Regalis.Application.Reporting.Analytics.ReportColumnDefinition">
+            <summary>Type: text | number | money | percent | hours | date | datetime | status.</summary>
+        </member>
+        <member name="M:Regalis.Application.Reporting.Analytics.ReportColumnDefinition.#ctor(System.String,System.String,System.String,System.Boolean,System.Boolean,System.Boolean)">
+            <summary>Type: text | number | money | percent | hours | date | datetime | status.</summary>
+        </member>
+        <member name="P:Regalis.Application.Reporting.Analytics.ReportRunRequest.Filters">
+            <summary>Filter values by filter key. A missing key takes the filter's default;
+            an empty list means "all".</summary>
+        </member>
+        <member name="P:Regalis.Application.Reporting.Analytics.ReportRunRequest.Sort">
+            <summary>"column:asc" or "column:desc".</summary>
+        </member>
+        <member name="P:Regalis.Application.Reporting.Analytics.ReportRunRequest.Search">
+            <summary>Narrows the rows of this result only; it never widens the filters.</summary>
+        </member>
+        <member name="P:Regalis.Application.Reporting.Analytics.ReportRunRequest.Opened">
+            <summary>True on the first run after the page opens: counts towards "Most used".</summary>
+        </member>
+        <member name="T:Regalis.Application.Reporting.Analytics.SummaryFigureDto">
+            <summary>A summary figure. ChangeKind: percent | absolute | none (previous was zero:
+            "no comparison") | null (this figure is never compared). Value null means it cannot
+            be calculated, and the screen shows a dash — never a zero.</summary>
+        </member>
+        <member name="M:Regalis.Application.Reporting.Analytics.SummaryFigureDto.#ctor(System.String,System.String,System.Nullable{System.Decimal},System.String,System.Nullable{System.Decimal},System.String,System.Nullable{System.Decimal},System.Boolean,System.String)">
+            <summary>A summary figure. ChangeKind: percent | absolute | none (previous was zero:
+            "no comparison") | null (this figure is never compared). Value null means it cannot
+            be calculated, and the screen shows a dash — never a zero.</summary>
+        </member>
+        <member name="T:Regalis.Application.Reporting.Analytics.ChartSliceDto">
+            <summary>Slot 1–5 is the fixed palette (gold, blue, clay, green, plum), 0 is "Other"
+            grey. Band, when set, is the occupancy band that colours the bar instead.</summary>
+        </member>
+        <member name="M:Regalis.Application.Reporting.Analytics.ChartSliceDto.#ctor(System.String,System.Decimal,System.Decimal,System.Int32,System.String,System.String)">
+            <summary>Slot 1–5 is the fixed palette (gold, blue, clay, green, plum), 0 is "Other"
+            grey. Band, when set, is the occupancy band that colours the bar instead.</summary>
+        </member>
+        <member name="T:Regalis.Application.Reporting.Analytics.ChartDto">
+            <summary>
+            A chart already shaped by the server (spec §14.3): the browser never groups or totals.
+            Kind: columns | line | doughnut | stackedbar | hbars | stackedcolumns | heatmap.
+            </summary>
+        </member>
+        <member name="P:Regalis.Application.Reporting.Analytics.ChartDto.ValueFormat">
+            <summary>count | money | percent | hours.</summary>
+        </member>
+        <member name="P:Regalis.Application.Reporting.Analytics.ReportExportRequest.Format">
+            <summary>xlsx | pdf.</summary>
+        </member>
+        <member name="T:Regalis.Application.Reporting.Analytics.ReportExportOutcome">
+            <summary>Either a file (Content set) or a background job (JobQueued).</summary>
+        </member>
+        <member name="M:Regalis.Application.Reporting.Analytics.ReportExportOutcome.#ctor(System.Byte[],System.String,System.String,System.Boolean,System.Int32,System.String)">
+            <summary>Either a file (Content set) or a background job (JobQueued).</summary>
+        </member>
+        <member name="P:Regalis.Application.Reporting.Analytics.OverviewRequest.Preset">
+            <summary>7d | 30d | 90d | fy | custom. Omitted: the admin's last choice.</summary>
+        </member>
+        <member name="P:Regalis.Application.Reporting.Analytics.ReportScheduleRequest.Frequency">
+            <summary>daily | weekly | monthly.</summary>
+        </member>
+        <member name="P:Regalis.Application.Reporting.Analytics.ReportScheduleRequest.DayOfWeek">
+            <summary>Weekly: 0 Sunday … 6 Saturday.</summary>
+        </member>
+        <member name="P:Regalis.Application.Reporting.Analytics.ReportScheduleRequest.DayOfMonth">
+            <summary>Monthly: 1–28, or 0 for the last day of the month.</summary>
+        </member>
+        <member name="P:Regalis.Application.Reporting.Analytics.ReportScheduleRequest.Time">
+            <summary>"HH:mm" IST, on the half hour.</summary>
+        </member>
+        <member name="P:Regalis.Application.Reporting.Analytics.ReportScheduleRequest.Format">
+            <summary>xlsx | pdf.</summary>
+        </member>
+        <member name="T:Regalis.Application.Reporting.Analytics.IReportBackgroundService">
+            <summary>The background side: due schedules, queued exports, the nightly rollup.</summary>
+        </member>
+        <member name="M:Regalis.Application.Reporting.Analytics.IDailyMetricsService.RebuildAsync(System.DateOnly,System.DateOnly,System.Threading.CancellationToken)">
+            <summary>Totals each IST day in the range into RPT_DailyMetric, replacing what
+            was there. Re-runnable for any past date without leaving duplicates.</summary>
+        </member>
+        <member name="M:Regalis.Application.Reporting.Analytics.IDailyMetricsService.RunNightlyAsync(System.Threading.CancellationToken)">
+            <summary>Nightly: rebuild the last two completed days, and fill any gap.</summary>
+        </member>
         <member name="T:Regalis.Application.Reporting.DashboardCard">
             <summary>One admin dashboard card. Generic on purpose: the card row grows
             without a contract change.</summary>

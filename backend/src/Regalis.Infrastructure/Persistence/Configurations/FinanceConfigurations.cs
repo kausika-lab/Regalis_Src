@@ -102,6 +102,8 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.HasIndex(x => x.InvoiceNumber).IsUnique().HasDatabaseName("UX_Invoice_Number");
         builder.HasIndex(x => new { x.CustomerId, x.InvoiceDate }).HasDatabaseName("IX_Invoice_Customer_Date");
         builder.HasIndex(x => new { x.Status, x.InvoiceDate }).HasDatabaseName("IX_Invoice_Status_Date");
+        // Money owed ages invoices by due date (Reports & Analysis spec §14.2).
+        builder.HasIndex(x => new { x.DueDate, x.Status }).HasDatabaseName("IX_Invoice_DueDate_Status");
         // One invoice per quotation — the database refuses a second conversion of
         // the same approved quotation, so a double-click cannot double-bill.
         builder.HasIndex(x => x.QuotationId).IsUnique()

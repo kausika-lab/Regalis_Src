@@ -48,7 +48,8 @@ internal static class SeedCatalogue
         ("BANNER", ["VIEW", "CREATE", "EDIT", "DELETE"]),
         ("NOTIFICATION", ["VIEW", "CREATE", "EDIT", "DELETE"]),
         ("TICKET", ["VIEW", "CREATE", "EDIT", "DELETE", "APPROVE", "EXPORT"]),
-        ("REPORT", ["VIEW", "EXPORT", "PRINT"]),
+        // FINANCE … MANAGE: Reports & Analysis (spec §13). Appended, so existing ids keep their order.
+        ("REPORT", ["VIEW", "EXPORT", "PRINT", "FINANCE", "CUSTOMERS", "MANAGE"]),
         ("SETTING", ["VIEW", "EDIT"]),
         ("AUDIT", ["VIEW", "EXPORT"])
     ];
@@ -104,7 +105,9 @@ internal static class SeedCatalogue
             ("PAYMENT", ["*"]), ("WALLET", ["*"]), ("INVOICE", ["*"]),
             ("PASS", ["VIEW", "EXPORT"]), ("ACCESS", ["VIEW"]),
             ("ATTENDANCE", ["VIEW", "EXPORT"]), ("PAYROLL", ["*"]),
-            ("INVENTORY", ["VIEW", "EXPORT"]), ("REPORT", ["*"]), ("AUDIT", ["VIEW", "EXPORT"]),
+            // The finance team gets view, finance and export on reports (spec §13).
+            ("INVENTORY", ["VIEW", "EXPORT"]), ("REPORT", ["VIEW", "EXPORT", "PRINT", "FINANCE"]),
+            ("AUDIT", ["VIEW", "EXPORT"]),
             ("SUPPLIER", ["*"]), ("PURCHASE", ["*"]), ("EXPENSE", ["*"]),
             ("QUOTATION", ["VIEW", "CREATE", "EDIT", "DELETE", "EXPORT", "PRINT"]),
             ("BANK", ["*"])
@@ -217,6 +220,14 @@ internal static class SeedCatalogue
         new("ADM_NOTIFICATIONS", null, "Notifications", "/admin/notifications", "Bell", "NOTIFICATION.VIEW", PortalType.Admin, AdminManagerSupport),
         new("ADM_TICKETS", null, "Support / Tickets", "/admin/tickets", "LifeBuoy", "TICKET.VIEW", PortalType.Admin, AdminManagerSupport),
         new("ADM_REPORTS", null, "Reports & Analysis", "/admin/reports", "BarChart3", "REPORT.VIEW", PortalType.Admin, AdminManagerFinance),
+        // Each sub-item has a path of its own so exactly one highlights (spec §2.1). The
+        // sidebar is filtered by role, not permission, so Revenue and Customers are
+        // mapped only to the roles that hold REPORT.FINANCE / REPORT.CUSTOMERS.
+        new("ADM_REPORTS_OVERVIEW", "ADM_REPORTS", "Overview", "/admin/reports/overview", "LayoutDashboard", "REPORT.VIEW", PortalType.Admin, AdminManagerFinance),
+        new("ADM_REPORTS_REVENUE", "ADM_REPORTS", "Revenue", "/admin/reports/charts/revenue", "IndianRupee", "REPORT.FINANCE", PortalType.Admin, AdminFinance),
+        new("ADM_REPORTS_OCCUPANCY", "ADM_REPORTS", "Occupancy", "/admin/reports/charts/occupancy", "Armchair", "REPORT.VIEW", PortalType.Admin, AdminManagerFinance),
+        new("ADM_REPORTS_CUSTOMERS", "ADM_REPORTS", "Customers", "/admin/reports/charts/customers", "UsersRound", "REPORT.CUSTOMERS", PortalType.Admin, AdminOnly),
+        new("ADM_REPORTS_LIBRARY", "ADM_REPORTS", "Report library", "/admin/reports/library", "FileSpreadsheet", "REPORT.VIEW", PortalType.Admin, AdminManagerFinance),
         new("ADM_ADMINISTRATION", null, "Administration", null, "ShieldCheck", "USER.VIEW", PortalType.Admin, AdminOnly),
         new("ADM_ADMIN_USERS", "ADM_ADMINISTRATION", "Users", "/admin/users", "UserCog", "USER.VIEW", PortalType.Admin, AdminOnly),
         new("ADM_ADMIN_ROLES", "ADM_ADMINISTRATION", "Roles & Permissions", "/admin/roles", "KeyRound", "ROLE.VIEW", PortalType.Admin, AdminOnly),

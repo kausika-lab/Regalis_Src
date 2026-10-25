@@ -10,11 +10,13 @@ using Regalis.Application.Finance;
 using Regalis.Application.Masters;
 using Regalis.Application.Operations;
 using Regalis.Application.Reporting;
+using Regalis.Application.Reporting.Analytics;
 using Regalis.Infrastructure.Adapters;
 using Regalis.Infrastructure.BackgroundJobs;
 using Regalis.Infrastructure.Persistence;
 using Regalis.Infrastructure.Persistence.Interceptors;
 using Regalis.Infrastructure.Reporting;
+using Regalis.Infrastructure.Reporting.Analytics;
 using Regalis.Infrastructure.Persistence.Seed;
 using Regalis.Infrastructure.Security;
 using Regalis.Infrastructure.Services;
@@ -28,6 +30,8 @@ public static class DependencyInjection
     {
         services.AddScoped<AuditSaveChangesInterceptor>();
         services.AddScoped<AdminEventInterceptor>();
+        services.AddSingleton<ReportCacheVersion>();
+        services.AddScoped<ReportCacheInterceptor>();
 
         services.AddDbContext<RegalisDbContext>((provider, dbOptions) =>
         {
@@ -37,7 +41,9 @@ public static class DependencyInjection
             dbOptions.AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>(),
                 // Raises admin notifications for payments, wallet entries, new customers,
                 // customer profile edits, purchase orders and maintenance status changes.
-                provider.GetRequiredService<AdminEventInterceptor>());
+                provider.GetRequiredService<AdminEventInterceptor>(),
+                // Moves the Reports & Analysis overview cache on when money or bookings change.
+                provider.GetRequiredService<ReportCacheInterceptor>());
         });
 
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
@@ -129,6 +135,18 @@ public static class DependencyInjection
 
         // Reporting & dashboards
         services.AddScoped<IReportService, ReportService>();
+        // Reports & Analysis: overview, definition-driven reports, exports, schedules
+        // and the nightly RPT_DailyMetric rollup.
+        services.AddScoped<ReportFileBuilder>();
+        services.AddScoped<ReportRunService>();
+        services.AddScoped<IReportRunService>(sp => sp.GetRequiredService<ReportRunService>());
+        services.AddScoped<IReportCatalogService>(sp => sp.GetRequiredService<ReportRunService>());
+        services.AddScoped<IReportOverviewService, ReportOverviewService>();
+        services.AddScoped<IReportScheduleService, ReportScheduleService>();
+        services.AddScoped<IReportBackgroundService, ReportBackgroundService>();
+        services.AddScoped<IDailyMetricsService, DailyMetricsService>();
+        services.AddSingleton<IReportMailer, ReportMailer>();
+        services.AddHostedService<ReportWorker>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IProfileService, ProfileService>();

@@ -7,6 +7,7 @@ using Regalis.Domain.Entities.Finance;
 using Regalis.Domain.Entities.Identity;
 using Regalis.Domain.Entities.Masters;
 using Regalis.Domain.Entities.Operations;
+using Regalis.Domain.Entities.Reporting;
 
 namespace Regalis.Infrastructure.Persistence;
 
@@ -101,6 +102,15 @@ public class RegalisDbContext(DbContextOptions<RegalisDbContext> options) : DbCo
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<TicketMessage> TicketMessages => Set<TicketMessage>();
     public DbSet<TicketAttachment> TicketAttachments => Set<TicketAttachment>();
+
+    // Reports & Analysis — the only tables the reporting module writes to.
+    public DbSet<DailyMetric> DailyMetrics => Set<DailyMetric>();
+    public DbSet<ReportFavourite> ReportFavourites => Set<ReportFavourite>();
+    public DbSet<ReportPreference> ReportPreferences => Set<ReportPreference>();
+    public DbSet<ReportSchedule> ReportSchedules => Set<ReportSchedule>();
+    public DbSet<ReportScheduleRun> ReportScheduleRuns => Set<ReportScheduleRun>();
+    public DbSet<ReportExport> ReportExports => Set<ReportExport>();
+    public DbSet<ReportExportJob> ReportExportJobs => Set<ReportExportJob>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {

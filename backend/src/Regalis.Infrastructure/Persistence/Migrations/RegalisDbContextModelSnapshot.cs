@@ -1300,6 +1300,9 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.HasIndex("CustomerId", "InvoiceDate")
                         .HasDatabaseName("IX_Invoice_Customer_Date");
 
+                    b.HasIndex("DueDate", "Status")
+                        .HasDatabaseName("IX_Invoice_DueDate_Status");
+
                     b.HasIndex("Status", "InvoiceDate")
                         .HasDatabaseName("IX_Invoice_Status_Date");
 
@@ -6385,6 +6388,365 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.ToTable("TRN_TicketMessage", (string)null);
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Reporting.DailyMetric", b =>
+                {
+                    b.Property<long>("DailyMetricId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("DailyMetricId"));
+
+                    b.Property<int>("BookingsCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("BuiltUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<int>("CancelledCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<decimal>("HoursAvailable")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("HoursBooked")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("MetricDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("NewCustomers")
+                        .HasColumnType("int");
+
+                    b.Property<long>("RevenuePaise")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("DailyMetricId");
+
+                    b.HasIndex("MetricDate", "LocationId", "Category")
+                        .IsUnique()
+                        .HasDatabaseName("UX_DailyMetric_Date_Location_Category");
+
+                    b.ToTable("RPT_DailyMetric", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Reporting.ReportExport", b =>
+                {
+                    b.Property<long>("ReportExportId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("ReportExportId"));
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<byte>("Delivery")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("FiltersJson")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<byte>("Format")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("ReportKey")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<int>("RowCount")
+                        .HasColumnType("int");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("ReportExportId");
+
+                    b.HasIndex("UserId", "CreatedUtc")
+                        .HasDatabaseName("IX_ReportExport_User");
+
+                    b.ToTable("RPT_Export", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Reporting.ReportExportJob", b =>
+                {
+                    b.Property<long>("ReportExportJobId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("ReportExportJobId"));
+
+                    b.Property<DateTime?>("CompletedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("ExpiresUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("FileName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("FilePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("FiltersJson")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<byte>("Format")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("PortalBaseUrl")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ReportKey")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<int>("RowCount")
+                        .HasColumnType("int");
+
+                    b.Property<byte>("Status")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("ReportExportJobId");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_ReportExportJob_Status");
+
+                    b.HasIndex("Token")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ReportExportJob_Token");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RPT_ExportJob", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Reporting.ReportFavourite", b =>
+                {
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ReportKey")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("UserId", "ReportKey");
+
+                    b.ToTable("RPT_Favourite", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Reporting.ReportPreference", b =>
+                {
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ReportKey")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("ColumnsJson")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("FiltersJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTime?>("LastOpenedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<int?>("LastRowCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("OpenCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SortJson")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("UserId", "ReportKey");
+
+                    b.HasIndex("ReportKey")
+                        .HasDatabaseName("IX_ReportPreference_Report");
+
+                    b.ToTable("RPT_Preference", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Reporting.ReportSchedule", b =>
+                {
+                    b.Property<long>("ReportScheduleId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("ReportScheduleId"));
+
+                    b.Property<byte>("Attempt")
+                        .HasColumnType("tinyint");
+
+                    b.Property<long>("CreatedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<byte?>("DayOfMonth")
+                        .HasColumnType("tinyint");
+
+                    b.Property<byte?>("DayOfWeek")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("DisabledReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime?>("FailingSinceUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("FiltersJson")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<byte>("Format")
+                        .HasColumnType("tinyint");
+
+                    b.Property<byte>("Frequency")
+                        .HasColumnType("tinyint");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<byte?>("LastRunStatus")
+                        .HasColumnType("tinyint");
+
+                    b.Property<DateTime?>("LastRunUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<DateTime?>("ModifiedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<DateTime>("NextRunUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<bool>("OnlyIfData")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Recipients")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ReportKey")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<DateTime?>("RetryAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<TimeOnly>("TimeIst")
+                        .HasColumnType("time(0)");
+
+                    b.HasKey("ReportScheduleId");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("IsActive", "NextRunUtc")
+                        .HasDatabaseName("IX_ReportSchedule_Due");
+
+                    b.ToTable("RPT_Schedule", (string)null);
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Reporting.ReportScheduleRun", b =>
+                {
+                    b.Property<long>("ReportScheduleRunId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("ReportScheduleRunId"));
+
+                    b.Property<byte>("Attempt")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<byte>("Outcome")
+                        .HasColumnType("tinyint");
+
+                    b.Property<DateOnly>("PeriodFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("PeriodTo")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Recipients")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<long>("ReportScheduleId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("RowCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("RunUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("ReportScheduleRunId");
+
+                    b.HasIndex("ReportScheduleId", "RunUtc")
+                        .HasDatabaseName("IX_ReportScheduleRun_Schedule");
+
+                    b.ToTable("RPT_ScheduleRun", (string)null);
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Access.AccessToken", b =>
                 {
                     b.HasOne("Regalis.Domain.Entities.Identity.User", null)
@@ -7289,6 +7651,60 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Ticket");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Reporting.ReportExport", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Reporting.ReportExportJob", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Reporting.ReportFavourite", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Reporting.ReportPreference", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Reporting.ReportSchedule", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Reporting.ReportScheduleRun", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Reporting.ReportSchedule", null)
+                        .WithMany()
+                        .HasForeignKey("ReportScheduleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Booking.Booking", b =>

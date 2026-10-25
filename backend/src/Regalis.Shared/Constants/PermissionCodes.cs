@@ -264,6 +264,13 @@ public static class PermissionCodes
         public const string View = "REPORT.VIEW";
         public const string Export = "REPORT.EXPORT";
         public const string Print = "REPORT.PRINT";
+        /// <summary>The Revenue &amp; tax group, the money figures on the overview and
+        /// Money owed (Reports &amp; Analysis spec §13).</summary>
+        public const string Finance = "REPORT.FINANCE";
+        /// <summary>The Customers group: names, phone numbers and email addresses.</summary>
+        public const string Customers = "REPORT.CUSTOMERS";
+        /// <summary>Edit or stop any schedule, including another admin's.</summary>
+        public const string Manage = "REPORT.MANAGE";
     }
 
     public static class Setting

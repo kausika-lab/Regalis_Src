@@ -2,7 +2,9 @@
  * Admin -> Operations -> Maintenance  (/admin/housekeeping)
  *
  * Maintenance & Housekeeping (Maintenance Feature Specification v1.0), step 1:
- *   Checklist     every work item, summary cards and a progress bar
+ *   Checklist     the monthly sheet (recurring tasks x days of the month, the layout
+ *                 of the paper maintenance sheet), or every work item with summary
+ *                 cards and a progress bar
  *   Schedules     the old Maintenance page (workspace blocks), with search and filters
  *   Housekeepers  staff with shift, areas, today's work and on-time rate
  *   My tasks      what a housekeeper sees instead: phone-first, Start / Mark done
@@ -297,6 +299,68 @@ const STYLES = `
 .mt-shot:focus-within{outline:2px solid #CC9A3D;outline-offset:2px}
 .mt-preview{display:flex;align-items:center;gap:var(--space-3);font-size:var(--font-size-sm)}
 .mt-preview img{width:64px;height:64px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border-subtle)}
+/* Checklist view switch */
+.mt-views{display:inline-flex;gap:4px;padding:4px;margin-bottom:var(--space-4);border:1px solid var(--border-subtle);border-radius:999px;background:var(--surface-card)}
+.mt-views button{all:unset;padding:6px 16px;border-radius:999px;font-size:var(--font-size-sm);font-weight:700;cursor:pointer;color:var(--text-secondary)}
+.mt-views button[aria-pressed=true]{background:#241F19;color:#E9C77B}
+.mt-views button:focus-visible{outline:2px solid #CC9A3D;outline-offset:2px}
+/* Monthly sheet */
+.mt-ms__bar{display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:center;margin-bottom:var(--space-3)}
+.mt-ms__month{display:flex;align-items:center;gap:6px}
+.mt-ms__month strong{min-width:150px;text-align:center;font-family:var(--font-display);font-size:var(--font-size-lg);color:var(--text-primary)}
+.mt-ms__bar .field{min-width:200px}
+.mt-ms__bar .field__label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.mt-ms__bar .field__input{height:40px}
+.mt-ms__spacer{flex:1}
+.mt-ms__stats{margin-bottom:var(--space-3);font-size:var(--font-size-sm);color:var(--text-secondary)}
+.mt-ms__stats strong{color:var(--text-primary)}
+/* Colours are the paper sheet's (Regalis_Workspace_Monthly_Maintenance_Checklist.xlsx):
+   #202020 title bar, #B08D35 header and section bars, #F8F5ED alternate rows, black = not due. */
+.mt-ms__wrap{overflow-x:auto;border:1px solid #202020;background:#fff}
+.mt-ms__table{border-collapse:separate;border-spacing:0;min-width:100%;font-size:var(--font-size-sm);color:#202020}
+.mt-ms__table th,.mt-ms__table td{padding:0;border-bottom:1px solid #CFC6B2;border-right:1px solid #CFC6B2;background:#fff}
+.mt-ms__title th{padding:10px 12px !important;background:#202020 !important;color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:1.15rem;font-weight:800;letter-spacing:.03em;text-align:center;border-color:#202020}
+.mt-ms__meta th{padding:10px 12px !important;font-weight:700;text-align:left;white-space:nowrap}
+.mt-ms__meta span{display:inline-block;margin-inline-end:36px}
+.mt-ms__meta i{font-style:normal;font-weight:400;border-bottom:1px solid #202020;padding:0 6px}
+.mt-ms__head th{background:#B08D35 !important;color:#fff;font-size:var(--font-size-xs);font-weight:700;text-align:center !important;border-color:#C9AE6E}
+.mt-ms__fix{position:sticky;z-index:1;text-align:left}
+.mt-ms__row--alt td{background:#F8F5ED}
+.mt-ms__table td.mt-ms__fix,.mt-ms__table th.mt-ms__fix{padding:8px 10px}
+.mt-ms__c0{left:0;width:44px;min-width:44px;text-align:center !important}
+.mt-ms__c1{left:44px;width:124px;min-width:124px}
+.mt-ms__c2{left:168px;width:200px;min-width:200px}
+.mt-ms__c3{left:368px;width:104px;min-width:104px;box-shadow:inset -2px 0 0 var(--border-strong)}
+.mt-ms__day{width:28px;min-width:28px;padding:6px 0 !important;text-align:center;font-variant-numeric:tabular-nums}
+.mt-ms__day small{display:block;font-size:10px;font-weight:500;color:#FFF3D6;text-transform:none;letter-spacing:0}
+.mt-ms__table .mt-ms__day--today{background:#202020 !important;color:#E9C77B}
+.mt-ms__section td{padding:8px 12px;background:#B08D35;color:#fff;font-size:var(--font-size-sm);font-weight:800;letter-spacing:.04em;text-transform:uppercase;border-color:#B08D35}
+.mt-ms__section span{position:sticky;left:12px}
+.mt-ms__table tbody tr:not(.mt-ms__section):hover td:not(.mt-ms__cell--off){background:#F1E8D2}
+.mt-ms__cell{width:28px;height:40px;text-align:center}
+.mt-ms__table .mt-ms__cell--today{box-shadow:inset 2px 0 0 #B08D35,inset -2px 0 0 #B08D35}
+.mt-ms__table .mt-ms__cell--off{background:#000;border-color:#000}
+.mt-ms__box{all:unset;box-sizing:border-box;display:grid;place-items:center;width:18px;height:18px;margin:auto;border:1.5px solid #202020;border-radius:2px;background:#fff;color:transparent;cursor:pointer;font-weight:800;font-size:12px}
+.mt-ms__box:not([disabled]):hover{border-color:#CC9A3D;background:rgb(204 154 61 / 14%)}
+.mt-ms__box:focus-visible{outline:2px solid #CC9A3D;outline-offset:1px}
+.mt-ms__box[disabled]{cursor:default}
+.mt-ms__box--future{opacity:.4}
+.mt-ms__box--missed{border-color:#E0B497;background:#FBF0E8}
+.mt-ms__box--done{border-color:#CC9A3D;background:#F5EBD0;color:#7A5D10}
+.mt-ms__box--verified{border-color:#CC9A3D;background:#CC9A3D;color:#241F19}
+.mt-ms__box--rework{border-color:#E39B93;background:#FBE7E5;color:#93190F}
+.mt-ms__box--open{border-style:dashed;border-color:#CC9A3D;color:#A8761B}
+.mt-ms__box--busy{opacity:.55;cursor:progress}
+.mt-ms__area{color:#202020}
+.mt-ms__task{color:#202020}
+.mt-ms__who{display:block;font-size:var(--font-size-xs);font-weight:400;color:#6E6559}
+.mt-ms__edit{all:unset;display:block;width:100%;cursor:pointer;border-radius:4px}
+.mt-ms__edit:hover .mt-ms__task{color:#A8761B;text-decoration:underline}
+.mt-ms__edit:focus-visible{outline:2px solid #CC9A3D;outline-offset:2px}
+.mt-ms__legend{display:flex;flex-wrap:wrap;gap:6px var(--space-4);align-items:center;margin-top:var(--space-3);font-size:var(--font-size-xs);color:var(--text-muted)}
+.mt-ms__legend span{display:inline-flex;align-items:center;gap:6px}
+.mt-ms__legend .mt-ms__box{width:16px;height:16px;margin:0;font-size:10px;cursor:default}
+.mt-ms__swatch{display:inline-block;width:16px;height:16px;border-radius:2px;background:#000}
 `;
 function useStyles() {
   React.useEffect(() => {
@@ -1451,14 +1515,515 @@ function MyTasks({ me }) {
   });
 }
 
+// ── Monthly sheet ───────────────────────────────────────────────────────────
+//
+// The paper "Regalis Workspace Maintenance Sheet" on screen: one row per recurring
+// task, one column per day, a box to tick when the task is done. The API has no
+// recurring tasks yet (the work form's "Repeat" is phase 2), so:
+//   * the task list lives in the Maintenance.ChecklistTasks setting (JSON, written
+//     with PUT /api/settings — db/migrations/20261025000000_… creates the row);
+//   * each tick is an ordinary work item (create → start → done), titled
+//     "<task> · Checklist <yyyy-mm-dd>" so a month loads with one search, and
+//     carrying [CL:<taskId>:<yyyy-mm-dd>] in its instructions to find its row. The
+//     API refuses a due time in the past, so the sheet date is in those, not dueUtc.
+//   * unticking cancels the work item (done work cannot be deleted) — history stays.
+
+const SHEET_KEY = "Maintenance.ChecklistTasks";
+const FREQUENCY = {
+  daily: { label: "Daily", section: "daily" },
+  "alternate-days": { label: "Alternate days", section: "daily" },
+  weekly: { label: "Weekly", section: "weekly" },
+  "alternate-weeks": { label: "Alternate weeks", section: "alternate" }
+};
+const SECTIONS = [
+  { key: "daily", label: "Daily tasks" },
+  { key: "weekly", label: "Weekly tasks (once a week)" },
+  { key: "alternate", label: "Alternate-week tasks (once every two weeks)" }
+];
+// Due days follow the paper sheet: weekly on the 7th, 14th, 21st and 28th, alternate
+// weeks on the 7th and 21st, alternate days on odd dates.
+const isDueOn = (frequency, day) =>
+  frequency === "weekly" ? day % 7 === 0
+    : frequency === "alternate-weeks" ? day === 7 || day === 21
+      : frequency === "alternate-days" ? day % 2 === 1
+        : true;
+const MARKER = /\[CL:([^:\]]+):(\d{4}-\d{2}-\d{2})\]/;
+const TITLE_DAY = /· Checklist (\d{4}-\d{2}-\d{2})$/;
+const WEEKDAY = ["S", "M", "T", "W", "T", "F", "S"];
+
+const monthKey = (year, month) => `${year}-${String(month).padStart(2, "0")}`;
+const dayKey = (year, month, day) => `${monthKey(year, month)}-${String(day).padStart(2, "0")}`;
+const daysIn = (year, month) => new Date(Date.UTC(year, month, 0)).getUTCDate();
+const monthName = (year, month) => new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString("en-IN", { timeZone: "UTC", month: "long", year: "numeric" });
+const newTaskId = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const escapeHtml = (text) => String(text ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+const sheetApi = {
+  // null when the setting row is missing (the migration has not been run).
+  tasks: async () => {
+    const settings = await unwrap(http.get("/settings"));
+    const row = settings.find((s) => s.settingKey === SHEET_KEY);
+    if (!row) return null;
+    try {
+      const parsed = JSON.parse(row.settingValue || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  },
+  saveTasks: (tasks) => unwrap(http.put("/settings", { settings: [{ settingKey: SHEET_KEY, settingValue: JSON.stringify(tasks) }] })),
+  // Every checklist work item of the month, cancelled ones included (the caller drops them).
+  month: async (key) => {
+    const params = { search: `Checklist ${key}-`, all: true, pageSize: 100 };
+    const first = await api.work({ ...params, page: 1 });
+    const rest = await Promise.all(
+      Array.from({ length: Math.max(0, first.work.totalPages - 1) }, (_, i) => api.work({ ...params, page: i + 2 }))
+    );
+    return [first, ...rest].flatMap((r) => r.work.items);
+  }
+};
+
+// The best state of a cell when a race left two work items on it: verified beats done
+// beats rework beats anything still open.
+const CELL_RANK = { 4: 5, 3: 4, 5: 3, 2: 2, 6: 1, 1: 1 };
+
+function indexMonth(items, tasks) {
+  const cells = new Map();
+  for (const w of items) {
+    if (w.status === 7) continue;
+    let taskId = null, day = null;
+    const marker = MARKER.exec(w.instructions ?? "");
+    if (marker) [, taskId, day] = marker;
+    else {
+      // Instructions were edited away: fall back to the title and area.
+      day = TITLE_DAY.exec(w.title)?.[1] ?? null;
+      taskId = tasks.find((t) => w.areaName === t.area && w.title.startsWith(`${t.task} · Checklist`))?.id ?? null;
+    }
+    if (!taskId || !day) continue;
+    const key = `${taskId}|${day}`;
+    const held = cells.get(key);
+    if (!held || (CELL_RANK[w.status] ?? 0) > (CELL_RANK[held.status] ?? 0)) cells.set(key, w);
+  }
+  return cells;
+}
+
+function printSheet({ year, month, rows, cells, staff }) {
+  const days = daysIn(year, month);
+  const head = Array.from({ length: days }, (_, i) => `<th class="d">${i + 1}</th>`).join("");
+  let body = "", n = 0;
+  for (const section of SECTIONS) {
+    const list = rows.filter((t) => FREQUENCY[t.frequency]?.section === section.key);
+    if (!list.length) continue;
+    body += `<tr class="s"><td colspan="${days + 4}">${escapeHtml(section.label)}</td></tr>`;
+    for (const t of list) {
+      n += 1;
+      let boxes = "";
+      for (let d = 1; d <= days; d++) {
+        const w = cells.get(`${t.id}|${dayKey(year, month, d)}`);
+        boxes += !isDueOn(t.frequency, d)
+          ? `<td class="off"></td>`
+          : `<td class="c">${w && (w.status === 3 || w.status === 4) ? "&#10003;" : `<span class="b"></span>`}</td>`;
+      }
+      body += `<tr><td class="n">${n}</td><td>${escapeHtml(t.area)}</td><td>${escapeHtml(t.task)}</td><td>${escapeHtml(FREQUENCY[t.frequency]?.label)}</td>${boxes}</tr>`;
+    }
+  }
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Maintenance sheet ${escapeHtml(monthName(year, month))}</title><style>
+@page{size:A4 landscape;margin:8mm}
+*{box-sizing:border-box}
+body{margin:0;font:9px/1.25 Arial,Helvetica,sans-serif;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+h1{margin:0 0 6px;font-size:14px;text-align:center;letter-spacing:.04em}
+.meta{display:flex;gap:28px;margin-bottom:6px;font-size:10px}
+.meta b{font-weight:700}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th,td{border:1px solid #000;padding:2px 3px;vertical-align:middle;overflow-wrap:anywhere}
+th{background:#d9d9d9;font-weight:700}
+th.d,td.c{width:17px;padding:2px 0;text-align:center}
+td.c{font-size:10px}
+.b{display:inline-block;width:9px;height:9px;border:1px solid #000;vertical-align:middle}
+td.off{background:#000}
+td.n{text-align:center}
+tr.s td{background:#bfbfbf;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.note{margin-top:6px;font-size:8.5px}
+</style></head><body>
+<h1>REGALIS WORKSPACE MAINTENANCE SHEET</h1>
+<div class="meta"><span><b>Month:</b> ${escapeHtml(new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString("en-IN", { timeZone: "UTC", month: "long" }))}</span><span><b>Year:</b> ${year}</span><span><b>Housekeeping Staff:</b> ${escapeHtml(staff || "______________________________")}</span></div>
+<table><colgroup><col style="width:26px"><col style="width:80px"><col style="width:150px"><col style="width:62px"></colgroup>
+<thead><tr><th>S.No.</th><th>Area</th><th>Cleaning Task</th><th>Frequency</th>${head}</tr></thead><tbody>${body}</tbody></table>
+<p class="note"><b>Instructions:</b> Tick the box under each date after completing the task. Blacked-out boxes mean the task is not due that day. Weekly tasks: once each week (7th, 14th, 21st, 28th). Alternate-week tasks: once every two weeks (7th, 21st). Alternate-day tasks: every other day.</p>
+</body></html>`;
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+  document.body.appendChild(frame);
+  frame.contentDocument.open();
+  frame.contentDocument.write(html);
+  frame.contentDocument.close();
+  setTimeout(() => {
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+    setTimeout(() => frame.remove(), 1000);
+  }, 50);
+}
+
+function MonthlySheet({ me, options }) {
+  const toast = useToast();
+  const today = istDay(Date.now());
+  const [year, setYear] = React.useState(() => Number(today.slice(0, 4)));
+  const [month, setMonth] = React.useState(() => Number(today.slice(5, 7)));
+  const [staff, setStaff] = React.useState("");
+  const [tasks, setTasks] = React.useState(undefined); // undefined loading, null no setting row
+  const [denied, setDenied] = React.useState(false);
+  const [cells, setCells] = React.useState(() => new Map());
+  const [items, setItems] = React.useState(null);
+  const [busy, setBusy] = React.useState(() => new Set());
+  const [editing, setEditing] = React.useState(null); // {} for a new task, or the task
+  const [untick, setUntick] = React.useState(null); // { task, day, work }
+  const key = monthKey(year, month);
+  const days = daysIn(year, month);
+  const canTick = me.canManageWork;
+
+  const loadTasks = React.useCallback(async () => {
+    try {
+      setTasks(await sheetApi.tasks());
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 403) setDenied(true);
+      else toast.error(errorText(error, "Could not load the checklist tasks."));
+      setTasks([]);
+    }
+  }, []);
+  React.useEffect(() => { loadTasks(); }, [loadTasks]);
+
+  const loadMonth = React.useCallback(async () => {
+    setItems(null);
+    try {
+      setItems(await sheetApi.month(key));
+    } catch (error) {
+      toast.error(errorText(error, "Could not load this month's ticks."));
+      setItems([]);
+    }
+  }, [key]);
+  React.useEffect(() => { loadMonth(); }, [loadMonth]);
+  React.useEffect(() => { if (items && tasks) setCells(indexMonth(items, tasks)); }, [items, tasks]);
+
+  const move = (delta) => {
+    const d = new Date(Date.UTC(year, month - 1 + delta, 1));
+    setYear(d.getUTCFullYear());
+    setMonth(d.getUTCMonth() + 1);
+  };
+
+  const rows = (tasks ?? []).filter((t) => !staff || String(t.housekeeperId) === staff);
+  const staffName = staff ? options.housekeepers.find((h) => String(h.userId) === staff)?.fullName : "";
+  const nameOf = (id) => options.housekeepers.find((h) => h.userId === id)?.fullName;
+
+  // Read-modify-write on a fresh copy, so two admins editing tasks do not undo each other.
+  const changeTasks = async (change) => {
+    const fresh = (await sheetApi.tasks()) ?? [];
+    const next = change(fresh);
+    await sheetApi.saveTasks(next);
+    setTasks(next);
+  };
+
+  const setCellBusy = (cellKey, on) => setBusy((s) => {
+    const next = new Set(s);
+    on ? next.add(cellKey) : next.delete(cellKey);
+    return next;
+  });
+  const putCell = (cellKey, w) => setCells((m) => {
+    const next = new Map(m);
+    w ? next.set(cellKey, w) : next.delete(cellKey);
+    return next;
+  });
+
+  const tick = async (task, day, held) => {
+    const cellKey = `${task.id}|${day}`;
+    if (busy.has(cellKey)) return;
+    setCellBusy(cellKey, true);
+    try {
+      let w = held;
+      if (!w) {
+        if (!task.housekeeperId) throw new Error("Edit the task and choose a housekeeper first.");
+        w = await api.create({
+          title: `${task.task.slice(0, 170)} · Checklist ${day}`,
+          areaName: task.area,
+          workspaceId: null,
+          category: task.category,
+          priority: 2,
+          assignedToUserId: task.housekeeperId,
+          dueUtc: new Date(Date.now() + 2 * 60e3).toISOString(),
+          instructions: `[CL:${task.id}:${day}] Monthly checklist — ${task.task} (${FREQUENCY[task.frequency]?.label ?? ""}) for ${dateLabel(day)}.`,
+          blockWorkspace: false,
+          blockFromUtc: null,
+          notifyHousekeeper: false
+        });
+        putCell(cellKey, w);
+      }
+      if (w.status === 1 || w.status === 5 || w.status === 6) { w = await api.start(w.workItemId); putCell(cellKey, w); }
+      if (w.status === 2) { w = await api.done(w.workItemId, `Ticked on the monthly checklist for ${dateLabel(day)}.`); putCell(cellKey, w); }
+    } catch (error) {
+      toast.error(errorText(error, error?.message || "Could not tick this box."));
+    } finally {
+      setCellBusy(cellKey, false);
+    }
+  };
+
+  const confirmUntick = async () => {
+    const { task, day, work } = untick;
+    const cellKey = `${task.id}|${day}`;
+    setUntick(null);
+    setCellBusy(cellKey, true);
+    try {
+      await api.cancel(work.workItemId, `Unticked on the monthly checklist (${dateLabel(day)}).`);
+      putCell(cellKey, null);
+      toast.success(`${work.workNumber} cancelled — box cleared.`);
+    } catch (error) {
+      toast.error(errorText(error, "Could not clear this box."));
+    } finally {
+      setCellBusy(cellKey, false);
+    }
+  };
+
+  // Counted up to today only: a box later this month is not late yet.
+  let due = 0, ticked = 0, verified = 0;
+  for (const t of rows) {
+    for (let d = 1; d <= days; d++) {
+      const day = dayKey(year, month, d);
+      if (day > today || !isDueOn(t.frequency, d)) continue;
+      due += 1;
+      const w = cells.get(`${t.id}|${day}`);
+      if (w?.status === 3 || w?.status === 4) ticked += 1;
+      if (w?.status === 4) verified += 1;
+    }
+  }
+
+  const cell = (t, d) => {
+    const day = dayKey(year, month, d);
+    const isToday = day === today;
+    if (!isDueOn(t.frequency, d)) return e.jsx("td", { className: "mt-ms__cell mt-ms__cell--off", "aria-label": "Not due" }, d);
+    const cellKey = `${t.id}|${day}`;
+    const w = cells.get(cellKey);
+    const future = day > today;
+    const working = busy.has(cellKey);
+    const state = w ? (w.status === 4 ? "verified" : w.status === 3 ? "done" : w.status === 5 ? "rework" : "open") : future ? "future" : day < today ? "missed" : "";
+    const label = `${t.task}, ${dateLabel(day)}: ${w ? STATUS[w.status]?.label ?? "" : future ? "not yet" : "not done"}`;
+    const glyph = w?.status === 5 ? "!" : w?.status === 3 || w?.status === 4 ? e.jsx(IconCheck, { size: 14, strokeWidth: 3 }) : w ? "…" : null;
+    const onClick = !canTick || future || working ? undefined
+      : !w || w.status === 1 || w.status === 2 || w.status === 5 || w.status === 6 ? () => tick(t, day, w)
+        : () => setUntick({ task: t, day, work: w });
+    return e.jsx("td", {
+      className: `mt-ms__cell${isToday ? " mt-ms__cell--today" : ""}`,
+      children: e.jsx("button", {
+        type: "button",
+        className: `mt-ms__box${state ? ` mt-ms__box--${state}` : ""}${working ? " mt-ms__box--busy" : ""}`,
+        disabled: !onClick,
+        "aria-label": label,
+        title: w ? `${label} · ${w.workNumber}${w.completedByName ? ` · ${w.completedByName}` : ""}` : label,
+        onClick,
+        children: glyph
+      })
+    }, d);
+  };
+
+  const dayHeads = Array.from({ length: days }, (_, i) => {
+    const day = dayKey(year, month, i + 1);
+    return e.jsxs("th", { className: `mt-ms__day${day === today ? " mt-ms__day--today" : ""}`, scope: "col", children: [i + 1, e.jsx("small", { children: WEEKDAY[new Date(`${day}T00:00:00Z`).getUTCDay()] })] }, i);
+  });
+
+  let serial = 0;
+  const body = SECTIONS.flatMap((section) => {
+    const list = rows.filter((t) => FREQUENCY[t.frequency]?.section === section.key);
+    if (!list.length) return [];
+    return [
+      e.jsx("tr", { className: "mt-ms__section", children: e.jsx("td", { colSpan: days + 4, children: e.jsx("span", { children: section.label }) }) }, section.key),
+      ...list.map((t) => {
+        serial += 1;
+        const what = e.jsxs(e.Fragment, { children: [e.jsx("span", { className: "mt-ms__task", children: t.task }), e.jsx("span", { className: "mt-ms__who", children: nameOf(t.housekeeperId) ?? "No active housekeeper" })] });
+        return e.jsxs("tr", { className: serial % 2 === 0 ? "mt-ms__row--alt" : undefined, children: [
+          e.jsx("td", { className: "mt-ms__fix mt-ms__c0", children: serial }),
+          e.jsx("td", { className: "mt-ms__fix mt-ms__c1 mt-ms__area", children: t.area }),
+          e.jsx("td", { className: "mt-ms__fix mt-ms__c2", children: denied ? what : e.jsx("button", { type: "button", className: "mt-ms__edit", "aria-label": `Edit task ${t.task}`, onClick: () => setEditing(t), children: what }) }),
+          e.jsx("td", { className: "mt-ms__fix mt-ms__c3", children: FREQUENCY[t.frequency]?.label ?? t.frequency }),
+          ...Array.from({ length: days }, (_, i) => cell(t, i + 1))
+        ] }, t.id);
+      })
+    ];
+  });
+
+  const loading = tasks === undefined || items === null;
+  return e.jsxs("div", {
+    className: "mt-ms",
+    children: [
+      e.jsxs("div", { className: "mt-ms__bar", children: [
+        e.jsxs("div", { className: "mt-ms__month", children: [
+          e.jsx(Button, { variant: "outline", size: "sm", "aria-label": "Previous month", onClick: () => move(-1), children: "‹" }),
+          e.jsx("strong", { "aria-live": "polite", children: monthName(year, month) }),
+          e.jsx(Button, { variant: "outline", size: "sm", "aria-label": "Next month", onClick: () => move(1), children: "›" }),
+          key !== today.slice(0, 7) && e.jsx(Button, { variant: "ghost", size: "sm", onClick: () => { setYear(Number(today.slice(0, 4))); setMonth(Number(today.slice(5, 7))); }, children: "This month" })
+        ] }),
+        e.jsx(Select, { label: "Housekeeper", value: staff, placeholder: "All housekeepers", options: options.housekeepers.map((h) => ({ value: String(h.userId), label: h.fullName })), onChange: (ev) => setStaff(ev.target.value) }),
+        e.jsx("span", { className: "mt-ms__spacer" }),
+        e.jsx(Button, { variant: "outline", disabled: loading || rows.length === 0, onClick: () => printSheet({ year, month, rows, cells, staff: staffName }), children: "Print" }),
+        !denied && tasks !== null && e.jsx(Button, { onClick: () => setEditing({}), children: "+ Add task" })
+      ] }),
+      denied
+        ? e.jsx(EmptyState, { title: "Only an admin can open the monthly sheet", description: "The task list is kept in Settings. Ask an admin, or use All work to see and verify tasks." })
+        : tasks === null
+          ? e.jsx(EmptyState, { title: "The monthly sheet is not set up yet", description: "Run db/migrations/20261025000000_MaintenanceChecklistTasksSetting.sql on this database, then refresh." })
+          : loading
+            ? e.jsx(Spinner, { center: true })
+            : rows.length === 0
+              ? e.jsx(EmptyState, {
+                  title: staff ? "No tasks for this housekeeper" : "No checklist tasks yet",
+                  description: staff ? "Pick All housekeepers, or give a task to this housekeeper." : "Use + Add task to build the monthly sheet: each task gets a row, and you tick the box under a date when it is done."
+                })
+              : e.jsxs(e.Fragment, { children: [
+                  e.jsxs("div", { className: "mt-ms__stats", children: [
+                    e.jsx("strong", { children: `${ticked} of ${due}` }),
+                    ` boxes ticked ${key === today.slice(0, 7) ? "so far this month" : key < today.slice(0, 7) ? "this month" : "(month not started)"} · ${verified} verified${due ? ` · ${Math.round((ticked / due) * 100)}%` : ""}`
+                  ] }),
+                  e.jsx("div", { className: "mt-ms__wrap", children: e.jsxs("table", { className: "mt-ms__table", children: [
+                    e.jsxs("thead", { children: [
+                      e.jsx("tr", { className: "mt-ms__title", children: e.jsx("th", { colSpan: days + 4, children: "REGALIS WORKSPACE MAINTENANCE SHEET" }) }),
+                      e.jsx("tr", { className: "mt-ms__meta", children: e.jsxs("th", { colSpan: days + 4, children: [
+                        e.jsxs("span", { children: ["Month: ", e.jsx("i", { children: new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString("en-IN", { timeZone: "UTC", month: "long" }) })] }),
+                        e.jsxs("span", { children: ["Year: ", e.jsx("i", { children: year })] }),
+                        e.jsxs("span", { children: ["Housekeeping Staff: ", e.jsx("i", { children: staffName || [...new Set(rows.map((t) => nameOf(t.housekeeperId)).filter(Boolean))].join(", ") || "—" })] })
+                      ] }) }),
+                      e.jsxs("tr", { className: "mt-ms__head", children: [
+                        e.jsx("th", { className: "mt-ms__fix mt-ms__c0", scope: "col", children: "S.No." }),
+                        e.jsx("th", { className: "mt-ms__fix mt-ms__c1", scope: "col", children: "Area" }),
+                        e.jsx("th", { className: "mt-ms__fix mt-ms__c2", scope: "col", children: "Cleaning Task" }),
+                        e.jsx("th", { className: "mt-ms__fix mt-ms__c3", scope: "col", children: "Frequency" }),
+                        ...dayHeads
+                      ] })
+                    ] }),
+                    e.jsx("tbody", { children: body })
+                  ] }) }),
+                  e.jsxs("div", { className: "mt-ms__legend", children: [
+                    e.jsxs("span", { children: [e.jsx("i", { className: "mt-ms__box mt-ms__box--done", children: e.jsx(IconCheck, { size: 11, strokeWidth: 3 }) }), "Done, waiting for verification"] }),
+                    e.jsxs("span", { children: [e.jsx("i", { className: "mt-ms__box mt-ms__box--verified", children: e.jsx(IconCheck, { size: 11, strokeWidth: 3 }) }), "Verified"] }),
+                    e.jsxs("span", { children: [e.jsx("i", { className: "mt-ms__box mt-ms__box--rework", children: "!" }), "Sent back for rework"] }),
+                    e.jsxs("span", { children: [e.jsx("i", { className: "mt-ms__box mt-ms__box--missed" }), "Not done (past day)"] }),
+                    e.jsxs("span", { children: [e.jsx("i", { className: "mt-ms__swatch" }), "Not due that day"] }),
+                    canTick && e.jsx("span", { children: "Click a box to tick it; click a tick to clear it. Each tick is a work item you can verify under All work." })
+                  ] })
+                ] }),
+      editing && e.jsx(ChecklistTaskModal, {
+        task: editing.id ? editing : null,
+        options,
+        onClose: () => setEditing(null),
+        onSave: async (saved) => {
+          await changeTasks((list) => (list.some((t) => t.id === saved.id) ? list.map((t) => (t.id === saved.id ? saved : t)) : [...list, saved]));
+          setEditing(null);
+        },
+        onDelete: async (gone) => {
+          await changeTasks((list) => list.filter((t) => t.id !== gone.id));
+          setEditing(null);
+        }
+      }),
+      e.jsx(ConfirmDialog, {
+        open: !!untick,
+        danger: true,
+        confirmLabel: "Clear tick",
+        title: untick ? `Clear the tick for ${dateLabel(untick.day)}?` : "",
+        message: untick ? `This cancels ${untick.work.workNumber} (${untick.task.task}). Its history stays under All work.` : "",
+        onConfirm: confirmUntick,
+        onClose: () => setUntick(null)
+      })
+    ]
+  });
+}
+
+function ChecklistTaskModal({ task, options, onClose, onSave, onDelete }) {
+  const toast = useToast();
+  const listId = React.useId();
+  const [form, setForm] = React.useState(() => ({
+    area: task?.area ?? "",
+    task: task?.task ?? "",
+    frequency: task?.frequency ?? "daily",
+    category: task?.category ?? (options.categories.includes("Cleaning") ? "Cleaning" : options.categories[0] ?? ""),
+    housekeeperId: task?.housekeeperId ? String(task.housekeeperId) : ""
+  }));
+  const [busy, setBusy] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+  const people = [...options.housekeepers];
+  if (task?.housekeeperId && !people.some((h) => h.userId === task.housekeeperId)) people.push({ userId: task.housekeeperId, fullName: "Inactive housekeeper", shift: null });
+
+  const run = async (action, failure) => {
+    setBusy(true);
+    try {
+      await action();
+    } catch (error) {
+      toast.error(errorText(error, failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const save = () => {
+    if (!form.area.trim() || !form.task.trim()) { toast.error("Enter the area and the task."); return; }
+    if (!form.category) { toast.error("Select a category."); return; }
+    if (!form.housekeeperId) { toast.error("Select the housekeeper who does this task."); return; }
+    run(async () => {
+      await onSave({ id: task?.id ?? newTaskId(), area: form.area.trim(), task: form.task.trim(), frequency: form.frequency, category: form.category, housekeeperId: Number(form.housekeeperId) });
+      toast.success(task ? "Task updated." : "Task added to the monthly sheet.");
+    }, "Could not save the task.");
+  };
+
+  return e.jsxs(e.Fragment, { children: [
+    e.jsx(Modal, {
+      open: true,
+      title: task ? "Edit checklist task" : "Add checklist task",
+      onClose,
+      footer: e.jsxs(e.Fragment, { children: [
+        task && e.jsx(Button, { variant: "danger", onClick: () => setConfirmDelete(true), disabled: busy, children: "Delete task" }),
+        e.jsx("span", { style: { flex: 1 } }),
+        e.jsx(Button, { variant: "ghost", onClick: onClose, children: "Cancel" }),
+        e.jsx(Button, { onClick: save, loading: busy, children: task ? "Save changes" : "Add task" })
+      ] }),
+      children: e.jsxs("div", { className: "mt-form mt-modal", children: [
+        e.jsxs("div", { className: "mt-grid", children: [
+          e.jsx(Input, { label: "Area", required: true, value: form.area, placeholder: "e.g. Server Room", maxLength: 100, list: listId, autoFocus: true, onChange: (ev) => set({ area: ev.target.value }) }),
+          e.jsx(Select, { label: "Frequency", required: true, value: form.frequency, options: Object.entries(FREQUENCY).map(([value, f]) => ({ value, label: f.label })), hint: form.frequency === "weekly" ? "Due on the 7th, 14th, 21st and 28th" : form.frequency === "alternate-weeks" ? "Due on the 7th and 21st" : form.frequency === "alternate-days" ? "Due on odd dates" : "Due every day", onChange: (ev) => set({ frequency: ev.target.value }) })
+        ] }),
+        e.jsx("datalist", { id: listId, children: options.areas.map((a) => e.jsx("option", { value: a.name }, a.name)) }),
+        e.jsx(Input, { label: "Cleaning task", required: true, value: form.task, placeholder: "e.g. Vacuum cleaning", maxLength: 150, onChange: (ev) => set({ task: ev.target.value }) }),
+        e.jsxs("div", { className: "mt-grid", children: [
+          e.jsx(Select, { label: "Category", required: true, value: form.category, placeholder: "Select category", options: options.categories.map((c) => ({ value: c, label: c })), onChange: (ev) => set({ category: ev.target.value }) }),
+          e.jsx(Select, {
+            label: "Housekeeper",
+            required: true,
+            value: form.housekeeperId,
+            placeholder: people.length ? "Select housekeeper" : "No active housekeeper yet",
+            options: people.map((h) => ({ value: String(h.userId), label: `${h.fullName}${h.shift ? ` (${SHIFT[h.shift]})` : ""}` })),
+            hint: "Ticks are recorded as this housekeeper's work",
+            onChange: (ev) => set({ housekeeperId: ev.target.value })
+          })
+        ] }),
+        task && e.jsx("p", { className: "mt-note", style: { margin: 0 }, children: "Changes apply to new ticks. Boxes already ticked keep their work items." })
+      ] })
+    }),
+    e.jsx(ConfirmDialog, {
+      open: confirmDelete,
+      danger: true,
+      confirmLabel: "Delete task",
+      title: `Delete "${task?.task ?? ""}"?`,
+      message: "The row leaves the monthly sheet. Boxes already ticked stay as work items under All work.",
+      onConfirm: () => run(async () => { await onDelete(task); toast.success("Task removed from the monthly sheet."); }, "Could not delete the task."),
+      onClose: () => setConfirmDelete(false)
+    })
+  ] });
+}
+
 // ── Page ────────────────────────────────────────────────────────────────────
 
+const VIEW_KEY = "rg.maintenance.checklistView";
 const TABS = [
   { key: "checklist", label: "Checklist" },
   { key: "schedules", label: "Schedules" },
   { key: "housekeepers", label: "Housekeepers" }
 ];
 const DESCRIPTIONS = {
+  sheet: "The monthly maintenance sheet: every recurring task against the days of the month. Tick a box when the task is done.",
   checklist: "Every task, who is doing it and how much is done. A schedule that blocks a workspace also removes the slot from customer availability.",
   schedules: "Workspace blocks for cleaning and repair. A blocking schedule removes the slot from customer availability.",
   housekeepers: "Housekeepers and their work record. Only active housekeepers can be assigned new work."
@@ -1507,6 +2072,15 @@ function ManagerView({ me, options, reloadOptions }) {
   const [focus, setFocus] = React.useState(null);
   const [modal, setModal] = React.useState(null);
   const [exporting, setExporting] = React.useState(false);
+  // Checklist opens on the monthly sheet; All work is the work-item list (verify, one-off work).
+  const [view, setView] = React.useState(() => {
+    try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "sheet"; } catch { return "sheet"; }
+  });
+  const chooseView = (next) => {
+    setView(next);
+    try { localStorage.setItem(VIEW_KEY, next); } catch {}
+  };
+  const sheet = tab === "checklist" && view === "sheet";
   const toast = useToast();
   const bump = () => setReloadKey((k) => k + 1);
   const canSchedule = me.canManageWork;
@@ -1524,7 +2098,7 @@ function ManagerView({ me, options, reloadOptions }) {
   };
   const actions = tab === "checklist"
     ? [
-        e.jsx(Button, { variant: "outline", onClick: exportWork, loading: exporting, children: "Export" }, "export"),
+        !sheet && e.jsx(Button, { variant: "outline", onClick: exportWork, loading: exporting, children: "Export" }, "export"),
         canSchedule && e.jsx(Button, { variant: "outline", onClick: () => setModal({ kind: "schedule" }), children: "+ New schedule" }, "schedule"),
         me.canManageWork && e.jsx(Button, { onClick: () => setModal({ kind: "work" }), children: "+ Add work" }, "work")
       ]
@@ -1535,15 +2109,19 @@ function ManagerView({ me, options, reloadOptions }) {
   return e.jsxs(e.Fragment, {
     children: [
       e.jsxs("div", { className: "page-header", children: [
-        e.jsxs("div", { children: [e.jsx("h2", { className: "page-header__title", children: "Maintenance" }), e.jsx("p", { className: "page-header__description", children: DESCRIPTIONS[tab] })] }),
+        e.jsxs("div", { children: [e.jsx("h2", { className: "page-header__title", children: "Maintenance" }), e.jsx("p", { className: "page-header__description", children: DESCRIPTIONS[sheet ? "sheet" : tab] })] }),
         e.jsx("div", { className: "page-header__actions", children: actions.filter(Boolean) })
       ] }),
-      tab === "checklist" ? e.jsx(Summary, { summary }) : e.jsx("div", { style: { height: "var(--space-5)" } }),
+      tab === "checklist" && !sheet ? e.jsx(Summary, { summary }) : e.jsx("div", { style: { height: "var(--space-5)" } }),
       e.jsxs("div", { className: "mt-panel", children: [
         e.jsx("div", { className: "mt-tabs", role: "tablist", "aria-label": "Maintenance", children: tabs.map((t) =>
           e.jsx("button", { type: "button", role: "tab", className: "mt-tab", "aria-selected": tab === t.key, onClick: () => setTab(t.key), children: t.label }, t.key)
         ) }),
-        tab === "checklist" && e.jsx(ChecklistTab, { me, options, reloadKey, focus, onSummary: setSummary, onFilters: setFilters, onChanged: () => {}, onEdit: (w) => setModal({ kind: "work", work: w }) }),
+        tab === "checklist" && e.jsx("div", { className: "mt-views", role: "group", "aria-label": "Checklist view", children: [["sheet", "Monthly sheet"], ["list", "All work"]].map(([key, label]) =>
+          e.jsx("button", { type: "button", "aria-pressed": view === key, onClick: () => chooseView(key), children: label }, key)
+        ) }),
+        sheet && e.jsx(MonthlySheet, { me, options }),
+        tab === "checklist" && !sheet && e.jsx(ChecklistTab, { me, options, reloadKey, focus, onSummary: setSummary, onFilters: setFilters, onChanged: () => {}, onEdit: (w) => setModal({ kind: "work", work: w }) }),
         tab === "schedules" && e.jsx(SchedulesTab, { options, reloadKey, canCreate: canSchedule, canEdit: canSchedule }),
         tab === "housekeepers" && e.jsx(HousekeepersTab, { me, options, reloadKey, onChanged: reloadOptions, onEdit: (h) => setModal({ kind: "housekeeper", hk: h }) })
       ] }),

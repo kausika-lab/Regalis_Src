@@ -37,6 +37,7 @@ const toParams = (f, page) => {
 
 export function AssetItemsPage() {
   useAssetStyles();
+  useItemsTableStyles();
   const toast = useToast();
   const can = {
     create: usePermission("INVENTORY.CREATE"),
@@ -76,6 +77,11 @@ export function AssetItemsPage() {
     if (code) api.byCode(code).then((item) => setDrawer({ id: item.inventoryItemId, position: null })).catch(() => toast.error(`No item has the code ${code}.`));
   }, []);
 
+  // The edit form needs the full record (vendor, remarks, room…), which the list rows do not carry.
+  const editRow = async (row) => {
+    try { setModal({ kind: "edit", item: await api.item(row.inventoryItemId) }); }
+    catch (error) { toast.error(errorText(error, "Could not open the item for editing.")); }
+  };
   const setFilter = (key, value) => { setFilters((f) => ({ ...f, [key]: value })); setPage(1); };
   const clearFilters = () => { setFilters({}); setSearchText(""); setPage(1); };
   const toggleCard = (key, value) => {
@@ -152,7 +158,7 @@ export function AssetItemsPage() {
       h("strong", null, `${summary.costMissingCount} asset${summary.costMissingCount === 1 ? " has" : "s have"} no purchase cost. `), "They show “cost missing” and a dash for value until someone fills it in — click to list them.") : null,
 
     h("div", { className: "as-panel" },
-      h("div", { className: "as-filters" },
+      h("div", { className: "as-filters as-filters--items" },
         h("div", { className: "as-search" }, h(IconSearch, { size: 16 }),
           h("input", { className: "field__input", type: "search", value: searchText, placeholder: "Search name, code, serial number or brand…", "aria-label": "Search items", onChange: (ev) => setSearchText(ev.target.value) })),
         h(Select, { label: "Kind", value: filters.kind ?? "", placeholder: "All kinds", options: [{ value: "2", label: "Assets" }, { value: "1", label: "Consumables" }, { value: "3", label: "Services (sold on quotations)" }], onChange: (ev) => setFilter("kind", ev.target.value) }),
@@ -174,15 +180,20 @@ export function AssetItemsPage() {
       failed ? h(LoadFailed, { onRetry: load })
         : result && total === 0 ? h(EmptyItems, { noFilters, can, onNew: () => setModal({ kind: "new" }), onImport: () => setModal({ kind: "import" }), onClear: clearFilters })
           : h("div", { className: "as-table-wrap" },
-            h("table", { className: "as-table" },
+            h("table", { className: "as-table as-table--items" },
+              // Fixed widths so every header sits over its values and short columns never wrap;
+              // the Item column takes the rest. On hand is shown in the item drawer, not here.
+              h("colgroup", null, ITEM_COLUMNS.map((c) => h("col", { key: c.key, style: c.width ? { width: c.width } : undefined }))),
               h("thead", null, h("tr", null,
-                h("th", { style: { width: 36 } }, h("input", { type: "checkbox", "aria-label": "Select every row on this page", checked: allOnPage, onChange: togglePage })),
+                h("th", null, h("input", { type: "checkbox", "aria-label": "Select every row on this page", checked: allOnPage, onChange: togglePage })),
                 h("th", null, "Item"), h("th", null, "Kind"), h("th", null, "Category"), h("th", null, "Location"),
-                h("th", null, "On hand / status"), h("th", { className: "num" }, "Unit cost"), h("th", { className: "num" }, "Value"), h("th", { className: "num" }, "Actions"))),
-              loading && !result ? h(SkeletonRows, { rows: 8, cols: 9 })
+                h("th", null, "Unit"), h("th", null, "Status"),
+                h("th", { className: "num" }, "Unit cost"), h("th", { className: "num" }, "Value"), h("th", { className: "num" }, "Actions"))),
+              loading && !result ? h(SkeletonRows, { rows: 8, cols: ITEM_COLUMNS.length })
                 : h("tbody", { style: { opacity: loading ? 0.6 : 1 } }, rows.map((r, i) => h(ItemRow, {
                   key: r.inventoryItemId, row: r, checked: selected.has(r.inventoryItemId), onCheck: () => toggleRow(r),
-                  onOpen: () => setDrawer({ id: r.inventoryItemId, position: (page - 1) * PAGE_SIZE + i })
+                  onOpen: () => setDrawer({ id: r.inventoryItemId, position: (page - 1) * PAGE_SIZE + i }),
+                  onEdit: can.edit ? () => editRow(r) : null
                 }))))),
       result && total > 0 ? h("div", { className: "as-footer" },
         h("span", null, `Page ${page} of ${result.page.totalPages} · ${total} record${total === 1 ? "" : "s"} · the cards above count every record, not this page`),
@@ -204,7 +215,7 @@ function EmptyItems({ noFilters, can, onNew, onImport, onClear }) {
     : h("div", { className: "as-empty" }, h("strong", null, "No items match these filters."), h("div", null, h(Button, { variant: "outline", onClick: onClear }, "Clear filters")));
 }
 
-function ItemRow({ row: r, checked, onCheck, onOpen }) {
+function ItemRow({ row: r, checked, onCheck, onOpen, onEdit }) {
   const isAsset = r.kind === 2;
   const retired = isAsset && RETIRED.has(r.status);
   return h("tr", { className: ["as-row--click", r.belowReorder ? "as-row--alert" : "", checked ? "as-row--on" : "", !r.isActive ? "as-row--muted" : ""].join(" "), onClick: (ev) => { if (!ev.target.closest("input,button,a")) onOpen(); } },
@@ -213,17 +224,55 @@ function ItemRow({ row: r, checked, onCheck, onOpen }) {
       h("div", { className: "as-cell-main" }, r.itemName),
       h("div", { className: "as-cell-sub as-mono" }, [r.itemCode, isAsset ? r.brandModel : null].filter(Boolean).join(" · "))),
     h("td", null, h(KindTag, { kind: r.kind, service: r.isService })),
-    h("td", null, r.categoryName ?? "—"),
-    h("td", null, r.locationName ?? "—"),
+    h("td", { className: "as-nowrap", title: r.categoryName ?? undefined }, r.categoryName ?? h("span", { className: "as-muted" }, "—")),
+    h("td", { className: "as-nowrap", title: r.locationName ?? undefined }, r.locationName ?? h("span", { className: "as-muted" }, "—")),
+    // An asset is one thing, so it has no unit; the on-hand count lives in the item drawer.
+    h("td", { className: "as-nowrap" }, isAsset || r.isService || !r.unit ? h("span", { className: "as-muted" }, "—") : r.unit),
     h("td", null,
-      isAsset ? h(Frag, null, h(StatusPill, { status: r.status }), !r.isActive ? h(Frag, null, " ", h(Pill, { cls: "inactive" }, "Inactive")) : null,
+      isAsset ? h(Frag, null, h(StatusPill, { status: r.status }),
         r.warrantyExpiringSoon ? h("div", { className: "as-cell-sub" }, `Warranty ends ${fmtDay(r.warrantyUntil)}`) : null)
         : r.isService ? h("span", { className: "as-muted" }, "Not stocked")
-          : h(Frag, null, h("strong", null, `${qty(r.onHand)} ${r.unit}`), r.belowReorder ? h(Frag, null, " ", h(Pill, { cls: "order" }, `Below reorder (${qty(r.reorderLevel)})`)) : null)),
+          : r.belowReorder ? h(Pill, { cls: "order" }, `Below reorder (${qty(r.reorderLevel)})`)
+            : Number(r.onHand) > 0 ? h(Pill, { cls: "fine" }, "In stock") : h(Pill, { cls: "order" }, "Out of stock"),
+      !r.isActive ? h(Frag, null, " ", h(Pill, { cls: "inactive" }, "Inactive")) : null),
     h("td", { className: `num${r.unitCost == null && !r.isService ? " as-costless" : ""}` }, r.unitCost == null ? (r.isService ? "—" : "cost missing") : money(r.unitCost, { paise: !isAsset })),
     h("td", { className: "num" }, h("strong", null, r.value == null || retired ? (retired ? money(0) : "—") : money(Math.round(r.value)))),
-    h("td", { className: "num" }, h("button", { type: "button", className: "as-link", onClick: onOpen }, "View")));
+    h("td", { className: "num" },
+      onEdit ? h(Frag, null, h("button", { type: "button", className: "as-link", onClick: onEdit, "aria-label": `Edit ${r.itemCode}` }, "Edit"), " · ") : null,
+      h("button", { type: "button", className: "as-link", onClick: onOpen }, "View")));
 }
+
+/** Items table columns, left to right. A width of null is the Item column, which takes the rest. */
+const ITEM_COLUMNS = [
+  { key: "pick", width: 48 }, { key: "item", width: null }, { key: "kind", width: 116 }, { key: "category", width: 172 },
+  { key: "location", width: 124 }, { key: "unit", width: 72 }, { key: "status", width: 150 }, { key: "cost", width: 112 },
+  { key: "value", width: 100 }, { key: "actions", width: 116 }
+];
+const ITEMS_STYLE_ID = "asset-items-table-styles";
+const ITEMS_STYLES = `
+.as-filters--items .field{flex:1 1 150px}
+@media(max-width:1440px){.as-filters--items .as-search{flex-basis:100%}.as-filters--items .field{flex:1 1 0}}
+@media(max-width:640px){.as-filters--items .field{flex:1 1 100%}}
+.as-table--items{table-layout:fixed;min-width:1240px}
+.as-table--items td,.as-table--items th{overflow:hidden;text-overflow:ellipsis}
+.as-table--items th:first-child,.as-table--items td:first-child{padding-inline:18px 0;text-overflow:clip}
+.as-table--items .as-nowrap{white-space:nowrap}
+.as-table--items .as-cell-main{overflow-wrap:anywhere}
+.as-table--items .as-cell-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+`;
+function useItemsTableStyles() {
+  React.useEffect(() => {
+    if (document.getElementById(ITEMS_STYLE_ID)) return;
+    const style = document.createElement("style");
+    style.id = ITEMS_STYLE_ID;
+    style.textContent = ITEMS_STYLES;
+    document.head.appendChild(style);
+  }, []);
+}
+
+/** Units are typed as a number. Older items carry text such as "1Nos" or "Nos":
+ *  the leading number is kept, anything else starts blank (and blank keeps it as is). */
+const unitNumber = (unit) => /^\s*(\d+(?:\.\d+)?)/.exec(unit ?? "")?.[1] ?? "";
 
 /** "Selecting rows opens a bar" (§4.5). Actions that make no sense for consumables
  *  skip them, and the message says how many — never a silent partial action. */
@@ -618,7 +667,7 @@ function NewItemDialog({ options, onClose, onCreated }) {
         h("div", { className: "as-span2" }, h(Input, { label: "Item name", required: true, value: f.itemName, error: errors.itemName, onChange: set("itemName"), placeholder: service ? "Meeting room setup" : "Coffee" })),
         h(Input, { label: "Code", required: true, value: f.itemCode, error: errors.itemCode, onChange: set("itemCode"), placeholder: service ? "SVC-01" : "COFFEE-07" }),
         h(Select, { label: "Category", required: !service, value: f.categoryId, error: errors.categoryId, placeholder: service ? "None" : "Choose", options: sorted.map((c) => ({ value: String(c.assetCategoryId), label: c.categoryName })), onChange: set("categoryId") }),
-        service ? null : h(Select, { label: "Unit", required: true, value: f.unit, error: errors.unit, placeholder: "Choose", options: (options?.units ?? []).map((u) => ({ value: u, label: u })), onChange: set("unit"), hint: "Shown everywhere beside the quantity." }),
+        service ? null : h(Input, { label: "Unit", required: true, type: "number", min: 0, step: "any", inputMode: "decimal", value: f.unit, error: errors.unit, onChange: set("unit"), hint: "Numbers only. Shown everywhere beside the quantity." }),
         service ? null : h(Input, { label: "Reorder level", required: true, type: "number", min: 0, step: "0.001", value: f.reorderLevel, error: errors.reorderLevel, onChange: set("reorderLevel"), hint: "At or below this it is flagged red everywhere." }),
         service ? null : h(Input, { label: "Unit cost (₹)", required: true, type: "number", min: 0, step: "0.01", value: f.unitCost, error: errors.unitCost, onChange: set("unitCost") }),
         service ? null : h(Select, { label: "Kept in", required: true, value: f.keptInLocationId, error: errors.keptInLocationId, placeholder: "Choose", options: roomOptions(options), onChange: set("keptInLocationId") }),
@@ -638,10 +687,11 @@ function EditItemDialog({ item, options, onClose, onSaved }) {
   const toast = useToast();
   const isAsset = item.kind === 2;
   const [f, setF] = React.useState({
-    itemName: item.itemName, categoryId: item.categoryId ? String(item.categoryId) : "", description: item.description ?? "", brandModel: item.brandModel ?? "",
+    // GET /admin/items/{id} can return categoryName with a null categoryId; match by name then.
+    itemName: item.itemName, categoryId: item.categoryId ? String(item.categoryId) : String(options?.categories?.find((c) => c.categoryName === item.categoryName)?.assetCategoryId ?? ""), description: item.description ?? "", brandModel: item.brandModel ?? "",
     unitCost: item.unitCost ?? "", supplierId: item.supplierId ? String(item.supplierId) : "", vendorName: item.vendorName ?? "", remarks: item.remarks ?? "",
     serialNumber: item.serialNumber ?? "", condition: item.condition ? String(item.condition) : "1", purchaseDate: item.purchaseDate ?? "", warrantyUntil: item.warrantyUntil ?? "",
-    unit: item.unit ?? "", reorderLevel: item.reorderLevel ?? "", keptInLocationId: item.keptInLocationId ? String(item.keptInLocationId) : "",
+    unit: unitNumber(item.unit), reorderLevel: item.reorderLevel ?? "", keptInLocationId: item.keptInLocationId ? String(item.keptInLocationId) : "",
     hsnSacCode: item.hsnSacCode ?? "", sellingRate: item.sellingRate || "", taxPercent: item.isNonTaxable ? "" : item.taxPercent
   });
   const [busy, setBusy] = React.useState(false);
@@ -652,7 +702,6 @@ function EditItemDialog({ item, options, onClose, onSaved }) {
     if (!isAsset || !serial || serial === (item.serialNumber ?? "")) { setSerialWarning(null); return; }
     api.serialCheck(serial, item.inventoryItemId).then((r) => setSerialWarning(r.duplicate ? `This serial number is already on ${r.existingCode}.` : null)).catch(() => {});
   }, [serial]);
-  const units = Array.from(new Set([...(options?.units ?? []), item.unit].filter(Boolean)));
   const save = async () => {
     setBusy(true);
     try {
@@ -662,7 +711,7 @@ function EditItemDialog({ item, options, onClose, onSaved }) {
         unitCost: numberOrNull(f.unitCost), supplierId: numberOrNull(f.supplierId), vendorName: f.supplierId ? null : f.vendorName || null, remarks: f.remarks || null,
         serialNumber: isAsset ? f.serialNumber || null : null, condition: isAsset ? Number(f.condition) : null,
         purchaseDate: isAsset ? f.purchaseDate || null : null, warrantyUntil: isAsset ? f.warrantyUntil || null : null,
-        unit: isAsset ? null : f.unit, reorderLevel: isAsset ? null : numberOrNull(f.reorderLevel), keptInLocationId: isAsset ? null : numberOrNull(f.keptInLocationId),
+        unit: isAsset ? null : f.unit === "" ? item.unit : f.unit, reorderLevel: isAsset ? null : numberOrNull(f.reorderLevel), keptInLocationId: isAsset ? null : numberOrNull(f.keptInLocationId),
         hsnSacCode: isAsset ? null : f.hsnSacCode, sellingRate: isAsset || !sold ? null : numberOrNull(f.sellingRate),
         taxPercent: isAsset || !sold ? null : numberOrNull(f.taxPercent), isNonTaxable: isAsset || !sold ? null : f.taxPercent === ""
       });
@@ -676,6 +725,11 @@ function EditItemDialog({ item, options, onClose, onSaved }) {
     footer: h(Frag, null, h("span", { className: "as-grow" }, "Kind, code, room and status change only through movements."), h(Button, { variant: "ghost", onClick: onClose }, "Cancel"), h(Button, { onClick: save, loading: busy }, "Save"))
   },
     h("div", { className: "as-form" },
+      // Shown from the saved item, read-only: the kind is fixed at creation (New item says
+      // "It cannot be changed afterwards") and PUT /admin/items/{id} takes no kind.
+      h(Input, { label: "Entry kind", value: item.isService ? "Service (sold on quotations)" : isAsset ? "Asset" : "Consumable", readOnly: true, disabled: true,
+        hint: "Chosen when the item was created; it cannot be changed afterwards." }),
+      h("div", null),
       h("div", { className: "as-span2" }, h(Input, { label: "Item name", required: true, value: f.itemName, onChange: set("itemName") })),
       h(Select, { label: "Category", value: f.categoryId, placeholder: item.isService ? "None" : "Choose", options: (options?.categories ?? []).map((c) => ({ value: String(c.assetCategoryId), label: c.categoryName })), onChange: set("categoryId") }),
       h(Input, { label: "Brand / model", value: f.brandModel, onChange: set("brandModel") }),
@@ -684,7 +738,8 @@ function EditItemDialog({ item, options, onClose, onSaved }) {
       isAsset ? h(Input, { label: "Purchase date", type: "date", max: todayIst(), value: f.purchaseDate, onChange: set("purchaseDate") }) : null,
       isAsset ? h(Input, { label: "Warranty until", type: "date", value: f.warrantyUntil, onChange: set("warrantyUntil") }) : null,
       h(Input, { label: isAsset ? "Purchase cost (₹)" : "Unit cost (₹)", type: "number", min: 0, step: "0.01", value: f.unitCost, onChange: set("unitCost") }),
-      !isAsset && !item.isService ? h(Select, { label: "Unit", value: f.unit, options: units.map((u) => ({ value: u, label: u })), onChange: set("unit") }) : null,
+      !isAsset && !item.isService ? h(Input, { label: "Unit", type: "number", min: 0, step: "any", inputMode: "decimal", value: f.unit, onChange: set("unit"),
+        hint: f.unit === "" && item.unit ? `Numbers only. Leave blank to keep "${item.unit}".` : "Numbers only." }) : null,
       !isAsset && !item.isService ? h(Input, { label: "Reorder level", type: "number", min: 0, step: "0.001", value: f.reorderLevel, onChange: set("reorderLevel") }) : null,
       !isAsset && !item.isService ? h(Select, { label: "Kept in", value: f.keptInLocationId, placeholder: "Choose", options: roomOptions(options), onChange: set("keptInLocationId") }) : null,
       h(Select, { label: "Vendor", value: f.supplierId, placeholder: "Not in the Suppliers list", options: (options?.suppliers ?? []).map((s) => ({ value: String(s.id), label: s.name })), onChange: set("supplierId") }),

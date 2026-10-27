@@ -13,7 +13,7 @@
  *   ItemPicker     find an item by name or code, or scan it
  *   ImportDialog   the team's asset sheet → one opening-balance receipt (§12)
  *
- * Hand-maintained (this repo ships the built SPA). Imported by AssetItemsPage-AS1.js,
+ * Hand-maintained (this repo ships the built SPA). Imported by AssetItemsPage-AS2.js,
  * AssetGoodsPages-AS1.js and AssetStockPage-AS1.js. The next fix ships as AS2 — see
  * the memory note on hand-written chunks (IIS caches /assets/* for a year).
  */

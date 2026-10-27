@@ -16,7 +16,6 @@ import {
   u as useNavigate,
   r as React,
   A as ApiError,
-  z as locationsApi,
   j as X,
   G as Spinner,
   p as Button,
@@ -107,6 +106,18 @@ const MAX_AGGREGATE_PAGES = 10;
 const DASH = "—";
 const LIST_PAGE_SIZE = 20;
 
+/** Regalis.Domain.Enums.Gender, as the customer portal offers it. */
+const GENDERS = { 1: "Male", 2: "Female", 3: "Other", 4: "Prefer not to say" };
+/** The structured address, in the order the customer portal's Profile shows it. */
+const ADDRESS_PARTS = [
+  ["addressLine1", "Address Line 1"],
+  ["addressLine2", "Address Line 2"],
+  ["city", "City"],
+  ["state", "State"],
+  ["postalCode", "PIN Code"],
+  ["country", "Country"]
+];
+
 /**
  * Sort choices for the list. Only keys the API actually recognises are offered;
  * the first entry sends nothing and takes whatever the server orders by.
@@ -143,14 +154,11 @@ function pageWindow(page, totalPages) {
 /**
  * Lifetime spend and the pending balance, swept off the customer's invoices --
  * the API has no per-customer money summary and /api/invoices pages at 100.
- * Also picks up the GSTIN snapshotted on those invoices, the only place the API
- * exposes a member's GST number today.
  */
 async function aggregateInvoices(customerId) {
   let page = 1;
   let paid = 0;
   let outstanding = 0;
-  let gstin = null;
   let count = 0;
   for (;;) {
     const result = await invoicesApi.list({ customerId, page, pageSize: 100 });
@@ -160,12 +168,11 @@ async function aggregateInvoices(customerId) {
         paid += invoice.paidAmount ?? 0;
         outstanding += invoice.outstandingAmount ?? 0;
       }
-      if (!gstin && invoice.companyGstin) gstin = invoice.companyGstin;
     }
     if (!result.hasNext || page >= MAX_AGGREGATE_PAGES) break;
     page += 1;
   }
-  return { paid, outstanding, gstin, count };
+  return { paid, outstanding, count };
 }
 
 /**
@@ -542,7 +549,6 @@ function AdminCustomerDetailPage() {
   const navigate = useNavigate();
 
   const [customer, setCustomer] = React.useState(null);
-  const [locationName, setLocationName] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [tab, setTab] = React.useState("overview");
   const [summary, setSummary] = React.useState(null);
@@ -571,23 +577,12 @@ function AdminCustomerDetailPage() {
     load();
   }, [load]);
 
-  React.useEffect(() => {
-    if (!customer?.defaultLocationId) {
-      setLocationName(null);
-      return;
-    }
-    locationsApi
-      .get(customer.defaultLocationId)
-      .then((location) => setLocationName(location.locationName))
-      .catch(() => setLocationName(null));
-  }, [customer?.defaultLocationId]);
-
   // Overview tiles. Each source fails independently: a tile the signed-in user
   // cannot see, or one that errored, stays a dash rather than blocking the page.
   React.useEffect(() => {
     if (!customer) return;
     let cancelled = false;
-    const next = { bookings: null, spend: null, pending: null, openTickets: null, gstin: null };
+    const next = { bookings: null, spend: null, pending: null, openTickets: null };
     const jobs = [];
 
     if (canViewBookings) {
@@ -606,7 +601,6 @@ function AdminCustomerDetailPage() {
           .then((totals) => {
             next.spend = totals.paid;
             next.pending = totals.outstanding;
-            next.gstin = totals.gstin;
           })
           .catch(() => {})
       );
@@ -665,8 +659,16 @@ function AdminCustomerDetailPage() {
   if (loading) return el(Spinner, { center: true });
   if (!customer) return null;
 
-  const gstin = customer.gstin ?? summary?.gstin ?? null;
+  // Everything below comes from GET /customers/{id}; a field the API does not send
+  // reads "Not captured" (see deploy/customer-profile-fields). Invoices are no
+  // fallback for the GSTIN: the only GSTIN /api/invoices returns is Regalis's own.
+  const gstin = customer.gstin ?? null;
   const dateOfBirth = customer.dateOfBirth ?? null;
+  const gender = GENDERS[customer.gender] ?? null;
+  // Accounts from before the structured address only have the single line.
+  const hasAddressParts = ADDRESS_PARTS.some(([key]) => customer[key]);
+  const captured = (icon, label, value) =>
+    el(ProfileField, { icon, label, value: value || "Not captured", muted: !value });
   const tile = (value) => (value == null ? DASH : value);
 
   const tabs = [
@@ -760,24 +762,19 @@ function AdminCustomerDetailPage() {
           value: customer.mobileNumber || DASH,
           muted: !customer.mobileNumber
         }),
-        el(ProfileField, {
-          icon: IconMapPin,
-          label: "Address",
-          value: customer.address || "Not captured",
-          muted: !customer.address
-        }),
-        el(ProfileField, {
-          icon: IconCalendar,
-          label: "Date of Birth",
-          value: dateOfBirth ? formatDate(dateOfBirth) : "Not captured",
-          muted: !dateOfBirth
-        }),
+        captured(IconUser, "Gender", gender),
+        captured(IconCalendar, "Date of Birth", dateOfBirth && formatDate(dateOfBirth)),
         el(ProfileField, {
           icon: IconPhoto,
           label: "Photo",
           value: customer.photoPath ? "Uploaded by customer — not viewable here yet" : "Not uploaded",
           muted: true
-        })
+        }),
+        hasAddressParts
+          ? ADDRESS_PARTS.map(([key, label]) =>
+              el(F, { key }, captured(IconMapPin, label, customer[key]))
+            )
+          : captured(IconMapPin, "Address", customer.address)
       )
     ),
 
@@ -853,7 +850,6 @@ function AdminCustomerDetailPage() {
                 { label: "Roles" },
                 customer.roles?.length > 0 ? customer.roles.join(", ") : DASH
               ),
-              el(StandingItem, { label: "Home location" }, locationName ?? DASH),
               el(StandingItem, { label: "Member since" }, formatDate(customer.createdDate))
             )
           )

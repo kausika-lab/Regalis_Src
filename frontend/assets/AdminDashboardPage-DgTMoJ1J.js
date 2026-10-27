@@ -1,4 +1,4 @@
-import{l as h,r as t,j as e,g as n,a3 as u,a8 as WS,y as WT}from"./index-DI5X4c9f.js";
+import{l as h,r as t,j as e,g as n,a3 as u,a8 as WS,y as WT,a9 as PAY,R as UP}from"./index-DI5X4c9f.js";
 import{b as BK}from"./bookings-DrKATIWm.js";
 import{d as x}from"./reports-CNtuzowc.js";
 import{C as o}from"./Card-CNXipofE.js";
@@ -22,9 +22,13 @@ function badgeFor(l){
   if(/today/i.test(l))return"Today";
   if(/^\s*active/i.test(l))return"Active";
   if(/^\s*open/i.test(l))return"Open";
+  if(/^\s*total revenue/i.test(l))return"All time";
   if(/customer/i.test(l))return"Total";
   return null
 }
+/* The period already sits in the chip, so it is not repeated in the label
+   ("Bookings Today" with a Today chip reads as "Bookings"). */
+function shortLabel(l){return l.replace(/\s*\btoday\b/i,"").trim()||l}
 /* Card labels are built server-side in the reports payload, so the renames the
    admin portal wants are applied on the way out. */
 function labelFor(l){return String(l??"")
@@ -38,6 +42,24 @@ function toUtc(v){return v instanceof Date?v:new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.t
 function istDate(v){return ISTDAY.format(toUtc(v))}
 function plural(s){const v=String(s??"").trim();return!v||/s$/i.test(v)?v:`${v}s`}
 
+/* Total revenue uses the same rule as the server's "Revenue today" and "Revenue
+   this month" cards (DashboardService: every Success payment) with no date bound,
+   so it can never read below them. The dashboard payload has no all-time figure,
+   so it is summed off /payments?status=Success, which pages at 100. */
+const PAYMENT_SUCCESS=2,MAX_PAYMENT_PAGES=100;
+async function totalRevenue(){
+  let page=1,sum=0,capped=!1;
+  for(;;){
+    const r=await PAY.list({status:PAYMENT_SUCCESS,page,pageSize:100});
+    for(const p of r?.items??[])sum+=Number(p.amount)||0;
+    if(!r?.hasNext)break;
+    if(page>=MAX_PAYMENT_PAGES){capped=!0;break}
+    page+=1
+  }
+  return{sum,capped}
+}
+const INR=new Intl.NumberFormat("en-IN",{maximumFractionDigits:0});
+
 function Stat({card:c}){
   const L=labelFor(c.label),I=u(iconFor(L)),b=badgeFor(L);
   const body=e.jsxs(e.Fragment,{children:[
@@ -46,7 +68,7 @@ function Stat({card:c}){
       b&&e.jsx("span",{className:"stat-card__badge",children:b})
     ]}),
     e.jsx("div",{className:"stat-card__value",children:c.value}),
-    e.jsx("div",{className:"stat-card__label",children:L}),
+    e.jsx("div",{className:"stat-card__label",children:shortLabel(L)}),
     c.hint&&e.jsx("div",{className:"stat-card__hint",children:c.hint})
   ]});
   return c.route
@@ -77,8 +99,26 @@ function _(){
   const[r,m]=t.useState(null);
   const[today,setToday]=t.useState(null);
   const[avail,setAvail]=t.useState(null);
+  const[total,setTotal]=t.useState(null);
+  const canSeePayments=UP("PAYMENT.VIEW");
 
   t.useEffect(()=>{x.admin().then(m).catch(()=>{})},[]);
+  t.useEffect(()=>{
+    if(!canSeePayments)return;
+    let dead=!1;
+    totalRevenue().then(v=>{dead||setTotal(v)}).catch(()=>{});
+    return()=>{dead=!0}
+  },[canSeePayments]);
+
+  /* The total sits right after "Revenue this month"; until it loads, or for a
+     role without PAYMENT.VIEW, the grid is exactly what the server sent. */
+  const cards=r?(()=>{
+    if(!total)return r.cards;
+    const card={key:"revenue-total",label:"Total revenue",value:`₹ ${INR.format(total.sum)}`,
+      hint:total.capped?`First ${MAX_PAYMENT_PAGES*100} payments`:"All successful payments",route:"/admin/payments"};
+    const at=r.cards.findIndex(s=>s.key==="revenue-month");
+    return at<0?[...r.cards,card]:[...r.cards.slice(0,at+1),card,...r.cards.slice(at+1)]
+  })():null;
 
   /* Today's bookings: the list endpoint takes no date filter, so a page is
      pulled and narrowed on the IST calendar day the front desk works to. */
@@ -113,7 +153,7 @@ function _(){
       e.jsxs("p",{style:{color:"var(--text-secondary)",marginTop:"var(--space-2)"},children:["Here's what's happening at Regalis WorkSpace today. Signed in as ",c.join(", ")||"no role assigned","."]})
     ]}),
 
-    r&&e.jsx("div",{className:"stat-grid",children:r.cards.map(s=>e.jsx(Stat,{card:s},s.key))}),
+    cards&&e.jsx("div",{className:"stat-grid",children:cards.map(s=>e.jsx(Stat,{card:s},s.key))}),
 
     e.jsxs("div",{className:"home__columns",style:{marginTop:"var(--space-4)"},children:[
       e.jsx(o,{title:"Today's Bookings",actions:e.jsx(n,{to:"/admin/bookings",className:"dash-link",children:"View All"}),

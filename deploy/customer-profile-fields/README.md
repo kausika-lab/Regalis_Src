@@ -12,13 +12,11 @@ The SPA side is already done: `AdminCustomersPages-IA5T7i_C.js` renders all of t
 from `customer.*` and falls back to the single address line for accounts that have
 no structured address. Only the API needs the change below.
 
-## Interim: patching the compiled API (applied to a local dev copy only)
+## Interim: the compiled API in this repo is patched
 
-The API source is not in this repo. On 27 Oct 2026 a local dev copy of
-`api\Regalis.Application.dll` and `api\Regalis.Infrastructure.dll` was patched in place
-with `DtoPatcher\`; **the patched DLLs are not committed**, so the DLLs in this repo are
-still the originals (SHA-256 below) and the fields stay "Not captured" until the source
-change below is deployed or the patch is applied. The patch (Mono.Cecil) adds
+The API source is not in this repo, so on 27 Oct 2026 `api\Regalis.Application.dll` and
+`api\Regalis.Infrastructure.dll` here were patched in place with `DtoPatcher\` and
+committed. The patch (Mono.Cecil) adds
 ten settable properties on `UserDetailDto` (`Gstin`, `DateOfBirth`,
 `Gender`, `AddressLine1`, `AddressLine2`, `City`, `State`, `PostalCode`, `Country`,
 `IsProfileComplete`) and `ToDetail` setting them from the user right after it builds

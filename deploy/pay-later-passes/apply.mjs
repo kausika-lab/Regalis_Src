@@ -19,7 +19,7 @@ import path from "path";
 
 const [front, staged] = process.argv.slice(2);
 if (!front) throw new Error("usage: node apply.mjs <frontend dir> [<staged assets dir>]");
-const REV = "pay-later-passes-2";
+const REV = "pay-later-passes-3";
 const A = (f) => path.join(front, "assets", f);
 
 function edit(file, mark, edits, out = file) {
@@ -51,7 +51,7 @@ function passesPage(file) {
       "try{if(X===\"paylater\"){const Q=await x.purchase({passPlanId:o.passPlanId,validFrom:M,paymentMethod:\"paylater\"});a.success(`Pass ${Q.pass.passNumber} reserved — pay ${y(Q.pass.totalAmount)} at the front desk before you check in.`)}else if(X===\"wallet\"){const Q=await x.purchase({passPlanId:o.passPlanId,validFrom:M,paymentMethod:\"wallet\"});a.success(`Pass ${Q.pass.passNumber} activated.`)}else{"],
     ["button",
       "\"Pay online \",y(RGtotal??o.totalAmount)]})]}),",
-      "\"Pay online \",y(RGtotal??o.totalAmount)]}),RGpl?.available&&(RGpl.allowedKinds||[]).includes(\"DayPass\")&&s.jsx(g,{variant:\"outline\",disabled:G!==null||!RGready,loading:G===\"paylater\",onClick:()=>re(\"paylater\"),children:\"Pay later at the front desk\"})]}),RGpl?.available&&(RGpl.allowedKinds||[]).includes(\"DayPass\")?s.jsx(\"div\",{style:MUTED,children:\"" + PL_NOTE + "\"}):null,"],
+      "\"Pay online \",y(RGtotal??o.totalAmount)]}),RGpl?.available&&(RGpl.allowedKinds||[]).includes(\"DayPass\")&&s.jsx(g,{disabled:G!==null||!RGready,loading:G===\"paylater\",onClick:()=>re(\"paylater\"),children:\"Pay later at the front desk\"})]}),RGpl?.available&&(RGpl.allowedKinds||[]).includes(\"DayPass\")?s.jsx(\"div\",{style:MUTED,children:\"" + PL_NOTE + "\"}):null,"],
     ["my passes due line",
       "s.jsxs(\"div\",{className:\"choice-card__meta\",children:[\"Purchased \",f(t.purchaseUtc),\" · valid until \",f(t.validTo)]})",
       "s.jsxs(\"div\",{className:\"choice-card__meta\",children:[\"Purchased \",f(t.purchaseUtc),\" · valid until \",f(t.validTo)]}),t.isPayLater&&d.live&&(t.amountPaid??0)<t.totalAmount?s.jsx(\"div\",{style:{marginTop:\"var(--space-1)\",fontSize:\"var(--font-size-xs)\",fontWeight:700,color:\"var(--color-warning)\"},children:`Pay later · ${y(t.totalAmount-(t.amountPaid??0))} due at the front desk — the door opens once it is paid`}):null"],
@@ -77,7 +77,7 @@ edit(A("MembershipPage-Bk9mQr2v.js"), "/passes/pay-later", [
     "t.success(a===\"paylater\"?`Membership ${k.pass.passNumber} reserved — pay ${y(k.pass.totalAmount)} at the front desk before you check in.`:`Membership ${k.pass.passNumber} activated.`)"],
   ["button",
     "onClick:()=>G(\"gateway\"),children:[\"Pay online \",y(E.total)]})]}),",
-    "onClick:()=>G(\"gateway\"),children:[\"Pay online \",y(E.total)]}),RGpl?.available&&(RGpl.allowedKinds||[]).includes(\"Membership\")&&e.jsx(g,{variant:\"outline\",disabled:M2!==null,loading:M2===\"paylater\",onClick:()=>G(\"paylater\"),children:\"Pay later at the front desk\"})]}),RGpl?.available&&(RGpl.allowedKinds||[]).includes(\"Membership\")?e.jsx(\"div\",{style:MUTED,children:\"" + PL_NOTE + "\"}):null,"],
+    "onClick:()=>G(\"gateway\"),children:[\"Pay online \",y(E.total)]}),RGpl?.available&&(RGpl.allowedKinds||[]).includes(\"Membership\")&&e.jsx(g,{disabled:M2!==null,loading:M2===\"paylater\",onClick:()=>G(\"paylater\"),children:\"Pay later at the front desk\"})]}),RGpl?.available&&(RGpl.allowedKinds||[]).includes(\"Membership\")?e.jsx(\"div\",{style:MUTED,children:\"" + PL_NOTE + "\"}):null,"],
 ]);
 
 // ── Cash Collections → AdminCashPages-PL2.js ─────────────────────────────────

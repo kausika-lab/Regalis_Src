@@ -1,0 +1,543 @@
+diff --git a/Regalis.API/Regalis.API.Controllers/BookingsController.cs b/Regalis.API/Regalis.API.Controllers/BookingsController.cs
+index e676f81..a550d24 100644
+--- a/Regalis.API/Regalis.API.Controllers/BookingsController.cs
++++ b/Regalis.API/Regalis.API.Controllers/BookingsController.cs
+@@ -88,6 +88,24 @@ public class BookingsController(IBookingService bookingService, IBookingMutation
+ 		return CreatedEnvelope($"/api/bookings/{bookingDto.BookingId}", bookingDto, "Workspace held for the term. Complete payment to confirm the booking.");
+ 	}
+ 
++	/// <summary>Before a hold: may the signed-in customer pay later, and for which kinds.</summary>
++	[HttpGet("pay-later")]
++	[HasPermission("BOOKING.CREATE")]
++	[ProducesResponseType(typeof(ApiResponse<Regalis.Application.Finance.PayLaterStatusDto>), 200)]
++	public async Task<IActionResult> PayLaterStatus(CancellationToken ct)
++	{
++		return OkEnvelope(await bookingService.GetPayLaterStatusAsync(ct));
++	}
++
++	/// <summary>Whether this Pending hold may be confirmed with "paylater", and why not.</summary>
++	[HttpGet("{id:long}/pay-later")]
++	[HasPermission("BOOKING.CREATE")]
++	[ProducesResponseType(typeof(ApiResponse<Regalis.Application.Finance.PayLaterEligibilityDto>), 200)]
++	public async Task<IActionResult> PayLaterEligibility(long id, CancellationToken ct)
++	{
++		return OkEnvelope(await bookingService.GetPayLaterEligibilityAsync(id, ct));
++	}
++
+ 	/// <summary>One booking — customers see only their own rows.</summary>
+ 	[HttpGet("{id:long}")]
+ 	[HasPermission("BOOKING.VIEW")]
+diff --git a/Regalis.Application/Regalis.Application.Abstractions/SequenceKeys.cs b/Regalis.Application/Regalis.Application.Abstractions/SequenceKeys.cs
+index 64af42a..ad53cc5 100644
+--- a/Regalis.Application/Regalis.Application.Abstractions/SequenceKeys.cs
++++ b/Regalis.Application/Regalis.Application.Abstractions/SequenceKeys.cs
+@@ -30,4 +30,8 @@ public static class SequenceKeys
+ 	public const string MaintenanceWork = "MaintenanceWork";
+ 
+ 	public const string Housekeeper = "Housekeeper";
++
++	public const string CashReceipt = "CashReceipt";
++
++	public const string CashSession = "CashSession";
+ }
+diff --git a/Regalis.Application/Regalis.Application.Access/DenyReasons.cs b/Regalis.Application/Regalis.Application.Access/DenyReasons.cs
+index d94aa08..b9604e1 100644
+--- a/Regalis.Application/Regalis.Application.Access/DenyReasons.cs
++++ b/Regalis.Application/Regalis.Application.Access/DenyReasons.cs
+@@ -13,6 +13,9 @@ public static class DenyReasons
+ 
+ 	public const string WrongWorkspace = "WrongWorkspace";
+ 
++	/// <summary>Pay later booking with a balance; pay at the front desk first.</summary>
++	public const string PaymentDue = "PaymentDue";
++
+ 	public const string AlreadyCheckedOut = "AlreadyCheckedOut";
+ 
+ 	public const string DeviceOffline = "DeviceOffline";
+diff --git a/Regalis.Application/Regalis.Application.Bookings/AdminCreateBookingRequestValidator.cs b/Regalis.Application/Regalis.Application.Bookings/AdminCreateBookingRequestValidator.cs
+index ea471c1..28b966f 100644
+--- a/Regalis.Application/Regalis.Application.Bookings/AdminCreateBookingRequestValidator.cs
++++ b/Regalis.Application/Regalis.Application.Bookings/AdminCreateBookingRequestValidator.cs
+@@ -10,6 +10,6 @@ public class AdminCreateBookingRequestValidator : AbstractValidator<AdminCreateB
+ 		RuleFor((AdminCreateBookingRequest x) => x.WorkspaceId).GreaterThan(0);
+ 		RuleFor((AdminCreateBookingRequest x) => x.DurationMinutes).GreaterThan(0);
+ 		RuleFor((AdminCreateBookingRequest x) => x.Notes).MaximumLength(500);
+-		RuleFor((AdminCreateBookingRequest x) => x.PaymentMethod).Must((string m) => (m == "wallet" || m == "cash") ? true : false).WithMessage("Admin bookings are paid by 'wallet' or 'cash'.");
++		RuleFor((AdminCreateBookingRequest x) => x.PaymentMethod).Must((string m) => (m == "wallet" || m == "cash" || m == "paylater") ? true : false).WithMessage("Admin bookings are paid by 'wallet', 'cash' or 'paylater'.");
+ 	}
+ }
+diff --git a/Regalis.Application/Regalis.Application.Bookings/BookingDto.cs b/Regalis.Application/Regalis.Application.Bookings/BookingDto.cs
+index 3434bcf..b59976c 100644
+--- a/Regalis.Application/Regalis.Application.Bookings/BookingDto.cs
++++ b/Regalis.Application/Regalis.Application.Bookings/BookingDto.cs
+@@ -2,4 +2,4 @@ using System;
+ 
+ namespace Regalis.Application.Bookings;
+ 
+-public record BookingDto(long BookingId, string BookingNumber, long CustomerId, string CustomerName, int LocationId, int WorkspaceId, string WorkspaceCode, string WorkspaceName, string WorkspaceTypeName, DateTime StartUtc, DateTime EndUtc, int DurationMinutes, decimal BaseAmount, decimal TaxAmount, decimal TotalAmount, byte Status, byte PaymentStatus, byte BookingSource, string? Notes, DateTime CreatedDate, DateTime? HoldExpiresUtc, byte? BillingMonths = null);
++public record BookingDto(long BookingId, string BookingNumber, long CustomerId, string CustomerName, int LocationId, int WorkspaceId, string WorkspaceCode, string WorkspaceName, string WorkspaceTypeName, DateTime StartUtc, DateTime EndUtc, int DurationMinutes, decimal BaseAmount, decimal TaxAmount, decimal TotalAmount, byte Status, byte PaymentStatus, byte BookingSource, string? Notes, DateTime CreatedDate, DateTime? HoldExpiresUtc, byte? BillingMonths = null, bool IsPayLater = false, decimal AmountPaid = 0m, DateTime? PaymentDueUtc = null);
+diff --git a/Regalis.Application/Regalis.Application.Bookings/ConfirmBookingRequestValidator.cs b/Regalis.Application/Regalis.Application.Bookings/ConfirmBookingRequestValidator.cs
+index d8ea867..9b3bb17 100644
+--- a/Regalis.Application/Regalis.Application.Bookings/ConfirmBookingRequestValidator.cs
++++ b/Regalis.Application/Regalis.Application.Bookings/ConfirmBookingRequestValidator.cs
+@@ -13,11 +13,12 @@ public class ConfirmBookingRequestValidator : AbstractValidator<ConfirmBookingRe
+ 			case "wallet":
+ 			case "gateway":
+ 			case "cash":
++			case "paylater":
+ 				return true;
+ 			default:
+ 				return false;
+ 			}
+-		}).WithMessage("Payment method must be 'wallet', 'gateway' or 'cash'.");
++		}).WithMessage("Payment method must be 'wallet', 'gateway', 'cash' or 'paylater'.");
+ 		When((ConfirmBookingRequest x) => x.PaymentMethod == "gateway", () =>
+ 		{
+ 			RuleFor((ConfirmBookingRequest x) => x.GatewayOrderId).NotEmpty();
+diff --git a/Regalis.Application/Regalis.Application.Bookings/ConfirmBookingResponse.cs b/Regalis.Application/Regalis.Application.Bookings/ConfirmBookingResponse.cs
+index a9393db..6d37ae7 100644
+--- a/Regalis.Application/Regalis.Application.Bookings/ConfirmBookingResponse.cs
++++ b/Regalis.Application/Regalis.Application.Bookings/ConfirmBookingResponse.cs
+@@ -1,3 +1,3 @@
+ namespace Regalis.Application.Bookings;
+ 
+-public record ConfirmBookingResponse(BookingDto Booking, long PaymentId, string PaymentNumber, long InvoiceId, string InvoiceNumber, string AccessTokenValue, string QrPayload);
++public record ConfirmBookingResponse(BookingDto Booking, long PaymentId, string PaymentNumber, long InvoiceId, string InvoiceNumber, string AccessTokenValue, string QrPayload, bool IsPayLater = false);
+diff --git a/Regalis.Application/Regalis.Application.Bookings/IBookingService.cs b/Regalis.Application/Regalis.Application.Bookings/IBookingService.cs
+index 740cc68..d2a0fac 100644
+--- a/Regalis.Application/Regalis.Application.Bookings/IBookingService.cs
++++ b/Regalis.Application/Regalis.Application.Bookings/IBookingService.cs
+@@ -30,6 +30,12 @@ public interface IBookingService
+ 	/// (wallet or cash) in one call. BookingSource = Admin.</summary>
+ 	Task<ConfirmBookingResponse> AdminCreateAsync(AdminCreateBookingRequest request, CancellationToken ct = default(CancellationToken));
+ 
++	/// <summary>Before any hold: whether the signed-in customer may pay later, and for which kinds.</summary>
++	Task<Regalis.Application.Finance.PayLaterStatusDto> GetPayLaterStatusAsync(CancellationToken ct = default(CancellationToken));
++
++	/// <summary>Whether the caller may confirm this Pending hold with "paylater", and why not.</summary>
++	Task<Regalis.Application.Finance.PayLaterEligibilityDto> GetPayLaterEligibilityAsync(long bookingId, CancellationToken ct = default(CancellationToken));
++
+ 	/// <summary>A booking scoped to the caller: customers see only their own rows.</summary>
+ 	Task<BookingDto> GetBookingAsync(long bookingId, CancellationToken ct = default(CancellationToken));
+ 
+diff --git a/Regalis.Application/Regalis.Application.Bookings/PaymentMethods.cs b/Regalis.Application/Regalis.Application.Bookings/PaymentMethods.cs
+index 5d959d5..c42dd2d 100644
+--- a/Regalis.Application/Regalis.Application.Bookings/PaymentMethods.cs
++++ b/Regalis.Application/Regalis.Application.Bookings/PaymentMethods.cs
+@@ -9,4 +9,7 @@ public static class PaymentMethods
+ 
+ 	/// <summary>Admin bookings only — cash collected at the desk.</summary>
+ 	public const string Cash = "cash";
++
++	/// <summary>Confirmed now, paid at the front desk later (cash, UPI or card).</summary>
++	public const string PayLater = "paylater";
+ }
+diff --git a/Regalis.Domain/Regalis.Domain.Entities.Booking/Booking.cs b/Regalis.Domain/Regalis.Domain.Entities.Booking/Booking.cs
+index 3d111be..9429270 100644
+--- a/Regalis.Domain/Regalis.Domain.Entities.Booking/Booking.cs
++++ b/Regalis.Domain/Regalis.Domain.Entities.Booking/Booking.cs
+@@ -84,6 +84,18 @@ public class Booking : AuditableEntity
+ 	/// daily check-out does not complete it. Null for an ordinary hourly booking.</summary>
+ 	public byte? BillingMonths { get; set; }
+ 
++	/// <summary>Confirmed without payment; paid at the front desk (cash, UPI or card).</summary>
++	public bool IsPayLater { get; set; }
++
++	/// <summary>Pay later: when the money is due (start - PayLater.DueBeforeStartMinutes).</summary>
++	public DateTime? PaymentDueUtc { get; set; }
++
++	/// <summary>Pay later: running total of desk collections; balance = TotalAmount - AmountPaid.</summary>
++	public decimal AmountPaid { get; set; }
++
++	/// <summary>Pay later: when the "payment due" reminder went out, so it goes once.</summary>
++	public DateTime? PayLaterReminderSentUtc { get; set; }
++
+ 	public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+ 
+ 	public User Customer { get; set; }
+diff --git a/Regalis.Domain/Regalis.Domain.Entities.Identity/User.cs b/Regalis.Domain/Regalis.Domain.Entities.Identity/User.cs
+index 2ef3bab..9e5808a 100644
+--- a/Regalis.Domain/Regalis.Domain.Entities.Identity/User.cs
++++ b/Regalis.Domain/Regalis.Domain.Entities.Identity/User.cs
+@@ -57,6 +57,10 @@ public class User : AuditableEntity
+ 	/// which until now had no customer-level source.</summary>
+ 	public string? Gstin { get; set; }
+ 
++	/// <summary>Customer may choose "Pay later at the front desk". Staff switch it off
++	/// after missed payments; three unpaid no-shows switch it off automatically.</summary>
++	public bool PayLaterAllowed { get; set; } = true;
++
+ 	public string? PhotoPath { get; set; }
+ 
+ 	public int? DefaultLocationId { get; set; }
+diff --git a/Regalis.Domain/Regalis.Domain.Enums/BookingPaymentStatus.cs b/Regalis.Domain/Regalis.Domain.Enums/BookingPaymentStatus.cs
+index 0d52a28..fe9fdd2 100644
+--- a/Regalis.Domain/Regalis.Domain.Enums/BookingPaymentStatus.cs
++++ b/Regalis.Domain/Regalis.Domain.Enums/BookingPaymentStatus.cs
+@@ -6,5 +6,7 @@ public enum BookingPaymentStatus : byte
+ 	Paid,
+ 	Failed,
+ 	Refunded,
+-	PartiallyRefunded
++	PartiallyRefunded,
++	/// <summary>Pay later: some cash taken, a balance still due.</summary>
++	PartiallyPaid
+ }
+diff --git a/Regalis.Infrastructure/Regalis.Infrastructure.Persistence.Configurations/BookingConfiguration.cs b/Regalis.Infrastructure/Regalis.Infrastructure.Persistence.Configurations/BookingConfiguration.cs
+index 1d5ae9f..aef85dd 100644
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Persistence.Configurations/BookingConfiguration.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Persistence.Configurations/BookingConfiguration.cs
+@@ -13,6 +13,7 @@ public class BookingConfiguration : IEntityTypeConfiguration<Booking>
+ 		{
+ 			t.HasCheckConstraint("CK_Booking_Period", "[EndUtc] > [StartUtc]");
+ 			t.HasCheckConstraint("CK_Booking_Amounts", "[BaseAmount] >= 0 AND [TaxAmount] >= 0 AND [TotalAmount] >= 0");
++			t.HasCheckConstraint("CK_Booking_AmountPaid", "[AmountPaid] >= 0");
+ 		});
+ 		builder.HasKey((Booking x) => x.BookingId);
+ 		builder.Property((Booking x) => x.BookingNumber).HasMaxLength(30).IsRequired();
+@@ -27,6 +28,9 @@ public class BookingConfiguration : IEntityTypeConfiguration<Booking>
+ 		builder.HasIndex((Booking x) => new { x.CustomerId, x.StartUtc }).HasDatabaseName("IX_Booking_Customer_Start").IsDescending(false, true);
+ 		builder.HasIndex((Booking x) => new { x.BookingDate, x.Status }).HasDatabaseName("IX_Booking_Date_Status").IncludeProperties((Booking x) => new { x.LocationId, x.TotalAmount });
+ 		builder.HasIndex((Booking x) => new { x.LocationId, x.StartUtc }).HasDatabaseName("IX_Booking_Location_Start");
++		builder.HasIndex((Booking x) => x.PaymentDueUtc).HasDatabaseName("IX_Booking_PayLater_Due")
++			.IncludeProperties((Booking x) => new { x.CustomerId, x.Status, x.TotalAmount, x.AmountPaid })
++			.HasFilter("[IsPayLater] = 1 AND [IsDeleted] = 0");
+ 		builder.HasOne((Booking x) => x.Customer).WithMany().HasForeignKey((Booking x) => x.CustomerId)
+ 			.OnDelete(DeleteBehavior.Restrict);
+ 		builder.HasOne((Booking x) => x.Location).WithMany().HasForeignKey((Booking x) => x.LocationId)
+diff --git a/Regalis.Infrastructure/Regalis.Infrastructure.Persistence.Configurations/UserConfiguration.cs b/Regalis.Infrastructure/Regalis.Infrastructure.Persistence.Configurations/UserConfiguration.cs
+index 0984c0f..35229c4 100644
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Persistence.Configurations/UserConfiguration.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Persistence.Configurations/UserConfiguration.cs
+@@ -29,6 +29,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
+ 		builder.Property((User x) => x.PostalCode).HasMaxLength(20);
+ 		builder.Property((User x) => x.Gstin).HasMaxLength(20);
+ 		builder.Ignore((User x) => x.IsProfileComplete);
++		builder.Property((User x) => x.PayLaterAllowed).HasDefaultValue(true);
+ 		builder.HasIndex((User x) => x.Email).IsUnique().HasDatabaseName("UX_User_Email")
+ 			.HasFilter("[IsDeleted] = 0");
+ 		builder.HasIndex((User x) => x.MobileNumber).IsUnique().HasDatabaseName("UX_User_Mobile")
+diff --git a/Regalis.Infrastructure/Regalis.Infrastructure.Persistence/RegalisDbContext.cs b/Regalis.Infrastructure/Regalis.Infrastructure.Persistence/RegalisDbContext.cs
+index 059ea48..eb7c6c4 100644
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Persistence/RegalisDbContext.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Persistence/RegalisDbContext.cs
+@@ -77,6 +77,10 @@ public class RegalisDbContext : DbContext
+ 
+ 	public DbSet<Invoice> Invoices => Set<Invoice>();
+ 
++	public DbSet<CashCollection> CashCollections => Set<CashCollection>();
++
++	public DbSet<CashRegisterSession> CashRegisterSessions => Set<CashRegisterSession>();
++
+ 	public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
+ 
+ 	public DbSet<CustomerPass> CustomerPasses => Set<CustomerPass>();
+diff --git a/Regalis.Infrastructure/Regalis.Infrastructure.Services/AccessService.cs b/Regalis.Infrastructure/Regalis.Infrastructure.Services/AccessService.cs
+index 603b29c..501e4a2 100644
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Services/AccessService.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Services/AccessService.cs
+@@ -33,7 +33,7 @@ namespace Regalis.Infrastructure.Services;
+ /// to a grant while hardware is down is the ACCESS.OVERRIDE manual fallback, which
+ /// writes an exception log row and an audit entry (Invariant 9, A10).
+ /// </summary>
+-public class AccessService(RegalisDbContext db, IAccessControlAdapter accessControlAdapter, AttendanceRecorder attendanceRecorder, ICurrentUser currentUser, IDateTimeProvider clock, IOptions<JwtOptions> jwtOptions, ILogger<AccessService> logger) : IAccessService
++public class AccessService(RegalisDbContext db, IAccessControlAdapter accessControlAdapter, AttendanceRecorder attendanceRecorder, ICurrentUser currentUser, IDateTimeProvider clock, ISettingService settings, IOptions<JwtOptions> jwtOptions, ILogger<AccessService> logger) : IAccessService
+ {
+ 	[CompilerGenerated]
+ 	private sealed class _003C_003Ec__DisplayClass11_0
+@@ -182,6 +182,16 @@ public class AccessService(RegalisDbContext db, IAccessControlAdapter accessCont
+ 		DateTime nowUtc = clock.UtcNow;
+ 		AccessDirection direction = (AccessDirection)request.Direction;
+ 		User user = (await db.Users.AsNoTracking().FirstOrDefaultAsync((User u) => u.UserId == request.UserId, ct)) ?? throw new NotFoundException("User", request.UserId);
++		if (direction == AccessDirection.In && request.BookingId.HasValue)
++		{
++			var pay = await (from b in db.Bookings
++				where b.BookingId == request.BookingId.Value
++				select new { b.BookingNumber, b.IsPayLater, b.TotalAmount, b.AmountPaid }).FirstOrDefaultAsync(ct);
++			if (pay != null && pay.IsPayLater && pay.AmountPaid < pay.TotalAmount && await settings.GetBoolAsync(PayLaterPolicy.BlockCheckInUntilPaid, true, ct))
++			{
++				throw new BusinessRuleException($"₹{pay.TotalAmount - pay.AmountPaid:N2} is still due on {pay.BookingNumber}. Record the payment under Cash Collections first.", "PAYMENT_DUE");
++			}
++		}
+ 		AccessLog log = new AccessLog
+ 		{
+ 			UserId = user.UserId,
+@@ -338,6 +348,16 @@ public class AccessService(RegalisDbContext db, IAccessControlAdapter accessCont
+ 			{
+ 				return "WrongWorkspace";
+ 			}
++			if (direction == AccessDirection.In)
++			{
++				var pay = await (from b in db.Bookings
++					where (long?)b.BookingId == token.BookingId
++					select new { b.IsPayLater, b.TotalAmount, b.AmountPaid }).FirstOrDefaultAsync(ct);
++				if (pay != null && pay.IsPayLater && pay.AmountPaid < pay.TotalAmount && await settings.GetBoolAsync(PayLaterPolicy.BlockCheckInUntilPaid, true, ct))
++				{
++					return DenyReasons.PaymentDue;
++				}
++			}
+ 		}
+ 		if (direction == AccessDirection.Out)
+ 		{
+diff --git a/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingMutationService.cs b/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingMutationService.cs
+index 04c7ce9..4d85d7e 100644
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingMutationService.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingMutationService.cs
+@@ -49,12 +49,14 @@ public class BookingMutationService(RegalisDbContext db, ISettingService setting
+ 				}
+ 				decimal refundAmount = 0m;
+ 				decimal refundPercent = 0m;
+-				if (booking.Status == BookingStatus.Confirmed && booking.PaymentStatus == BookingPaymentStatus.Paid)
++				// Pay later: refund rules apply to what was actually collected at the desk.
++				decimal refundBase = booking.IsPayLater ? booking.AmountPaid : booking.TotalAmount;
++				if (booking.Status == BookingStatus.Confirmed && (booking.PaymentStatus == BookingPaymentStatus.Paid || booking.PaymentStatus == BookingPaymentStatus.PartiallyPaid))
+ 				{
+ 					int num = await settings.GetIntAsync("Cancellation.CutoffHours", 24, ct);
+ 					decimal num2 = ((!(booking.StartUtc - nowUtc >= TimeSpan.FromHours((double)num))) ? (await settings.GetDecimalAsync("Cancellation.RefundPercentAfterCutoff", 0m, ct)) : (await settings.GetDecimalAsync("Cancellation.RefundPercentBeforeCutoff", 100m, ct)));
+ 					refundPercent = num2;
+-					refundAmount = Math.Round(booking.TotalAmount * refundPercent / 100m, 2, MidpointRounding.AwayFromZero);
++					refundAmount = Math.Round(refundBase * refundPercent / 100m, 2, MidpointRounding.AwayFromZero);
+ 					if (refundAmount > 0m)
+ 					{
+ 						IWalletService walletService2 = walletService;
+@@ -67,7 +69,7 @@ public class BookingMutationService(RegalisDbContext db, ISettingService setting
+ 					}
+ 					booking.RefundAmount = refundAmount;
+ 					Booking booking2 = booking;
+-					BookingPaymentStatus paymentStatus = ((refundAmount >= booking.TotalAmount) ? BookingPaymentStatus.Refunded : ((refundAmount > 0m) ? BookingPaymentStatus.PartiallyRefunded : booking.PaymentStatus));
++					BookingPaymentStatus paymentStatus = ((refundAmount >= refundBase) ? BookingPaymentStatus.Refunded : ((refundAmount > 0m) ? BookingPaymentStatus.PartiallyRefunded : booking.PaymentStatus));
+ 					booking2.PaymentStatus = paymentStatus;
+ 				}
+ 				BookingStatus status2 = booking.Status;
+@@ -85,6 +87,15 @@ public class BookingMutationService(RegalisDbContext db, ISettingService setting
+ 					Reason = (request.Reason?.Trim() ?? $"Cancelled; refund {refundPercent:0.##}% = {refundAmount:0.00}")
+ 				});
+ 				await RevokeAccessTokensAsync(booking.BookingId, "BookingCancelled", nowUtc, ct);
++				if (booking.IsPayLater && booking.AmountPaid == 0m)
++				{
++					// Nothing was collected: the unpaid invoice goes with the booking.
++					foreach (Invoice invoice in await db.Invoices.Where((Invoice i) => i.BookingId == (long?)booking.BookingId && i.Status == InvoiceStatus.Pending && i.PaidAmount == 0m).ToListAsync(ct))
++					{
++						invoice.Status = InvoiceStatus.Cancelled;
++						invoice.CancellationReason = "Pay later booking cancelled before payment.";
++					}
++				}
+ 				db.Notifications.Add(BuildNotification(booking, "Booking cancelled", booking.BookingNumber + " has been cancelled." + ((refundAmount > 0m) ? $" ₹{refundAmount:N2} was refunded to your wallet." : ""), nowUtc));
+ 				await AdminAlerts.BookingAsync(db, booking, "Booking cancelled", nowUtc, ct, (refundAmount > 0m) ? $"₹{refundAmount:N2} refunded to the wallet." : null);
+ 				await db.SaveChangesAsync(ct);
+diff --git a/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingService.cs b/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingService.cs
+index 949ab3d..40f8901 100644
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingService.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingService.cs
+@@ -200,6 +200,14 @@ public class BookingService(RegalisDbContext db, ISettingService settings, INumb
+ 				{
+ 					throw new ConflictException("The slot has been taken while the hold was pending. The hold is released.");
+ 				}
++				if (request.PaymentMethod == PaymentMethods.PayLater)
++				{
++					string? refusal = await PayLaterPolicy.CheckAsync(db, settings, booking, ct);
++					if (refusal != null)
++					{
++						throw new BusinessRuleException(refusal, "PAY_LATER_NOT_ALLOWED");
++					}
++				}
+ 				ConfirmBookingResponse result = await SettleAndFinalizeAsync(booking, request, ct);
+ 				await transaction.CommitAsync(ct);
+ 				result2 = result;
+@@ -267,6 +275,14 @@ public class BookingService(RegalisDbContext db, ISettingService settings, INumb
+ 				booking.Workspace = await db.Workspaces.FirstAsync((Workspace w) => w.WorkspaceId == workspace.WorkspaceId, ct);
+ 				booking = booking3;
+ 				booking.WorkspaceType = await db.WorkspaceTypes.FirstAsync((WorkspaceType t) => t.WorkspaceTypeId == workspace.WorkspaceTypeId, ct);
++				if (request.PaymentMethod == PaymentMethods.PayLater)
++				{
++					string? refusal = await PayLaterPolicy.CheckAsync(db, settings, booking3, ct);
++					if (refusal != null)
++					{
++						throw new BusinessRuleException(refusal, "PAY_LATER_NOT_ALLOWED");
++					}
++				}
+ 				ConfirmBookingResponse result = await SettleAndFinalizeAsync(booking3, new ConfirmBookingRequest(request.PaymentMethod, null, null, null), ct);
+ 				await transaction.CommitAsync(ct);
+ 				result2 = result;
+@@ -283,24 +299,44 @@ public class BookingService(RegalisDbContext db, ISettingService settings, INumb
+ 	private async Task<ConfirmBookingResponse> SettleAndFinalizeAsync(Booking booking, ConfirmBookingRequest request, CancellationToken ct)
+ 	{
+ 		DateTime nowUtc = clock.UtcNow;
+-		Payment payment = request.PaymentMethod switch
+-		{
+-			"wallet" => await SettleWithWalletAsync(booking, ct), 
+-			"gateway" => await SettleWithGatewayAsync(booking, request, ct), 
+-			"cash" => await SettleWithCashAsync(booking, ct), 
+-			_ => throw new BusinessRuleException("Unknown payment method."), 
++		bool payLater = request.PaymentMethod == PaymentMethods.PayLater;
++		Payment? payment = request.PaymentMethod switch
++		{
++			"wallet" => await SettleWithWalletAsync(booking, ct),
++			"gateway" => await SettleWithGatewayAsync(booking, request, ct),
++			"cash" => await SettleWithCashAsync(booking, ct),
++			"paylater" => null,
++			_ => throw new BusinessRuleException("Unknown payment method."),
+ 		};
+ 		await db.SaveChangesAsync(ct);
+ 		Invoice invoice = await BuildInvoiceAsync(booking, payment, ct);
+ 		db.Invoices.Add(invoice);
+ 		await db.SaveChangesAsync(ct);
+-		payment.InvoiceId = invoice.InvoiceId;
++		if (payment != null)
++		{
++			payment.InvoiceId = invoice.InvoiceId;
++		}
+ 		AccessToken accessToken = BuildAccessToken(booking);
+ 		db.AccessTokens.Add(accessToken);
+-		db.Notifications.Add(BuildConfirmationNotification(booking, nowUtc));
+-		await AdminAlerts.BookingAsync(db, booking, "Booking confirmed", nowUtc, ct, "Paid by " + request.PaymentMethod + ".");
++		Notification confirmation = BuildConfirmationNotification(booking, nowUtc);
++		if (payLater)
++		{
++			confirmation.Message += $" Please pay ₹{booking.TotalAmount:N2} at the front desk (cash, UPI or card) before you check in.";
++		}
++		db.Notifications.Add(confirmation);
++		await AdminAlerts.BookingAsync(db, booking, "Booking confirmed", nowUtc, ct, payLater ? $"Pay later: ₹{booking.TotalAmount:N2} to collect at the front desk." : ("Paid by " + request.PaymentMethod + "."));
+ 		booking.Status = BookingStatus.Confirmed;
+-		booking.PaymentStatus = BookingPaymentStatus.Paid;
++		if (payLater)
++		{
++			booking.IsPayLater = true;
++			booking.AmountPaid = 0m;
++			booking.PaymentStatus = BookingPaymentStatus.Pending;
++			booking.PaymentDueUtc = await PayLaterPolicy.DueUtcAsync(settings, booking, ct);
++		}
++		else
++		{
++			booking.PaymentStatus = BookingPaymentStatus.Paid;
++		}
+ 		booking.StatusHistory.Add(new BookingStatusHistory
+ 		{
+ 			BookingId = booking.BookingId,
+@@ -308,10 +344,10 @@ public class BookingService(RegalisDbContext db, ISettingService settings, INumb
+ 			ToStatus = BookingStatus.Confirmed,
+ 			ChangedByUserId = currentUser.UserId,
+ 			ChangedUtc = nowUtc,
+-			Reason = $"Payment {payment.PaymentNumber} ({request.PaymentMethod}) verified."
++			Reason = payLater ? $"Confirmed with pay later; ₹{booking.TotalAmount:N2} due at the front desk." : $"Payment {payment!.PaymentNumber} ({request.PaymentMethod}) verified."
+ 		});
+ 		await db.SaveChangesAsync(ct);
+-		return new ConfirmBookingResponse(ToDto(booking, await settings.GetIntAsync("Booking.PendingHoldMinutes", 10, ct)), payment.PaymentId, payment.PaymentNumber, invoice.InvoiceId, invoice.InvoiceNumber, accessToken.TokenValue, accessToken.QrPayload);
++		return new ConfirmBookingResponse(ToDto(booking, await settings.GetIntAsync("Booking.PendingHoldMinutes", 10, ct)), payment?.PaymentId ?? 0L, payment?.PaymentNumber ?? "", invoice.InvoiceId, invoice.InvoiceNumber, accessToken.TokenValue, accessToken.QrPayload, payLater);
+ 	}
+ 
+ 	private async Task<Payment> SettleWithWalletAsync(Booking booking, CancellationToken ct)
+@@ -369,7 +405,7 @@ public class BookingService(RegalisDbContext db, ISettingService settings, INumb
+ 		return payment3;
+ 	}
+ 
+-	private async Task<Invoice> BuildInvoiceAsync(Booking booking, Payment payment, CancellationToken ct)
++	private async Task<Invoice> BuildInvoiceAsync(Booking booking, Payment? payment, CancellationToken ct)
+ 	{
+ 		decimal cgstPercent = await settings.GetDecimalAsync("Tax.CgstPercent", 9m, ct);
+ 		decimal sgstPercent = await settings.GetDecimalAsync("Tax.SgstPercent", 9m, ct);
+@@ -401,10 +437,10 @@ public class BookingService(RegalisDbContext db, ISettingService settings, INumb
+ 		invoice.SgstAmount = sgstAmount;
+ 		invoice.IgstAmount = 0m;
+ 		invoice.TotalAmount = booking.TotalAmount;
+-		invoice.PaidAmount = booking.TotalAmount;
+-		invoice.Status = InvoiceStatus.Paid;
+-		invoice.PaymentId = payment.PaymentId;
+-		invoice.PaidUtc = clock.UtcNow;
++		invoice.PaidAmount = (payment == null) ? 0m : booking.TotalAmount;
++		invoice.Status = (payment == null) ? InvoiceStatus.Pending : InvoiceStatus.Paid;
++		invoice.PaymentId = payment?.PaymentId;
++		invoice.PaidUtc = (payment == null) ? null : new DateTime?(clock.UtcNow);
+ 		invoice.CustomerName = booking.Customer.FullName;
+ 		invoice.CustomerEmail = booking.Customer.Email;
+ 		invoice.CustomerMobile = booking.Customer.MobileNumber;
+@@ -505,6 +541,31 @@ public class BookingService(RegalisDbContext db, ISettingService settings, INumb
+ 		return notification;
+ 	}
+ 
++	public async Task<PayLaterStatusDto> GetPayLaterStatusAsync(CancellationToken ct = default(CancellationToken))
++	{
++		if (currentUser.UserType != UserType.Customer)
++		{
++			return new PayLaterStatusDto(Available: false, "Pay later is chosen by the customer at checkout.", Array.Empty<string>());
++		}
++		(string? reason, string[] kinds) = await PayLaterPolicy.CustomerStatusAsync(db, settings, currentUser.UserId, ct);
++		return new PayLaterStatusDto(reason == null, reason, kinds);
++	}
++
++	public async Task<PayLaterEligibilityDto> GetPayLaterEligibilityAsync(long bookingId, CancellationToken ct = default(CancellationToken))
++	{
++		Booking booking = (await db.Bookings.AsNoTracking().FirstOrDefaultAsync((Booking b) => b.BookingId == bookingId, ct)) ?? throw new NotFoundException("Booking", bookingId);
++		if (currentUser.UserType == UserType.Customer && booking.CustomerId != currentUser.UserId)
++		{
++			throw new NotFoundException("Booking", bookingId);
++		}
++		if (booking.Status != BookingStatus.Pending)
++		{
++			return new PayLaterEligibilityDto(Allowed: false, "This booking is not awaiting payment.", booking.TotalAmount, null);
++		}
++		string? refusal = await PayLaterPolicy.CheckAsync(db, settings, booking, ct);
++		return new PayLaterEligibilityDto(refusal == null, refusal, booking.TotalAmount, await PayLaterPolicy.DueUtcAsync(settings, booking, ct));
++	}
++
+ 	public async Task<BookingDto> GetBookingAsync(long bookingId, CancellationToken ct = default(CancellationToken))
+ 	{
+ 		Booking booking = (await db.Bookings.AsNoTracking().Include((Booking b) => b.Customer).Include((Booking b) => b.Workspace)
+@@ -698,6 +759,6 @@ public class BookingService(RegalisDbContext db, ISettingService settings, INumb
+ 
+ 	private static BookingDto ToDto(Booking b, int holdMinutes)
+ 	{
+-		return new BookingDto(b.BookingId, b.BookingNumber, b.CustomerId, b.Customer.FullName, b.LocationId, b.WorkspaceId, b.Workspace.WorkspaceCode, b.Workspace.WorkspaceName, b.WorkspaceType.TypeName, b.StartUtc, b.EndUtc, b.DurationMinutes, b.BaseAmount, b.TaxAmount, b.TotalAmount, (byte)b.Status, (byte)b.PaymentStatus, (byte)b.BookingSource, b.Notes, b.CreatedDate, (b.Status == BookingStatus.Pending) ? new DateTime?(b.CreatedDate.AddMinutes(holdMinutes)) : ((DateTime?)null), b.BillingMonths);
++		return new BookingDto(b.BookingId, b.BookingNumber, b.CustomerId, b.Customer.FullName, b.LocationId, b.WorkspaceId, b.Workspace.WorkspaceCode, b.Workspace.WorkspaceName, b.WorkspaceType.TypeName, b.StartUtc, b.EndUtc, b.DurationMinutes, b.BaseAmount, b.TaxAmount, b.TotalAmount, (byte)b.Status, (byte)b.PaymentStatus, (byte)b.BookingSource, b.Notes, b.CreatedDate, (b.Status == BookingStatus.Pending) ? new DateTime?(b.CreatedDate.AddMinutes(holdMinutes)) : ((DateTime?)null), b.BillingMonths, b.IsPayLater, b.AmountPaid, b.PaymentDueUtc);
+ 	}
+ }
+diff --git a/Regalis.Infrastructure/Regalis.Infrastructure.Services/WalletDeskService.cs b/Regalis.Infrastructure/Regalis.Infrastructure.Services/WalletDeskService.cs
+index 8803cf9..d5808eb 100644
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Services/WalletDeskService.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Services/WalletDeskService.cs
+@@ -132,6 +132,12 @@ public class WalletDeskService(RegalisDbContext db, IWalletService walletService
+ 
+ 	public async Task<AdminAddMoneyResponse> AddMoneyAsync(long customerId, AdminAddMoneyRequest request, CancellationToken ct = default(CancellationToken))
+ 	{
++		// Decision of 27 Oct 2026: wallets are topped up online only. Desk money is taken
++		// as a pay-later collection against a booking (Cash Collections), not as a top-up.
++		if (!await settings.GetBoolAsync("Wallet.DeskAddMoneyEnabled", true, ct))
++		{
++			throw new BusinessRuleException("Wallet top-up at the desk is switched off. Customers add money online; take desk payments under Cash Collections.", "DESK_TOPUP_DISABLED");
++		}
+ 		WalletCustomerDto customer = await LoadCustomerAsync(customerId, ct);
+ 		PaymentMethod method = (PaymentMethod)request.PaymentMethod;
+ 		DateOnly dateOnly = IstClock.IstDateOf(clock.UtcNow);
+diff --git a/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs b/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs
+index acd9bbc..e13f025 100644
+--- a/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs
+@@ -88,6 +88,9 @@ public static class DependencyInjection
+ 		services.AddScoped<IWalletDeskService, WalletDeskService>();
+ 		services.AddScoped<IInvoiceService, InvoiceService>();
+ 		services.AddScoped<IPaymentService, PaymentService>();
++		services.AddScoped<ICashCollectionService, CashCollectionService>();
++		services.AddScoped<ICashRegisterService, CashRegisterService>();
++		services.AddHostedService<PayLaterSweeper>();
+ 		services.AddScoped<IPassService, PassService>();
+ 		services.AddScoped<ISupplierService, SupplierService>();
+ 		services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+diff --git a/Regalis.Shared/Regalis.Shared.Constants/PermissionCodes.cs b/Regalis.Shared/Regalis.Shared.Constants/PermissionCodes.cs
+index 7eb2aac..bc44409 100644
+--- a/Regalis.Shared/Regalis.Shared.Constants/PermissionCodes.cs
++++ b/Regalis.Shared/Regalis.Shared.Constants/PermissionCodes.cs
+@@ -122,6 +122,14 @@ public static class PermissionCodes
+ 		public const string Create = "PAYMENT.CREATE";
+ 
+ 		public const string Export = "PAYMENT.EXPORT";
++
++		public const string CashCollect = "PAYMENT.CASH_COLLECT";
++
++		public const string CashClose = "PAYMENT.CASH_CLOSE";
++
++		public const string CashVoid = "PAYMENT.CASH_VOID";
++
++		public const string CashApprove = "PAYMENT.CASH_APPROVE";
+ 	}
+ 
+ 	public static class Wallet

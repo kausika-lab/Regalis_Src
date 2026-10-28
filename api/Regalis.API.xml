@@ -502,6 +502,12 @@
             <summary>Holds a desk or cabin for a whole monthly term while payment completes;
             confirm it with POST /api/bookings/{id}/confirm like any other booking.</summary>
         </member>
+        <member name="M:Regalis.API.Controllers.BookingsController.PayLaterStatus(System.Threading.CancellationToken)">
+            <summary>Before a hold: may the signed-in customer pay later, and for which kinds.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.BookingsController.PayLaterEligibility(System.Int64,System.Threading.CancellationToken)">
+            <summary>Whether this Pending hold may be confirmed with "paylater", and why not.</summary>
+        </member>
         <member name="M:Regalis.API.Controllers.BookingsController.GetById(System.Int64,System.Threading.CancellationToken)">
             <summary>One booking — customers see only their own rows.</summary>
         </member>
@@ -538,6 +544,35 @@
         </member>
         <member name="M:Regalis.API.Controllers.CalendarController.Unblock(System.Int64,System.Threading.CancellationToken)">
             <summary>Releases a block; the row is kept for the audit trail.</summary>
+        </member>
+        <member name="T:Regalis.API.Controllers.CashController">
+            <summary>Pay later at the front desk: what is owed, the receipts that settle it, and
+            each collector's register session (open, close with a count, Admin approval).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.CashController.#ctor(Regalis.Application.Finance.ICashCollectionService,Regalis.Application.Finance.ICashRegisterService)">
+            <summary>Pay later at the front desk: what is owed, the receipts that settle it, and
+            each collector's register session (open, close with a count, Admin approval).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.CashController.GetOutstanding(Regalis.Application.Finance.OutstandingListRequest,System.Threading.CancellationToken)">
+            <summary>Confirmed pay-later bookings with a balance, oldest due first.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.CashController.Record(Regalis.Application.Finance.RecordCollectionRequest,System.Threading.CancellationToken)">
+            <summary>Records a desk payment (cash, UPI or card) against a pay-later booking.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.CashController.GetReceipt(System.Int64,System.Threading.CancellationToken)">
+            <summary>The receipt as a PDF (a voided one prints with a VOID stamp).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.CashController.Void(System.Int64,Regalis.Application.Finance.VoidCollectionRequest,System.Threading.CancellationToken)">
+            <summary>Voids a receipt (Admin only): the row stays, its totals are reversed.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.CashController.GetCurrent(System.Int32,System.Threading.CancellationToken)">
+            <summary>The caller's register session at a location today (null when none).</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.CashController.Close(System.Int64,Regalis.Application.Finance.CloseRegisterRequest,System.Threading.CancellationToken)">
+            <summary>Closes the session with the counted cash; a difference needs a reason.</summary>
+        </member>
+        <member name="M:Regalis.API.Controllers.CashController.Approve(System.Int64,System.Threading.CancellationToken)">
+            <summary>Admin approves the close and takes the cash.</summary>
         </member>
         <member name="T:Regalis.API.Controllers.CustomersController">
             <summary>Customer reads for operational roles (API_PLAN §4): managers and support

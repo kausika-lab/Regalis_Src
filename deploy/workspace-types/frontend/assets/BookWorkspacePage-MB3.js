@@ -166,6 +166,11 @@ function Ee() {
   const [voPlans, setVoPlans] = a.useState(null);
   const [voPlan, setVoPlan] = a.useState(null);
   const [voDone, setVoDone] = a.useState(null);
+  /* PAY_LATER: may this customer pay at the front desk (deploy/pay-later). */
+  const [payLater, setPayLater] = a.useState(null);
+  a.useEffect(() => {
+    fe(je.get("/bookings/pay-later")).then(setPayLater).catch(() => setPayLater(null));
+  }, []);
   const K = g.find((t) => String(t.locationId) === j) ?? null;
 
   /* Move the dates on when today is over or closed (deploy/next-open-day). */
@@ -621,6 +626,15 @@ function Ee() {
       : !1;
 
   const settle = async (bookingId, method) => {
+    if (method === "paylater") {
+      try {
+        return await k.confirm(bookingId, { paymentMethod: "paylater" });
+      } catch (err) {
+        /* Free the slot at once, so paying now does not collide with this hold. */
+        try { await Be.cancel(bookingId, "Pay later was not available"); } catch (e2) {}
+        throw err;
+      }
+    }
     if (method === "wallet")
       return k.confirm(bookingId, { paymentMethod: "wallet" });
     const order = await se.createOrder(bookingId);
@@ -1535,8 +1549,21 @@ function Ee() {
                     onClick: () => (isM ? payMonthly : W ? paySingle : payMulti)("gateway"),
                     children: [e.jsx(we, { size: 18 }), " Pay online"],
                   }),
+                  payLater?.available && payLater.allowedKinds.includes((isM ? "Monthly" : W ? "Hourly" : "MultiDay")) && e.jsx(h, {
+                    size: "lg",
+                    variant: "outline",
+                    disabled: S !== null,
+                    loading: S === "paylater",
+                    onClick: () => (isM ? payMonthly : W ? paySingle : payMulti)("paylater"),
+                    children: "Pay later at the front desk",
+                  }),
                 ],
               }),
+              payLater?.available && payLater.allowedKinds.includes((isM ? "Monthly" : W ? "Hourly" : "MultiDay")) &&
+                e.jsx("p", {
+                  style: { color: "var(--text-muted)", fontSize: "var(--font-size-xs)" },
+                  children: "Pay later confirms the booking now. Pay at the front desk in cash, UPI or card before you check in — check-in opens once it is paid. An unpaid booking can be released once its start time has passed.",
+                }),
               !U &&
                 c &&
                 e.jsxs("p", {
@@ -1666,6 +1693,11 @@ function Ee() {
                         " – ",
                         L(l.booking.endUtc),
                       ],
+                }),
+              ((l && l.isPayLater) || (multi && multi.some((t) => t.isPayLater))) &&
+                e.jsx("p", {
+                  style: { marginTop: "var(--space-3)", padding: "var(--space-3) var(--space-4)", borderRadius: "var(--radius-md)", background: "color-mix(in srgb, var(--color-warning) 14%, transparent)", fontWeight: 600 },
+                  children: `Pay ${p(l ? l.booking.totalAmount : multi.reduce((s, t) => s + t.booking.totalAmount, 0))} at the front desk (cash, UPI or card) before you check in. Your QR pass works once it is paid.`,
                 }),
               multi &&
                 e.jsx("div", {

@@ -72,6 +72,18 @@
             holds the workspace for the whole term, is priced at PricePerMonth x months, and a
             daily check-out does not complete it. Null for an ordinary hourly booking.</summary>
         </member>
+        <member name="P:Regalis.Domain.Entities.Booking.Booking.IsPayLater">
+            <summary>Confirmed without payment; paid at the front desk (cash, UPI or card).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Booking.Booking.PaymentDueUtc">
+            <summary>Pay later: when the money is due (start - PayLater.DueBeforeStartMinutes).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Booking.Booking.AmountPaid">
+            <summary>Pay later: running total of desk collections; balance = TotalAmount - AmountPaid.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Booking.Booking.PayLaterReminderSentUtc">
+            <summary>Pay later: when the "payment due" reminder went out, so it goes once.</summary>
+        </member>
         <member name="F:Regalis.Domain.Entities.Booking.Booking.OccupancyStatuses">
             <summary>Statuses that occupy the slot: Pending (held), Confirmed, CheckedIn.</summary>
         </member>
@@ -124,6 +136,45 @@
         <member name="P:Regalis.Domain.Entities.Finance.BankTransaction.ImportBatchId">
             <summary>Set when the row arrived through a statement import rather than
             manual entry; lets a bad import be identified and reversed as a batch.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.CashCollection">
+            <summary>TRN_CashCollection — money taken at the front desk against a pay-later
+            booking: cash, UPI or card. One row per receipt. Never deleted or edited: a mistake
+            is voided (the row stays, with who, when and why) and the totals it moved are
+            reversed. A negative Amount is money handed back.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.CashCollection.ReceiptNumber">
+            <summary>REG/RCPT/2026-27/000123 — gap-free, from MST_NumberSequence.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.CashCollection.PaymentId">
+            <summary>The PAY- payment this receipt created.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.CashCollection.PaymentMethod">
+            <summary>Cash, Upi, CreditCard or DebitCard.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.CashCollection.AmountTendered">
+            <summary>Cash only: what the customer handed over, and the change given back.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.CashCollection.ReferenceNumber">
+            <summary>UPI transaction id or card slip number; required unless cash.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.CashCollection.CashRegisterSessionId">
+            <summary>The collector's register session (drawer + day) it belongs to.</summary>
+        </member>
+        <member name="T:Regalis.Domain.Entities.Finance.CashRegisterSession">
+            <summary>TRN_CashRegisterSession — one collector's drawer at one location for one
+            IST business day. Opened with a float; closed with a count. ExpectedCash is the float
+            plus the cash receipts (UPI and card are reconciled against the bank, not the
+            drawer). An Admin approves the close and takes the cash (HandedOver).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.CashRegisterSession.SessionNumber">
+            <summary>CRS-000123 — gap-free, from MST_NumberSequence.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.CashRegisterSession.ExpectedCash">
+            <summary>Set at close: float + recorded cash receipts.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.CashRegisterSession.Variance">
+            <summary>Computed: CountedCash - ExpectedCash.</summary>
         </member>
         <member name="T:Regalis.Domain.Entities.Finance.CustomerPass">
             <summary>TRN_CustomerPass — a purchased Day/Monthly pass.</summary>
@@ -582,6 +633,10 @@
         <member name="P:Regalis.Domain.Entities.Identity.User.Gstin">
             <summary>15-character GSTIN, upper-cased on save. Feeds TRN_Invoice.CustomerGstin,
             which until now had no customer-level source.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Identity.User.PayLaterAllowed">
+            <summary>Customer may choose "Pay later at the front desk". Staff switch it off
+            after missed payments; three unpaid no-shows switch it off automatically.</summary>
         </member>
         <member name="P:Regalis.Domain.Entities.Identity.User.IsProfileComplete">
              <summary>
@@ -1087,6 +1142,9 @@
         </member>
         <member name="F:Regalis.Domain.Enums.BookingStatus.Pending">
             <summary>Holds the slot for Booking.PendingHoldMinutes while payment completes.</summary>
+        </member>
+        <member name="F:Regalis.Domain.Enums.BookingPaymentStatus.PartiallyPaid">
+            <summary>Pay later: some cash taken, a balance still due.</summary>
         </member>
         <member name="F:Regalis.Domain.Enums.InvoiceStatus.Sent">
             <summary>Issued and delivered to the customer, nothing paid yet. Appended

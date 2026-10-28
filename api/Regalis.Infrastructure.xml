@@ -233,6 +233,32 @@
             one grouped alert per sweep (Maintenance spec §4.4).
             </summary>
         </member>
+        <member name="T:Regalis.Infrastructure.BackgroundJobs.PayLaterSweeper">
+            <summary>
+            Pay later housekeeping, every 5 minutes:
+            1. Reminds the customer once, PayLater.ReminderHoursBefore hours before the start.
+            2. Releases a pay-later booking with nothing paid PayLater.AutoCancelAfterStartMinutes
+               after its start and not checked in: cancelled, slot and QR released, invoice
+               cancelled. A part-paid booking is never released; it stays on the outstanding list.
+            3. After PayLater.AutoBlockAfterUnpaidNoShows such releases, switches pay later off
+               for that customer (MST_User.PayLaterAllowed); staff can switch it back on.
+            Runs whether or not PayLater.Enabled is on, so bookings made while it was on are still
+            looked after. ChangedByUserId 0 = system, as in BookingHoldSweeper.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.BackgroundJobs.PayLaterSweeper.#ctor(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory,Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.BackgroundJobs.PayLaterSweeper})">
+            <summary>
+            Pay later housekeeping, every 5 minutes:
+            1. Reminds the customer once, PayLater.ReminderHoursBefore hours before the start.
+            2. Releases a pay-later booking with nothing paid PayLater.AutoCancelAfterStartMinutes
+               after its start and not checked in: cancelled, slot and QR released, invoice
+               cancelled. A part-paid booking is never released; it stays on the outstanding list.
+            3. After PayLater.AutoBlockAfterUnpaidNoShows such releases, switches pay later off
+               for that customer (MST_User.PayLaterAllowed); staff can switch it back on.
+            Runs whether or not PayLater.Enabled is on, so bookings made while it was on are still
+            looked after. ChangedByUserId 0 = system, as in BookingHoldSweeper.
+            </summary>
+        </member>
         <member name="T:Regalis.Infrastructure.BackgroundJobs.ReportWorker">
             <summary>
             Reports &amp; Analysis in the background (spec §7.4, §7.5, §12.2). Every minute: send
@@ -646,6 +672,18 @@
             <inheritdoc />
         </member>
         <member name="M:Regalis.Infrastructure.Persistence.Migrations.ReportsAnalysis.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.PayLaterCash">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.PayLaterCash.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.PayLaterCash.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.PayLaterCash.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
         <member name="T:Regalis.Infrastructure.Persistence.Seed.DatabaseSeeder">
@@ -1132,6 +1170,11 @@
         <member name="M:Regalis.Infrastructure.Reporting.Analytics.SvgCharts.NiceTop(System.Decimal)">
             <summary>Axis ticks: 0 and three more, the top a clean 1 / 2 / 2.5 / 5 × 10ⁿ.</summary>
         </member>
+        <member name="T:Regalis.Infrastructure.Reporting.CashReceiptPdfGenerator">
+            <summary>The front-desk payment receipt for a pay-later booking (A5, QuestPDF community
+            license), in the invoice's colours. A voided receipt prints with a VOID stamp and the
+            reason, so a reprint can never pass for a valid one.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Reporting.InvoicePdfExtras">
             <summary>What the tax invoice prints besides the invoice row itself: the logo and the
             company-level details (place of supply, bank strip, default terms) read from settings
@@ -1354,7 +1397,7 @@
             writes an exception log row and an audit entry (Invariant 9, A10).
             </summary>
         </member>
-        <member name="M:Regalis.Infrastructure.Services.AccessService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.IAccessControlAdapter,Regalis.Infrastructure.Services.AttendanceRecorder,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Security.JwtOptions},Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Services.AccessService})">
+        <member name="M:Regalis.Infrastructure.Services.AccessService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.IAccessControlAdapter,Regalis.Infrastructure.Services.AttendanceRecorder,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Regalis.Application.Abstractions.ISettingService,Microsoft.Extensions.Options.IOptions{Regalis.Infrastructure.Security.JwtOptions},Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Services.AccessService})">
             <summary>
             The access engine (M16). All rules are evaluated HERE against the database —
             the device adapter only opens doors. Every attempt, granted or denied, writes a
@@ -1983,6 +2026,53 @@
             bookings; admin-portal users see numbers and names.
             </summary>
         </member>
+        <member name="T:Regalis.Infrastructure.Services.CashCollectionService">
+            <summary>
+            Pay later at the front desk (decisions of 27 Oct 2026). Staff record each payment as
+            a numbered receipt: cash, UPI or card. A receipt is never edited or deleted; a mistake
+            is voided by an Admin, which keeps the row and reverses the totals it moved. Every
+            write runs in one serializable transaction with the booking's RowVersion, so two
+            staff cannot both take the last rupee of the same balance.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.CashCollectionService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Services.CashCollectionService})">
+            <summary>
+            Pay later at the front desk (decisions of 27 Oct 2026). Staff record each payment as
+            a numbered receipt: cash, UPI or card. A receipt is never edited or deleted; a mistake
+            is voided by an Admin, which keeps the row and reverses the totals it moved. Every
+            write runs in one serializable transaction with the booking's RowVersion, so two
+            staff cannot both take the last rupee of the same balance.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.CashCollectionService.ApplyToBooking(Regalis.Domain.Entities.Booking.Booking,System.Decimal)">
+            <summary>Moves the booking's running total and payment status by a receipt (or,
+            negative, by a void).</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.CashRegisterService">
+            <summary>
+            The collector's drawer for one IST day at one location. Opening it records the float;
+            a receipt taken with no session open opens one with a zero float. Closing records the
+            counted cash against the expected cash (float + recorded cash receipts) and needs a
+            reason for any difference. An Admin approves the close and takes the cash
+            (HandedOver). UPI and card receipts are listed per session but reconciled against the
+            bank and card-settlement statements, not the drawer.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.CashRegisterService.#ctor(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.INumberSequenceService,Regalis.Application.Abstractions.ICurrentUser,Regalis.Application.Abstractions.IDateTimeProvider,Microsoft.Extensions.Logging.ILogger{Regalis.Infrastructure.Services.CashRegisterService})">
+            <summary>
+            The collector's drawer for one IST day at one location. Opening it records the float;
+            a receipt taken with no session open opens one with a zero float. Closing records the
+            counted cash against the expected cash (float + recorded cash receipts) and needs a
+            reason for any difference. An Admin approves the close and takes the cash
+            (HandedOver). UPI and card receipts are listed per session but reconciled against the
+            bank and card-settlement statements, not the drawer.
+            </summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.CashRegisterService.OpenSessionForAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.INumberSequenceService,System.Int32,System.Int64,System.DateTime,System.Threading.CancellationToken)">
+            <summary>The user's open session at a location today; opens one (zero float) if
+            there is none. Refuses when today's session is already closed. Runs inside the
+            caller's transaction.</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.Services.DashboardService">
             <summary>
             The dashboard aggregates (API_PLAN §12) — each portal's summary in one round
@@ -2283,6 +2373,33 @@
             day pass (or for a non-day plan) it is the plan price plus GST from the requested
             start. With a live day pass, only a longer pack is allowed; it starts when the
             live pass's unused days begin and their value is taken off the price.</summary>
+        </member>
+        <member name="T:Regalis.Infrastructure.Services.PayLaterPolicy">
+            <summary>
+            Who may confirm a booking with "Pay later at the front desk". Every limit lives in
+            MST_AppSetting (PayLater.*); 0 means no limit. Decisions of 27 Oct 2026: hourly,
+            multi-day and monthly bookings; no amount limit; two unpaid pay-later bookings per
+            customer at once.
+            </summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Services.PayLaterPolicy.UnpaidReleaseReason">
+            <summary>The reason an unpaid pay-later booking was released; also how the
+            automatic block counts a customer's unpaid no-shows.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PayLaterPolicy.KindOf(Regalis.Domain.Entities.Booking.Booking)">
+            <summary>Hourly, MultiDay or Monthly, as PayLater.AllowedBookingKinds names them.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PayLaterPolicy.CheckAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,Regalis.Domain.Entities.Booking.Booking,System.Threading.CancellationToken)">
+            <summary>Null when the booking may be paid later, otherwise the reason it may not,
+            in words the customer sees.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PayLaterPolicy.CustomerStatusAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,System.Int64,System.Threading.CancellationToken)">
+            <summary>Before any hold exists: may this customer pay later at all, and for which
+            booking kinds. Checks the switch, the customer's flag and the open-bookings limit;
+            the amount limits are checked per booking at confirmation.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PayLaterPolicy.DueUtcAsync(Regalis.Application.Abstractions.ISettingService,Regalis.Domain.Entities.Booking.Booking,System.Threading.CancellationToken)">
+            <summary>When the money is due: the start, less PayLater.DueBeforeStartMinutes.</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Services.ProfileService">
             <summary>Own-record profile (matrix §6: always scoped to the caller, never an id

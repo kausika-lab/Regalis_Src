@@ -229,6 +229,9 @@
         <member name="T:Regalis.Application.Access.DenyReasons">
             <summary>The documented deny reasons (DATABASE_DESIGN §7).</summary>
         </member>
+        <member name="F:Regalis.Application.Access.DenyReasons.PaymentDue">
+            <summary>Pay later booking with a balance; pay at the front desk first.</summary>
+        </member>
         <member name="M:Regalis.Application.Access.IAccessService.ValidateAsync(Regalis.Application.Access.ValidateAccessRequest,System.Threading.CancellationToken)">
             <summary>The device/reader endpoint: evaluates OUR rules, commands the door
             through the adapter, and ALWAYS writes a TRN_AccessLog row. A device failure
@@ -411,6 +414,9 @@
         <member name="F:Regalis.Application.Bookings.PaymentMethods.Cash">
             <summary>Admin bookings only — cash collected at the desk.</summary>
         </member>
+        <member name="F:Regalis.Application.Bookings.PaymentMethods.PayLater">
+            <summary>Confirmed now, paid at the front desk later (cash, UPI or card).</summary>
+        </member>
         <member name="T:Regalis.Application.Bookings.BookingMonthlyRequest">
             <summary>The admin list's filters plus the calendar year the monthly chart covers.</summary>
         </member>
@@ -474,6 +480,12 @@
         <member name="M:Regalis.Application.Bookings.IBookingService.AdminCreateAsync(Regalis.Application.Bookings.AdminCreateBookingRequest,System.Threading.CancellationToken)">
             <summary>Admin books on a customer's behalf: hold + immediate confirm
             (wallet or cash) in one call. BookingSource = Admin.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IBookingService.GetPayLaterStatusAsync(System.Threading.CancellationToken)">
+            <summary>Before any hold: whether the signed-in customer may pay later, and for which kinds.</summary>
+        </member>
+        <member name="M:Regalis.Application.Bookings.IBookingService.GetPayLaterEligibilityAsync(System.Int64,System.Threading.CancellationToken)">
+            <summary>Whether the caller may confirm this Pending hold with "paylater", and why not.</summary>
         </member>
         <member name="M:Regalis.Application.Bookings.IBookingService.GetBookingAsync(System.Int64,System.Threading.CancellationToken)">
             <summary>A booking scoped to the caller: customers see only their own rows.</summary>
@@ -610,6 +622,36 @@
         <member name="M:Regalis.Application.Finance.IBankService.ReconcileAsync(System.Int64,System.Threading.CancellationToken)">
             <summary>Matched to Reconciled: a human confirming the match is correct.</summary>
         </member>
+        <member name="T:Regalis.Application.Finance.PayLaterEligibilityDto">
+            <summary>Can this booking be paid later, and if not, why (shown at checkout).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.PayLaterEligibilityDto.#ctor(System.Boolean,System.String,System.Decimal,System.Nullable{System.DateTime})">
+            <summary>Can this booking be paid later, and if not, why (shown at checkout).</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.PayLaterStatusDto">
+            <summary>Before a hold: may the signed-in customer pay later, and for which kinds
+            (Hourly, MultiDay, Monthly). Drives whether checkout shows the option.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.PayLaterStatusDto.#ctor(System.Boolean,System.String,System.Collections.Generic.IReadOnlyList{System.String})">
+            <summary>Before a hold: may the signed-in customer pay later, and for which kinds
+            (Hourly, MultiDay, Monthly). Drives whether checkout shows the option.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.OutstandingPayLaterDto">
+            <summary>A confirmed pay-later booking that still owes money.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.OutstandingPayLaterDto.#ctor(System.Int64,System.String,System.Int64,System.String,System.String,System.Int32,System.String,System.DateTime,System.DateTime,System.Nullable{System.Byte},System.Byte,System.Decimal,System.Decimal,System.Decimal,System.Nullable{System.DateTime},System.Boolean,System.Nullable{System.Int64},System.String)">
+            <summary>A confirmed pay-later booking that still owes money.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.RecordCollectionRequest">
+            <summary>Money taken at the desk. PaymentMethod: 6 cash, 2 UPI, 3 credit card,
+            4 debit card. A cash receipt may carry what was tendered (change is worked out);
+            UPI and card need the transaction or slip reference.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.RecordCollectionRequest.#ctor(System.Int64,System.Decimal,System.Byte,System.Nullable{System.Decimal},System.String,System.String)">
+            <summary>Money taken at the desk. PaymentMethod: 6 cash, 2 UPI, 3 credit card,
+            4 debit card. A cash receipt may carry what was tendered (change is worked out);
+            UPI and card need the transaction or slip reference.</summary>
+        </member>
         <member name="T:Regalis.Application.Finance.ExpenseSummaryDto">
             <summary>Totals for the expense list header and the finance dashboard card.
             TotalAmount and every category Amount are net of adjustments; GrossAmount is the
@@ -652,6 +694,26 @@
             <summary>Allowed on a bank-matched expense: the voucher amount the bank saw is
             untouched, and the adjustment is the record of the correction. Refused when it
             would take the expense's net total below zero.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.ICashCollectionService">
+            <summary>Pay later at the front desk: what is owed, and the receipts that settle it.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.ICashCollectionService.GetOutstandingAsync(Regalis.Application.Finance.OutstandingListRequest,System.Threading.CancellationToken)">
+            <summary>Confirmed pay-later bookings with a balance, oldest due first.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.ICashCollectionService.RecordAsync(Regalis.Application.Finance.RecordCollectionRequest,System.Threading.CancellationToken)">
+            <summary>Records one receipt in a serializable transaction: receipt number, the PAY-
+            payment, the invoice and booking totals, the collector's open register session.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.ICashCollectionService.VoidAsync(System.Int64,Regalis.Application.Finance.VoidCollectionRequest,System.Threading.CancellationToken)">
+            <summary>Voids a receipt (the row stays) and reverses the totals it moved.</summary>
+        </member>
+        <member name="T:Regalis.Application.Finance.ICashRegisterService">
+            <summary>The collector's drawer for the day: open with a float, close with a count,
+            an Admin approves and takes the cash.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.ICashRegisterService.GetCurrentAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>The caller's open session at a location today, or null.</summary>
         </member>
         <member name="P:Regalis.Application.Finance.InvoiceListRequest.Status">
             <summary>pending | paid — the customer's tab filter.</summary>

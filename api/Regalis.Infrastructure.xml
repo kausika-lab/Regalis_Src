@@ -259,6 +259,12 @@
             looked after. ChangedByUserId 0 = system, as in BookingHoldSweeper.
             </summary>
         </member>
+        <member name="M:Regalis.Infrastructure.BackgroundJobs.PayLaterSweeper.ReleaseUnpaidPassesAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,System.DateTime,System.Threading.CancellationToken)">
+            <summary>A pay-later day pass or membership with nothing paid by the end of its first
+            day is cancelled: its QR revoked, its unpaid invoice cancelled, the member told.
+            Part-paid passes are left for the desk. Uses the same on/off switch as bookings
+            (PayLater.AutoCancelAfterStartMinutes = 0 turns both off).</summary>
+        </member>
         <member name="T:Regalis.Infrastructure.BackgroundJobs.ReportWorker">
             <summary>
             Reports &amp; Analysis in the background (spec §7.4, §7.5, §12.2). Every minute: send
@@ -684,6 +690,18 @@
             <inheritdoc />
         </member>
         <member name="M:Regalis.Infrastructure.Persistence.Migrations.PayLaterCash.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:Regalis.Infrastructure.Persistence.Migrations.PayLaterPasses">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.PayLaterPasses.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.PayLaterPasses.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:Regalis.Infrastructure.Persistence.Migrations.PayLaterPasses.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
         <member name="T:Regalis.Infrastructure.Persistence.Seed.DatabaseSeeder">
@@ -2044,9 +2062,16 @@
             staff cannot both take the last rupee of the same balance.
             </summary>
         </member>
+        <member name="M:Regalis.Infrastructure.Services.CashCollectionService.RecordForPassAsync(Regalis.Application.Finance.RecordCollectionRequest,System.Threading.CancellationToken)">
+            <summary>A desk payment against a pay-later day pass or membership: same rules as a
+            booking (never more than is due, one serializable transaction, a numbered receipt).</summary>
+        </member>
         <member name="M:Regalis.Infrastructure.Services.CashCollectionService.ApplyToBooking(Regalis.Domain.Entities.Booking.Booking,System.Decimal)">
             <summary>Moves the booking's running total and payment status by a receipt (or,
             negative, by a void).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.CashCollectionService.ApplyToPass(Regalis.Domain.Entities.Finance.CustomerPass,System.Decimal)">
+            <summary>Moves a pay-later pass's running total by a receipt (or, negative, a void).</summary>
         </member>
         <member name="T:Regalis.Infrastructure.Services.CashRegisterService">
             <summary>
@@ -2392,6 +2417,27 @@
         <member name="M:Regalis.Infrastructure.Services.PayLaterPolicy.CheckAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,Regalis.Domain.Entities.Booking.Booking,System.Threading.CancellationToken)">
             <summary>Null when the booking may be paid later, otherwise the reason it may not,
             in words the customer sees.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PayLaterPolicy.LimitsAsync(Regalis.Application.Abstractions.ISettingService,System.Int32,System.Decimal,System.Decimal,System.Threading.CancellationToken)">
+            <summary>The open-items and amount-owed limits, shared by bookings and passes.</summary>
+        </member>
+        <member name="F:Regalis.Infrastructure.Services.PayLaterPolicy.AllowedPassKinds">
+            <summary>"DayPass,Membership" by default; a membership is a monthly (MEM-) plan.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PayLaterPolicy.OpenPassesAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,System.Int64,System.Nullable{System.Int64},System.Threading.CancellationToken)">
+            <summary>Unpaid pay-later passes the customer holds (active, not past their last day).</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PayLaterPolicy.OpenBookingsAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,System.Int64,System.Threading.CancellationToken)">
+            <summary>Unpaid pay-later bookings, one per checkout, and what they owe.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PayLaterPolicy.CheckPassAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,System.Int64,Regalis.Domain.Entities.Masters.PassPlan,System.Decimal,System.Threading.CancellationToken)">
+            <summary>Null when this pass may be bought with pay later, otherwise why not.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PayLaterPolicy.PassStatusAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,System.Int64,System.Threading.CancellationToken)">
+            <summary>Before choosing a plan: may this customer pay later for a pass, and for which kinds.</summary>
+        </member>
+        <member name="M:Regalis.Infrastructure.Services.PayLaterPolicy.PassDueUtc(System.DateOnly)">
+            <summary>A pay-later pass is due at the start of its first day (IST).</summary>
         </member>
         <member name="M:Regalis.Infrastructure.Services.PayLaterPolicy.CustomerStatusAsync(Regalis.Infrastructure.Persistence.RegalisDbContext,Regalis.Application.Abstractions.ISettingService,System.Int64,System.Threading.CancellationToken)">
             <summary>Before any hold exists: may this customer pay later at all, and for which

@@ -637,20 +637,34 @@
             (Hourly, MultiDay, Monthly). Drives whether checkout shows the option.</summary>
         </member>
         <member name="T:Regalis.Application.Finance.OutstandingPayLaterDto">
-            <summary>A confirmed pay-later booking that still owes money.</summary>
+            <summary>A pay-later booking, day pass or membership that still owes money. Kind is
+            "Booking" or "Pass"; for a pass BookingId is 0, CustomerPassId is set, BookingNumber
+            carries the pass number, WorkspaceName the plan, and Start/End its first and last day.</summary>
         </member>
-        <member name="M:Regalis.Application.Finance.OutstandingPayLaterDto.#ctor(System.Int64,System.String,System.Int64,System.String,System.String,System.Int32,System.String,System.DateTime,System.DateTime,System.Nullable{System.Byte},System.Byte,System.Decimal,System.Decimal,System.Decimal,System.Nullable{System.DateTime},System.Boolean,System.Nullable{System.Int64},System.String)">
-            <summary>A confirmed pay-later booking that still owes money.</summary>
+        <member name="M:Regalis.Application.Finance.OutstandingPayLaterDto.#ctor(System.Int64,System.String,System.Int64,System.String,System.String,System.Int32,System.String,System.DateTime,System.DateTime,System.Nullable{System.Byte},System.Byte,System.Decimal,System.Decimal,System.Decimal,System.Nullable{System.DateTime},System.Boolean,System.Nullable{System.Int64},System.String,System.String,System.Nullable{System.Int64})">
+            <summary>A pay-later booking, day pass or membership that still owes money. Kind is
+            "Booking" or "Pass"; for a pass BookingId is 0, CustomerPassId is set, BookingNumber
+            carries the pass number, WorkspaceName the plan, and Start/End its first and last day.</summary>
         </member>
         <member name="T:Regalis.Application.Finance.RecordCollectionRequest">
             <summary>Money taken at the desk. PaymentMethod: 6 cash, 2 UPI, 3 credit card,
             4 debit card. A cash receipt may carry what was tendered (change is worked out);
             UPI and card need the transaction or slip reference.</summary>
+            Exactly one of BookingId and CustomerPassId.
         </member>
-        <member name="M:Regalis.Application.Finance.RecordCollectionRequest.#ctor(System.Int64,System.Decimal,System.Byte,System.Nullable{System.Decimal},System.String,System.String)">
+        <member name="M:Regalis.Application.Finance.RecordCollectionRequest.#ctor(System.Nullable{System.Int64},System.Decimal,System.Byte,System.Nullable{System.Decimal},System.String,System.String,System.Nullable{System.Int64})">
             <summary>Money taken at the desk. PaymentMethod: 6 cash, 2 UPI, 3 credit card,
             4 debit card. A cash receipt may carry what was tendered (change is worked out);
             UPI and card need the transaction or slip reference.</summary>
+            Exactly one of BookingId and CustomerPassId.
+        </member>
+        <member name="T:Regalis.Application.Finance.CashCollectionDto">
+            <summary>BookingId is 0 for a pass receipt (then CustomerPassId is set and
+            BookingNumber carries the pass number).</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.CashCollectionDto.#ctor(System.Int64,System.String,System.Int64,System.String,System.Int64,System.String,System.Int32,System.Nullable{System.Int64},System.String,System.Nullable{System.Int64},System.String,System.Byte,System.Decimal,System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.String,System.Int64,System.String,System.DateTime,System.Nullable{System.Int64},System.String,System.Byte,System.String,System.Nullable{System.DateTime},System.String,System.String,System.Decimal,System.Nullable{System.Int64})">
+            <summary>BookingId is 0 for a pass receipt (then CustomerPassId is set and
+            BookingNumber carries the pass number).</summary>
         </member>
         <member name="T:Regalis.Application.Finance.ExpenseSummaryDto">
             <summary>Totals for the expense list header and the finance dashboard card.
@@ -785,6 +799,10 @@
             <summary>What the caller may buy right now: the live day pass, if any, and for
             each active plan whether it is allowed, whether it is an upgrade, and the price
             after the credit. The purchase charges exactly these amounts.</summary>
+        </member>
+        <member name="M:Regalis.Application.Finance.IPassService.GetPayLaterStatusAsync(System.Threading.CancellationToken)">
+            <summary>May the signed-in customer buy a pass with pay later, and which kinds
+            ("DayPass", "Membership"). Drives whether Book Pass and Membership offer it.</summary>
         </member>
         <member name="M:Regalis.Application.Finance.IPassService.CancelAsync(System.Int64,System.Threading.CancellationToken)">
             <summary>Cancel before the pass starts: full refund to the wallet; once

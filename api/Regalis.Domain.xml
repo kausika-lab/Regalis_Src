@@ -146,6 +146,10 @@
         <member name="P:Regalis.Domain.Entities.Finance.CashCollection.ReceiptNumber">
             <summary>REG/RCPT/2026-27/000123 — gap-free, from MST_NumberSequence.</summary>
         </member>
+        <member name="P:Regalis.Domain.Entities.Finance.CashCollection.BookingId">
+            <summary>Exactly one of BookingId and CustomerPassId is set: the pay-later booking,
+            or the pay-later day pass / membership, the money was taken against.</summary>
+        </member>
         <member name="P:Regalis.Domain.Entities.Finance.CashCollection.PaymentId">
             <summary>The PAY- payment this receipt created.</summary>
         </member>
@@ -178,6 +182,16 @@
         </member>
         <member name="T:Regalis.Domain.Entities.Finance.CustomerPass">
             <summary>TRN_CustomerPass — a purchased Day/Monthly pass.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.CustomerPass.IsPayLater">
+            <summary>Bought with "pay later at the front desk": the pass exists and its QR is
+            issued, but the gate refuses entry until AmountPaid reaches TotalAmount.</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.CustomerPass.AmountPaid">
+            <summary>Money received so far (desk receipts, or the invoice paid online).</summary>
+        </member>
+        <member name="P:Regalis.Domain.Entities.Finance.CustomerPass.PaymentDueUtc">
+            <summary>Pay later: when the money is due (the start of the first day, IST).</summary>
         </member>
         <member name="T:Regalis.Domain.Entities.Finance.Expense">
             <summary>TRN_Expense — a daily company expense (document §5). Description and

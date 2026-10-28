@@ -786,10 +786,12 @@
         <member name="M:Regalis.API.Controllers.PassesController.Purchase(Regalis.Application.Finance.PurchasePassRequest,System.Threading.CancellationToken)">
             <summary>The atomic purchase: pass + payment + invoice + QR + notification.</summary>
         </member>
-        <member name="M:Regalis.API.Controllers.PassesController.GetPurchaseOptions(System.Nullable{System.Byte},System.Threading.CancellationToken)">
+        <member name="M:Regalis.API.Controllers.PassesController.GetPayLaterStatus(System.Threading.CancellationToken)">
             <summary>What the caller may buy right now: the live day pass (if any) and, per
             active plan, whether it can be bought, whether it is an upgrade, and the price
             after the unused days of the current pass are credited.</summary>
+            <summary>May the signed-in member buy a pass with pay later, and which kinds
+            (DayPass, Membership).</summary>
         </member>
         <member name="M:Regalis.API.Controllers.PassesController.GetAll(Regalis.Application.Finance.PassListRequest,System.Threading.CancellationToken)">
             <summary>All purchases — the admin grid.</summary>

@@ -135,8 +135,13 @@ public class CustomerPassConfiguration : IEntityTypeConfiguration<CustomerPass>
 {
     public void Configure(EntityTypeBuilder<CustomerPass> builder)
     {
-        builder.ToTable("TRN_CustomerPass");
+        builder.ToTable("TRN_CustomerPass", t =>
+            t.HasCheckConstraint("CK_CustomerPass_AmountPaid", "[AmountPaid] >= 0"));
         builder.HasKey(x => x.CustomerPassId);
+        // Pay later: the open balances Cash Collections lists.
+        builder.HasIndex(x => x.PaymentDueUtc).HasDatabaseName("IX_CustomerPass_PayLater_Due")
+            .IncludeProperties(x => new { x.CustomerId, x.Status, x.TotalAmount, x.AmountPaid })
+            .HasFilter("[IsPayLater] = 1 AND [IsDeleted] = 0");
         builder.Property(x => x.PassNumber).HasMaxLength(30).IsRequired();
         builder.HasIndex(x => x.PassNumber).IsUnique().HasDatabaseName("UX_CustomerPass_Number");
         builder.HasIndex(x => new { x.CustomerId, x.Status }).HasDatabaseName("IX_CustomerPass_Customer_Status");

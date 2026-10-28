@@ -211,6 +211,19 @@ public class PassService(
         var taxable = quote.Taxable;
         var (cgst, sgst, total) = (quote.Cgst, quote.Sgst, quote.Total);
 
+        // Pay later at the front desk (day passes and memberships, 28 Oct 2026): the pass is
+        // issued now, the gate refuses entry until it is paid, and an unpaid pass is
+        // released at the end of its first day (PayLaterSweeper).
+        var isPayLater = request.PaymentMethod == PaymentMethods.PayLater;
+        if (isPayLater)
+        {
+            var reason = await PayLaterPolicy.CheckPassAsync(db, settings, customerId, plan, total, ct);
+            if (reason is not null)
+            {
+                throw new BusinessRuleException(reason, "PAY_LATER_NOT_ALLOWED");
+            }
+        }
+
         var strategy = db.Database.CreateExecutionStrategy();
         var response = await strategy.ExecuteAsync(async () =>
         {
@@ -219,9 +232,12 @@ public class PassService(
             var nowUtc = clock.UtcNow;
 
             // Settle the money first — same trust rules as bookings.
-            Payment payment;
+            Payment? payment;
             switch (request.PaymentMethod)
             {
+                case PaymentMethods.PayLater:
+                    payment = null;
+                    break;
                 case PaymentMethods.Wallet:
                     await walletService.DebitAsync(customerId, total,
                         plan.PassType == PassType.DayPass ? WalletCategory.DayPass : WalletCategory.MonthlyPass,
@@ -250,11 +266,12 @@ public class PassService(
                     db.Payments.Add(payment);
                     break;
                 default:
-                    payment = await db.Payments.FirstOrDefaultAsync(p =>
+                    var order = await db.Payments.FirstOrDefaultAsync(p =>
                         p.GatewayOrderId == request.GatewayOrderId && p.CustomerId == customerId, ct)
                         ?? throw new BusinessRuleException("No payment order exists for this purchase.",
                             ErrorCodes.PaymentVerificationFailed);
-                    if (payment.Status != PaymentStatus.Pending)
+                    payment = order;
+                    if (order.Status != PaymentStatus.Pending)
                     {
                         throw new BusinessRuleException("This payment order is already settled.",
                             ErrorCodes.PaymentVerificationFailed);
@@ -262,17 +279,17 @@ public class PassService(
                     if (!paymentGateway.VerifySignature(request.GatewayOrderId!,
                             request.GatewayPaymentId!, request.GatewaySignature!))
                     {
-                        payment.Status = PaymentStatus.Failed;
-                        payment.FailureReason = "Signature verification failed";
+                        order.Status = PaymentStatus.Failed;
+                        order.FailureReason = "Signature verification failed";
                         await db.SaveChangesAsync(ct);
                         throw new BusinessRuleException("Payment verification failed.",
                             ErrorCodes.PaymentVerificationFailed);
                     }
-                    payment.GatewayPaymentId = request.GatewayPaymentId;
-                    payment.GatewaySignature = request.GatewaySignature;
-                    payment.IsSignatureVerified = true;
-                    payment.Status = PaymentStatus.Success;
-                    payment.PaidUtc = nowUtc;
+                    order.GatewayPaymentId = request.GatewayPaymentId;
+                    order.GatewaySignature = request.GatewaySignature;
+                    order.IsSignatureVerified = true;
+                    order.Status = PaymentStatus.Success;
+                    order.PaidUtc = nowUtc;
                     break;
             }
             await db.SaveChangesAsync(ct);
@@ -320,11 +337,17 @@ public class PassService(
                 TaxAmount = cgst + sgst,
                 TotalAmount = total,
                 Status = CustomerPassStatus.Active,
-                PaymentId = payment.PaymentId
+                PaymentId = payment?.PaymentId,
+                IsPayLater = isPayLater,
+                AmountPaid = isPayLater ? 0m : total,
+                PaymentDueUtc = isPayLater ? PayLaterPolicy.PassDueUtc(validFrom) : null
             };
             db.CustomerPasses.Add(pass);
             await db.SaveChangesAsync(ct);
-            payment.CustomerPassId = pass.CustomerPassId;
+            if (payment is not null)
+            {
+                payment.CustomerPassId = pass.CustomerPassId;
+            }
 
             var invoiceDate = IstClock.IstDateOf(nowUtc);
             var invoice = new Invoice
@@ -342,10 +365,10 @@ public class PassService(
                 CgstAmount = cgst,
                 SgstAmount = sgst,
                 TotalAmount = total,
-                PaidAmount = total,
-                Status = InvoiceStatus.Paid,
-                PaymentId = payment.PaymentId,
-                PaidUtc = nowUtc,
+                PaidAmount = isPayLater ? 0m : total,
+                Status = isPayLater ? InvoiceStatus.Pending : InvoiceStatus.Paid,
+                PaymentId = payment?.PaymentId,
+                PaidUtc = isPayLater ? null : nowUtc,
                 CustomerName = customer.FullName,
                 CustomerEmail = customer.Email,
                 CustomerMobile = customer.MobileNumber,
@@ -375,7 +398,10 @@ public class PassService(
             db.Invoices.Add(invoice);
             await db.SaveChangesAsync(ct);
             pass.InvoiceId = invoice.InvoiceId;
-            payment.InvoiceId = invoice.InvoiceId;
+            if (payment is not null)
+            {
+                payment.InvoiceId = invoice.InvoiceId;
+            }
 
             // Access token valid across the whole pass window (IST days → UTC).
             var tokenValue = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
@@ -406,21 +432,32 @@ public class PassService(
                               ? $"It replaces {existing.PassNumber}, whose {quote.RemainingDays} unused day(s) " +
                                 $"were credited. "
                               : "") +
+                          (isPayLater
+                              ? $"Please pay ₹{total:N2} at the front desk (cash, UPI or card) before you check in on {pass.ValidFrom:dd MMM}. "
+                              : "") +
                           "Your QR access pass is ready.",
                 Category = NotificationCategory.Pass,
                 Priority = NotificationPriority.Normal,
                 ReferenceType = "CustomerPass",
                 ReferenceId = pass.CustomerPassId,
                 ActionLabel = "View passes",
-                ActionRoute = "/passes",
+                ActionRoute = "/passes/my",
                 SentUtc = nowUtc
             });
+            if (isPayLater)
+            {
+                AdminAlerts.Raise(db, new AdminEvent(AdminNotificationType.Payment, "paylater.pass",
+                    $"Pay later — {plan.PlanName}",
+                    $"{customer.FullName} bought {pass.PassNumber} with pay later: ₹{total:N2} to collect at the front desk before {pass.ValidFrom:dd MMM yyyy}.",
+                    AdminNotificationSeverity.Info, customerId, "CustomerPass", pass.CustomerPassId, pass.PassNumber,
+                    "Open Cash Collections", "/admin/billing/cash-collections"), nowUtc);
+            }
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
 
             return new PurchasePassResponse(
                 ToDto(pass, customer.FullName, plan.PlanName),
-                payment.PaymentNumber, invoice.InvoiceId, invoice.InvoiceNumber,
+                payment?.PaymentNumber ?? "", invoice.InvoiceId, invoice.InvoiceNumber,
                 accessToken.TokenValue, accessToken.QrPayload);
         });
 
@@ -471,9 +508,18 @@ public class PassService(
 
             var todayIst = IstClock.IstDateOf(clock.UtcNow);
             // Full refund before the pass starts; once started there is no refund.
-            if (pass.ValidFrom > todayIst)
+            var refundBase = pass.IsPayLater ? pass.AmountPaid : pass.TotalAmount;
+            if (pass.IsPayLater && pass.AmountPaid == 0m && pass.InvoiceId is not null)
             {
-                await walletService.CreditAsync(pass.CustomerId, pass.TotalAmount,
+                var unpaid = await db.Invoices.FirstOrDefaultAsync(i => i.InvoiceId == pass.InvoiceId && i.Status == InvoiceStatus.Pending && i.PaidAmount == 0m, ct);
+                if (unpaid is not null)
+                {
+                    unpaid.Status = InvoiceStatus.Cancelled;
+                }
+            }
+            if (pass.ValidFrom > todayIst && refundBase > 0m)
+            {
+                await walletService.CreditAsync(pass.CustomerId, refundBase,
                     WalletCategory.Refund, $"Refund for cancelled pass {pass.PassNumber}",
                     referenceType: "CustomerPass", referenceId: pass.CustomerPassId, ct: ct);
             }
@@ -526,6 +572,18 @@ public class PassService(
         return PagedResult<CustomerPassDto>.Create(
             items.Select(x => ToDto(x.Pass, x.FullName, x.Pass.PassPlan.PlanName)).ToList(),
             request.Page, request.PageSize, totalCount);
+    }
+
+    // ── Pay later at the front desk ──────────────────────────────────────────
+
+    public async Task<PayLaterStatusDto> GetPayLaterStatusAsync(CancellationToken ct = default)
+    {
+        if (currentUser.UserType != UserType.Customer)
+        {
+            return new PayLaterStatusDto(false, "Pay later is for members buying their own pass.", Array.Empty<string>());
+        }
+        var (reason, kinds) = await PayLaterPolicy.PassStatusAsync(db, settings, currentUser.UserId, ct);
+        return new PayLaterStatusDto(reason is null, reason, kinds);
     }
 
     // ── One live day pass at a time ──────────────────────────────────────────
@@ -607,6 +665,14 @@ public class PassService(
         }
 
         var (startsOn, _, remainingDays, credit) = UnusedValue(existing, todayIst);
+        if (existing.IsPayLater && existing.AmountPaid < existing.TotalAmount)
+        {
+            var (pc, ps, pt) = PriceWithGst(plan.Price, cgstPercent, sgstPercent);
+            return new PassQuote(false,
+                $"₹{existing.TotalAmount - existing.AmountPaid:N2} is still due on {existing.PassNumber}. " +
+                "Pay for it at the front desk before you upgrade.",
+                false, startsOn, remainingDays, credit, plan.Price, pc, ps, pt);
+        }
         var existingDays = existing.PassPlan?.ValidityDays
                            ?? existing.ValidTo.DayNumber - existing.ValidFrom.DayNumber + 1;
         if (plan.PassPlanId == existing.PassPlanId || plan.ValidityDays <= existingDays)
@@ -643,5 +709,6 @@ public class PassService(
     private static CustomerPassDto ToDto(CustomerPass p, string customerName, string planName) => new(
         p.CustomerPassId, p.PassNumber, p.CustomerId, customerName, p.PassPlanId, planName,
         (byte)p.PassType, p.LocationId, p.ValidFrom, p.ValidTo, p.Price, p.TaxAmount,
-        p.TotalAmount, (byte)p.Status, p.PurchaseUtc, p.InvoiceId);
+        p.TotalAmount, (byte)p.Status, p.PurchaseUtc, p.InvoiceId,
+        p.IsPayLater, p.AmountPaid, p.PaymentDueUtc);
 }

@@ -326,6 +326,25 @@ public class PaymentService(
             // OutstandingAmount is a computed column, so only PaidAmount is written.
             invoice.PaidAmount += payment.Amount;
             var settled = invoice.PaidAmount >= invoice.TotalAmount;
+
+            // Pay later: money paid online on the invoice counts towards the booking or pass,
+            // so the gate opens once it is paid (28 Oct 2026).
+            if (invoice.BookingId is not null)
+            {
+                var plBooking = await db.Bookings.FirstOrDefaultAsync(b => b.BookingId == invoice.BookingId && b.IsPayLater, ct);
+                if (plBooking is not null)
+                {
+                    CashCollectionService.ApplyToBooking(plBooking, payment.Amount);
+                }
+            }
+            if (invoice.CustomerPassId is not null)
+            {
+                var plPass = await db.CustomerPasses.FirstOrDefaultAsync(p => p.CustomerPassId == invoice.CustomerPassId && p.IsPayLater, ct);
+                if (plPass is not null)
+                {
+                    CashCollectionService.ApplyToPass(plPass, payment.Amount);
+                }
+            }
             invoice.Status = settled ? InvoiceStatus.Paid : InvoiceStatus.PartiallyPaid;
             if (settled)
             {

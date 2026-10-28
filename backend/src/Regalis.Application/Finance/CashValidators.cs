@@ -6,7 +6,8 @@ public class RecordCollectionRequestValidator : AbstractValidator<RecordCollecti
 {
     public RecordCollectionRequestValidator()
     {
-        RuleFor(x => x.BookingId).GreaterThan(0L);
+        RuleFor(x => x).Must(x => (x.BookingId is > 0) != (x.CustomerPassId is > 0))
+            .WithName("BookingId").WithMessage("Choose the booking or the pass the payment is for.");
         RuleFor(x => x.Amount).GreaterThan(0m).LessThanOrEqualTo(10000000m)
             .WithMessage("Enter an amount greater than zero.");
         RuleFor(x => x.Amount).PrecisionScale(12, 2, ignoreTrailingZeros: true).WithMessage("At most 2 decimal places.");

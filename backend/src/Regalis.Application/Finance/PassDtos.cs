@@ -82,7 +82,11 @@ public record CustomerPassDto(
     decimal TotalAmount,
     byte Status,
     DateTime PurchaseUtc,
-    long? InvoiceId);
+    long? InvoiceId,
+    // Pay later at the front desk: what is still due before the gate lets them in.
+    bool IsPayLater = false,
+    decimal AmountPaid = 0m,
+    DateTime? PaymentDueUtc = null);
 
 public record PurchasePassResponse(
     CustomerPassDto Pass,
@@ -145,8 +149,8 @@ public class PurchasePassRequestValidator : AbstractValidator<PurchasePassReques
     {
         RuleFor(x => x.PassPlanId).GreaterThan(0);
         RuleFor(x => x.PaymentMethod)
-            .Must(m => m is PaymentMethods.Wallet or PaymentMethods.Gateway or PaymentMethods.Cash)
-            .WithMessage("Payment method must be 'wallet', 'gateway' or 'cash'.");
+            .Must(m => m is PaymentMethods.Wallet or PaymentMethods.Gateway or PaymentMethods.Cash or PaymentMethods.PayLater)
+            .WithMessage("Payment method must be 'wallet', 'gateway', 'cash' or 'paylater'.");
         When(x => x.PaymentMethod == PaymentMethods.Gateway, () =>
         {
             RuleFor(x => x.GatewayOrderId).NotEmpty();
@@ -177,6 +181,10 @@ public interface IPassService
     /// each active plan whether it is allowed, whether it is an upgrade, and the price
     /// after the credit. The purchase charges exactly these amounts.</summary>
     Task<PassPurchaseOptionsDto> GetPurchaseOptionsAsync(byte? passType, CancellationToken ct = default);
+
+    /// <summary>May the signed-in customer buy a pass with pay later, and which kinds
+    /// ("DayPass", "Membership"). Drives whether Book Pass and Membership offer it.</summary>
+    Task<PayLaterStatusDto> GetPayLaterStatusAsync(CancellationToken ct = default);
 
     Task<PagedResult<CustomerPassDto>> GetMyPassesAsync(PassListRequest request, CancellationToken ct = default);
     Task<PagedResult<CustomerPassDto>> GetPassesAsync(PassListRequest request, CancellationToken ct = default);

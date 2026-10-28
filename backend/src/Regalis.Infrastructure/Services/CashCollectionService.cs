@@ -69,10 +69,34 @@ public class CashCollectionService(
                                      || b.Customer.MobileNumber.Contains(s) || b.Customer.Email.Contains(s));
         }
 
-        int total = await query.CountAsync(ct);
-        var rows = await query
-            .OrderBy(b => b.PaymentDueUtc ?? b.StartUtc).ThenBy(b => b.BookingId)
-            .Skip((request.Page - 1) * request.PageSize).Take(request.PageSize)
+        // Pay-later day passes and memberships with money still due (28 Oct 2026).
+        IQueryable<CustomerPass> passes = db.CustomerPasses.AsNoTracking()
+            .Where(p => p.IsPayLater && p.Status == CustomerPassStatus.Active && p.AmountPaid < p.TotalAmount);
+        if (request.LocationId.HasValue)
+        {
+            passes = passes.Where(p => p.LocationId == request.LocationId.Value);
+        }
+        if (request.OverdueOnly)
+        {
+            passes = passes.Where(p => p.PaymentDueUtc != null && p.PaymentDueUtc < nowUtc);
+        }
+        if (request.From.HasValue)
+        {
+            passes = passes.Where(p => p.ValidFrom >= request.From.Value);
+        }
+        if (request.To.HasValue)
+        {
+            passes = passes.Where(p => p.ValidFrom <= request.To.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            string s = request.Search.Trim();
+            passes = passes.Where(p => p.PassNumber.Contains(s)
+                || db.Users.Any(u => u.UserId == p.CustomerId && (u.FullName.Contains(s) || u.MobileNumber.Contains(s) || u.Email.Contains(s))));
+        }
+
+        // Both lists hold open balances only, so they are merged and paged in memory.
+        var bookingRows = await query
             .Select(b => new
             {
                 b.BookingId, b.BookingNumber, b.CustomerId, b.Customer.FullName, b.Customer.MobileNumber,
@@ -82,17 +106,42 @@ public class CashCollectionService(
                     .Select(i => new { i.InvoiceId, i.InvoiceNumber }).FirstOrDefault()
             })
             .ToListAsync(ct);
+        var passRows = await passes
+            .Select(p => new
+            {
+                p.CustomerPassId, p.PassNumber, p.CustomerId, p.LocationId, p.PassPlan.PlanName, p.ValidFrom, p.ValidTo,
+                p.Status, p.TotalAmount, p.AmountPaid, p.PaymentDueUtc,
+                Customer = db.Users.Where(u => u.UserId == p.CustomerId).Select(u => new { u.FullName, u.MobileNumber }).FirstOrDefault(),
+                Invoice = db.Invoices.Where(i => i.CustomerPassId == p.CustomerPassId && i.Status != InvoiceStatus.Cancelled)
+                    .Select(i => new { i.InvoiceId, i.InvoiceNumber }).FirstOrDefault()
+            })
+            .ToListAsync(ct);
 
-        var items = rows.Select(r => new OutstandingPayLaterDto(
-            r.BookingId, r.BookingNumber, r.CustomerId, r.FullName, r.MobileNumber, r.LocationId, r.WorkspaceName,
-            r.StartUtc, r.EndUtc, r.BillingMonths, (byte)r.Status, r.TotalAmount, r.AmountPaid,
-            r.TotalAmount - r.AmountPaid, r.PaymentDueUtc, r.PaymentDueUtc.HasValue && r.PaymentDueUtc.Value < nowUtc,
-            r.Invoice?.InvoiceId, r.Invoice?.InvoiceNumber)).ToList();
+        var all = bookingRows.Select(r => new OutstandingPayLaterDto(
+                r.BookingId, r.BookingNumber, r.CustomerId, r.FullName, r.MobileNumber, r.LocationId, r.WorkspaceName,
+                r.StartUtc, r.EndUtc, r.BillingMonths, (byte)r.Status, r.TotalAmount, r.AmountPaid,
+                r.TotalAmount - r.AmountPaid, r.PaymentDueUtc, r.PaymentDueUtc.HasValue && r.PaymentDueUtc.Value < nowUtc,
+                r.Invoice?.InvoiceId, r.Invoice?.InvoiceNumber))
+            .Concat(passRows.Select(r => new OutstandingPayLaterDto(
+                0, r.PassNumber, r.CustomerId, r.Customer?.FullName ?? "", r.Customer?.MobileNumber ?? "", r.LocationId, r.PlanName,
+                IstClock.ToUtc(r.ValidFrom.ToDateTime(TimeOnly.MinValue)),
+                IstClock.ToUtc(r.ValidTo.AddDays(1).ToDateTime(TimeOnly.MinValue)),
+                null, (byte)r.Status, r.TotalAmount, r.AmountPaid, r.TotalAmount - r.AmountPaid, r.PaymentDueUtc,
+                r.PaymentDueUtc.HasValue && r.PaymentDueUtc.Value < nowUtc,
+                r.Invoice?.InvoiceId, r.Invoice?.InvoiceNumber, "Pass", r.CustomerPassId)))
+            .OrderBy(r => r.PaymentDueUtc ?? r.StartUtc).ThenBy(r => r.BookingNumber)
+            .ToList();
+        int total = all.Count;
+        var items = all.Skip((request.Page - 1) * request.PageSize).Take(request.PageSize).ToList();
         return PagedResult<OutstandingPayLaterDto>.Create(items, request.Page, request.PageSize, total);
     }
 
     public async Task<CashCollectionDto> RecordAsync(RecordCollectionRequest request, CancellationToken ct = default)
     {
+        if (request.CustomerPassId is > 0)
+        {
+            return await RecordForPassAsync(request, ct);
+        }
         PaymentMethod method = (PaymentMethod)request.PaymentMethod;
         decimal amount = Math.Round(request.Amount, 2, MidpointRounding.AwayFromZero);
         string? reference = string.IsNullOrWhiteSpace(request.ReferenceNumber) ? null : request.ReferenceNumber.Trim();
@@ -105,7 +154,7 @@ public class CashCollectionService(
 
             Booking booking = await db.Bookings.Include(b => b.Workspace)
                 .FirstOrDefaultAsync(b => b.BookingId == request.BookingId, ct)
-                ?? throw new NotFoundException("Booking", request.BookingId);
+                ?? throw new NotFoundException("Booking", request.BookingId ?? 0);
             if (!booking.IsPayLater)
             {
                 throw new BusinessRuleException($"{booking.BookingNumber} was not booked with pay later.");
@@ -204,6 +253,126 @@ public class CashCollectionService(
         return await GetCollectionAsync(collectionId, ct);
     }
 
+    /// <summary>A desk payment against a pay-later day pass or membership: same rules as a
+    /// booking (never more than is due, one serializable transaction, a numbered receipt).</summary>
+    private async Task<CashCollectionDto> RecordForPassAsync(RecordCollectionRequest request, CancellationToken ct)
+    {
+        PaymentMethod method = (PaymentMethod)request.PaymentMethod;
+        decimal amount = Math.Round(request.Amount, 2, MidpointRounding.AwayFromZero);
+        string? reference = string.IsNullOrWhiteSpace(request.ReferenceNumber) ? null : request.ReferenceNumber.Trim();
+        long passId = request.CustomerPassId!.Value;
+
+        long collectionId = await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            db.ChangeTracker.Clear();
+            await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            DateTime nowUtc = clock.UtcNow;
+
+            CustomerPass pass = await db.CustomerPasses.Include(p => p.PassPlan)
+                .FirstOrDefaultAsync(p => p.CustomerPassId == passId, ct)
+                ?? throw new NotFoundException("CustomerPass", passId);
+            if (!pass.IsPayLater)
+            {
+                throw new BusinessRuleException($"{pass.PassNumber} was not bought with pay later.");
+            }
+            if (pass.Status != CustomerPassStatus.Active)
+            {
+                throw new BusinessRuleException($"{pass.PassNumber} is {pass.Status}; nothing can be collected on it.");
+            }
+            decimal balance = pass.TotalAmount - pass.AmountPaid;
+            if (balance <= 0m)
+            {
+                throw new BusinessRuleException($"{pass.PassNumber} is already paid in full.");
+            }
+            if (amount > balance)
+            {
+                throw new BusinessRuleException($"Only ₹{balance:N2} is due on {pass.PassNumber}.");
+            }
+
+            CashRegisterSession session = await CashRegisterService.OpenSessionForAsync(
+                db, sequences, pass.LocationId, currentUser.UserId, nowUtc, ct);
+
+            Invoice? invoice = await db.Invoices
+                .Where(i => i.CustomerPassId == pass.CustomerPassId && i.Status != InvoiceStatus.Cancelled)
+                .OrderBy(i => i.InvoiceId)
+                .FirstOrDefaultAsync(ct);
+
+            var payment = new Payment
+            {
+                PaymentNumber = await sequences.NextAsync(SequenceKeys.Payment, ct),
+                CustomerId = pass.CustomerId,
+                CustomerPassId = pass.CustomerPassId,
+                InvoiceId = invoice?.InvoiceId,
+                Amount = amount,
+                PaymentMethod = method,
+                Status = PaymentStatus.Success,
+                PaidUtc = nowUtc
+            };
+            db.Payments.Add(payment);
+            await db.SaveChangesAsync(ct);
+
+            decimal? tendered = method == PaymentMethod.Cash ? request.AmountTendered : null;
+            var collection = new CashCollection
+            {
+                ReceiptNumber = await sequences.NextAsync(SequenceKeys.CashReceipt, ct),
+                CustomerPassId = pass.CustomerPassId,
+                InvoiceId = invoice?.InvoiceId,
+                PaymentId = payment.PaymentId,
+                CustomerId = pass.CustomerId,
+                LocationId = pass.LocationId,
+                PaymentMethod = method,
+                Amount = amount,
+                AmountTendered = tendered,
+                ChangeReturned = tendered.HasValue ? tendered.Value - amount : null,
+                ReferenceNumber = reference,
+                CollectedByUserId = currentUser.UserId,
+                CollectedUtc = nowUtc,
+                CashRegisterSessionId = session.CashRegisterSessionId,
+                Status = CashCollectionStatus.Recorded,
+                Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim()
+            };
+            db.CashCollections.Add(collection);
+
+            ApplyToPass(pass, amount);
+            if (invoice != null)
+            {
+                ApplyToInvoice(invoice, amount, nowUtc);
+                invoice.PaymentId ??= payment.PaymentId;
+            }
+            pass.PaymentId ??= payment.PaymentId;
+
+            decimal remaining = pass.TotalAmount - pass.AmountPaid;
+            db.Notifications.Add(new Notification
+            {
+                UserId = pass.CustomerId,
+                Audience = NotificationAudience.SingleUser,
+                Title = remaining <= 0m ? "Payment received" : "Part payment received",
+                Message = $"₹{amount:N2} received for {pass.PassPlan.PlanName} ({pass.PassNumber}) ({MethodName(method)}), receipt {collection.ReceiptNumber}."
+                          + (remaining > 0m ? $" ₹{remaining:N2} is still due." : " Your pass is fully paid and your QR now opens the door."),
+                Category = NotificationCategory.Payment,
+                Priority = NotificationPriority.Normal,
+                ReferenceType = "CustomerPass",
+                ReferenceId = pass.CustomerPassId,
+                ActionLabel = "View passes",
+                ActionRoute = "/passes/my",
+                SentUtc = nowUtc
+            });
+            AdminAlerts.Raise(db, new AdminEvent(AdminNotificationType.Payment, "paylater.pass_paid",
+                $"Pay later payment received — {pass.PassNumber}",
+                $"₹{amount:N2} by {MethodName(method)}, receipt {collection.ReceiptNumber}." + (remaining > 0m ? $" ₹{remaining:N2} still due." : " Paid in full."),
+                AdminNotificationSeverity.Info, pass.CustomerId, "CustomerPass", pass.CustomerPassId, pass.PassNumber,
+                "Open Cash Collections", "/admin/billing/cash-collections"), nowUtc);
+
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return collection.CashCollectionId;
+        });
+
+        logger.LogInformation("Desk collection {CollectionId} for pass {PassId}: {Amount} by {Method}, user {UserId}",
+            collectionId, passId, amount, method, currentUser.UserId);
+        return await GetCollectionAsync(collectionId, ct);
+    }
+
     public async Task<CashCollectionDto> VoidAsync(long cashCollectionId, VoidCollectionRequest request, CancellationToken ct = default)
     {
         string reason = request.Reason.Trim();
@@ -220,13 +389,23 @@ public class CashCollectionService(
                 throw new BusinessRuleException($"Receipt {collection.ReceiptNumber} is already voided.");
             }
 
-            Booking booking = await db.Bookings.FirstAsync(b => b.BookingId == collection.BookingId, ct);
+            Booking? booking = collection.BookingId is null ? null
+                : await db.Bookings.FirstAsync(b => b.BookingId == collection.BookingId, ct);
+            CustomerPass? pass = collection.CustomerPassId is null ? null
+                : await db.CustomerPasses.FirstAsync(p => p.CustomerPassId == collection.CustomerPassId, ct);
             collection.Status = CashCollectionStatus.Voided;
             collection.VoidedByUserId = currentUser.UserId;
             collection.VoidedUtc = nowUtc;
             collection.VoidReason = reason;
 
-            ApplyToBooking(booking, -collection.Amount);
+            if (booking is not null)
+            {
+                ApplyToBooking(booking, -collection.Amount);
+            }
+            if (pass is not null)
+            {
+                ApplyToPass(pass, -collection.Amount);
+            }
             if (collection.InvoiceId.HasValue)
             {
                 Invoice invoice = await db.Invoices.FirstAsync(i => i.InvoiceId == collection.InvoiceId.Value, ct);
@@ -246,8 +425,19 @@ public class CashCollectionService(
                 payment.FailureReason = $"Receipt {collection.ReceiptNumber} voided: {reason}";
             }
 
-            await AdminAlerts.BookingAsync(db, booking, "Pay later receipt voided", nowUtc, ct,
-                $"Receipt {collection.ReceiptNumber} (₹{collection.Amount:N2}) voided: {reason}");
+            if (booking is not null)
+            {
+                await AdminAlerts.BookingAsync(db, booking, "Pay later receipt voided", nowUtc, ct,
+                    $"Receipt {collection.ReceiptNumber} (₹{collection.Amount:N2}) voided: {reason}");
+            }
+            else if (pass is not null)
+            {
+                AdminAlerts.Raise(db, new AdminEvent(AdminNotificationType.Payment, "paylater.pass_void",
+                    $"Pay later receipt voided — {pass.PassNumber}",
+                    $"Receipt {collection.ReceiptNumber} (₹{collection.Amount:N2}) voided: {reason}",
+                    AdminNotificationSeverity.Info, pass.CustomerId, "CustomerPass", pass.CustomerPassId, pass.PassNumber,
+                    "Open Cash Collections", "/admin/billing/cash-collections"), nowUtc);
+            }
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
         });
@@ -270,6 +460,10 @@ public class CashCollectionService(
         if (request.BookingId.HasValue)
         {
             query = query.Where(c => c.BookingId == request.BookingId.Value);
+        }
+        if (request.CustomerPassId.HasValue)
+        {
+            query = query.Where(c => c.CustomerPassId == request.CustomerPassId.Value);
         }
         if (request.CashRegisterSessionId.HasValue)
         {
@@ -298,8 +492,11 @@ public class CashCollectionService(
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
             string s = request.Search.Trim();
-            query = query.Where(c => c.ReceiptNumber.Contains(s) || c.Booking.BookingNumber.Contains(s)
-                                     || c.Booking.Customer.FullName.Contains(s) || (c.ReferenceNumber != null && c.ReferenceNumber.Contains(s)));
+            query = query.Where(c => c.ReceiptNumber.Contains(s)
+                                     || (c.Booking != null && c.Booking.BookingNumber.Contains(s))
+                                     || (c.CustomerPass != null && c.CustomerPass.PassNumber.Contains(s))
+                                     || db.Users.Any(u => u.UserId == c.CustomerId && u.FullName.Contains(s))
+                                     || (c.ReferenceNumber != null && c.ReferenceNumber.Contains(s)));
         }
 
         int total = await query.CountAsync(ct);
@@ -321,9 +518,11 @@ public class CashCollectionService(
     public async Task<(byte[] Content, string FileName)> GetReceiptPdfAsync(long cashCollectionId, CancellationToken ct = default)
     {
         CashCollectionDto c = await GetCollectionAsync(cashCollectionId, ct);
-        var booking = await db.Bookings.AsNoTracking().Where(b => b.BookingId == c.BookingId)
-            .Select(b => new { b.TotalAmount, b.AmountPaid, b.StartUtc, b.EndUtc, b.Workspace.WorkspaceName, b.Customer.MobileNumber })
-            .FirstAsync(ct);
+        var booking = c.CustomerPassId is not null
+            ? await PassReceiptFactsAsync(c.CustomerPassId.Value, ct)
+            : await db.Bookings.AsNoTracking().Where(b => b.BookingId == c.BookingId)
+                .Select(b => new ReceiptFacts(b.TotalAmount, b.AmountPaid, b.StartUtc, b.EndUtc, b.Workspace.WorkspaceName, b.Customer.MobileNumber))
+                .FirstAsync(ct);
         var receipt = new CashReceiptPdfGenerator.Receipt(
             c.ReceiptNumber, c.CollectedUtc, c.CustomerName, booking.MobileNumber, c.BookingNumber, booking.WorkspaceName,
             booking.StartUtc, booking.EndUtc, c.InvoiceNumber, c.PaymentNumber, MethodName((PaymentMethod)c.PaymentMethod),
@@ -344,6 +543,27 @@ public class CashCollectionService(
         booking.PaymentStatus = booking.AmountPaid >= booking.TotalAmount
             ? BookingPaymentStatus.Paid
             : booking.AmountPaid > 0m ? BookingPaymentStatus.PartiallyPaid : BookingPaymentStatus.Pending;
+    }
+
+    /// <summary>Moves a pay-later pass's running total by a receipt (or, negative, a void).</summary>
+    internal static void ApplyToPass(CustomerPass pass, decimal delta)
+    {
+        pass.AmountPaid = Math.Min(pass.TotalAmount, Math.Max(0m, pass.AmountPaid + delta));
+    }
+
+    private sealed record ReceiptFacts(decimal TotalAmount, decimal AmountPaid, DateTime StartUtc, DateTime EndUtc,
+        string WorkspaceName, string MobileNumber);
+
+    private async Task<ReceiptFacts> PassReceiptFactsAsync(long customerPassId, CancellationToken ct)
+    {
+        var p = await db.CustomerPasses.AsNoTracking().Where(x => x.CustomerPassId == customerPassId)
+            .Select(x => new { x.TotalAmount, x.AmountPaid, x.ValidFrom, x.ValidTo, x.PassPlan.PlanName, x.CustomerId })
+            .FirstAsync(ct);
+        string mobile = await db.Users.Where(u => u.UserId == p.CustomerId).Select(u => u.MobileNumber).FirstOrDefaultAsync(ct) ?? "";
+        return new ReceiptFacts(p.TotalAmount, p.AmountPaid,
+            IstClock.ToUtc(p.ValidFrom.ToDateTime(TimeOnly.MinValue)),
+            IstClock.ToUtc(p.ValidTo.AddDays(1).ToDateTime(TimeOnly.MinValue)),
+            p.PlanName, mobile);
     }
 
     internal static void ApplyToInvoice(Invoice invoice, decimal delta, DateTime nowUtc)
@@ -375,10 +595,10 @@ public class CashCollectionService(
         return query.Select(c => new CashCollectionDto(
             c.CashCollectionId,
             c.ReceiptNumber,
-            c.BookingId,
-            c.Booking.BookingNumber,
+            c.BookingId ?? 0,
+            c.Booking != null ? c.Booking.BookingNumber : c.CustomerPass!.PassNumber,
             c.CustomerId,
-            c.Booking.Customer.FullName,
+            db.Users.Where(u => u.UserId == c.CustomerId).Select(u => u.FullName).FirstOrDefault() ?? "",
             c.LocationId,
             c.InvoiceId,
             db.Invoices.Where(i => i.InvoiceId == c.InvoiceId).Select(i => i.InvoiceNumber).FirstOrDefault(),
@@ -399,6 +619,7 @@ public class CashCollectionService(
             c.VoidedUtc,
             c.VoidReason,
             c.Notes,
-            c.Booking.TotalAmount - c.Booking.AmountPaid));
+            c.Booking != null ? c.Booking.TotalAmount - c.Booking.AmountPaid : c.CustomerPass!.TotalAmount - c.CustomerPass.AmountPaid,
+            c.CustomerPassId));
     }
 }

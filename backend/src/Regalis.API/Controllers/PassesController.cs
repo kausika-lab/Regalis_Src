@@ -79,6 +79,14 @@ public class PassesController(IPassService passService) : ApiControllerBase
     /// <summary>What the caller may buy right now: the live day pass (if any) and, per
     /// active plan, whether it can be bought, whether it is an upgrade, and the price
     /// after the unused days of the current pass are credited.</summary>
+    /// <summary>May the signed-in member buy a pass with pay later, and which kinds
+    /// (DayPass, Membership).</summary>
+    [HttpGet("pay-later")]
+    [HasPermission(PermissionCodes.Pass.View)]
+    [ProducesResponseType(typeof(ApiResponse<PayLaterStatusDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPayLaterStatus(CancellationToken ct) =>
+        OkEnvelope(await passService.GetPayLaterStatusAsync(ct));
+
     [HttpGet("purchase-options")]
     [HasPermission(PermissionCodes.Pass.View)]
     [ProducesResponseType(typeof(ApiResponse<PassPurchaseOptionsDto>), StatusCodes.Status200OK)]

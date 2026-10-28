@@ -11,7 +11,9 @@ public record PayLaterEligibilityDto(bool Allowed, string? Reason, decimal Amoun
 /// (Hourly, MultiDay, Monthly). Drives whether checkout shows the option.</summary>
 public record PayLaterStatusDto(bool Available, string? Reason, IReadOnlyList<string> AllowedKinds);
 
-/// <summary>A confirmed pay-later booking that still owes money.</summary>
+/// <summary>A pay-later booking, day pass or membership that still owes money. Kind is
+/// "Booking" or "Pass"; for a pass BookingId is 0, CustomerPassId is set, BookingNumber
+/// carries the pass number, WorkspaceName the plan, and Start/End its first and last day.</summary>
 public record OutstandingPayLaterDto(
     long BookingId,
     string BookingNumber,
@@ -30,7 +32,9 @@ public record OutstandingPayLaterDto(
     DateTime? PaymentDueUtc,
     bool IsOverdue,
     long? InvoiceId,
-    string? InvoiceNumber);
+    string? InvoiceNumber,
+    string Kind = "Booking",
+    long? CustomerPassId = null);
 
 public class OutstandingListRequest : PagedRequest
 {
@@ -43,16 +47,20 @@ public class OutstandingListRequest : PagedRequest
 /// <summary>Money taken at the desk. PaymentMethod: 6 cash, 2 UPI, 3 credit card,
 /// 4 debit card. A cash receipt may carry what was tendered (change is worked out);
 /// UPI and card need the transaction or slip reference.</summary>
+/// Exactly one of BookingId and CustomerPassId.
 public record RecordCollectionRequest(
-    long BookingId,
+    long? BookingId,
     decimal Amount,
     byte PaymentMethod,
     decimal? AmountTendered,
     string? ReferenceNumber,
-    string? Notes);
+    string? Notes,
+    long? CustomerPassId = null);
 
 public record VoidCollectionRequest(string Reason);
 
+/// <summary>BookingId is 0 for a pass receipt (then CustomerPassId is set and
+/// BookingNumber carries the pass number).</summary>
 public record CashCollectionDto(
     long CashCollectionId,
     string ReceiptNumber,
@@ -80,13 +88,15 @@ public record CashCollectionDto(
     DateTime? VoidedUtc,
     string? VoidReason,
     string? Notes,
-    decimal BookingBalance);
+    decimal BookingBalance,
+    long? CustomerPassId = null);
 
 public class CashCollectionListRequest : PagedRequest
 {
     public int? LocationId { get; set; }
     public long? CollectedByUserId { get; set; }
     public long? BookingId { get; set; }
+    public long? CustomerPassId { get; set; }
     public long? CashRegisterSessionId { get; set; }
     public byte? PaymentMethod { get; set; }
     public byte? Status { get; set; }

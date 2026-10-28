@@ -71,6 +71,69 @@ public class PayLaterSweeper(IServiceScopeFactory scopeFactory, ILogger<PayLater
 
         await RemindAsync(db, settings, nowUtc, ct);
         await ReleaseUnpaidAsync(db, settings, nowUtc, ct);
+        await ReleaseUnpaidPassesAsync(db, settings, nowUtc, ct);
+    }
+
+    /// <summary>A pay-later day pass or membership with nothing paid by the end of its first
+    /// day is cancelled: its QR revoked, its unpaid invoice cancelled, the member told.
+    /// Part-paid passes are left for the desk. Uses the same on/off switch as bookings
+    /// (PayLater.AutoCancelAfterStartMinutes = 0 turns both off).</summary>
+    private async Task ReleaseUnpaidPassesAsync(RegalisDbContext db, ISettingService settings, DateTime nowUtc, CancellationToken ct)
+    {
+        if (await settings.GetIntAsync(PayLaterPolicy.AutoCancelAfterStartMinutes, 30, ct) <= 0)
+        {
+            return;
+        }
+        DateTime firstDayOverBefore = nowUtc.AddDays(-1);
+        List<CustomerPass> unpaid = await db.CustomerPasses.Include(p => p.PassPlan)
+            .Where(p => p.IsPayLater && p.Status == CustomerPassStatus.Active && p.AmountPaid == 0m
+                        && p.PaymentDueUtc != null && p.PaymentDueUtc <= firstDayOverBefore)
+            .ToListAsync(ct);
+        if (unpaid.Count == 0)
+        {
+            return;
+        }
+        List<long> ids = unpaid.Select(p => p.CustomerPassId).ToList();
+        List<AccessToken> tokens = await db.AccessTokens
+            .Where(t => t.CustomerPassId != null && ids.Contains(t.CustomerPassId.Value) && t.Status == AccessTokenStatus.Active)
+            .ToListAsync(ct);
+        List<Invoice> invoices = await db.Invoices
+            .Where(i => i.CustomerPassId != null && ids.Contains(i.CustomerPassId.Value) && i.Status == InvoiceStatus.Pending && i.PaidAmount == 0m)
+            .ToListAsync(ct);
+        const string reason = "Pay later: not paid by the end of the first day; pass released.";
+        foreach (CustomerPass p in unpaid)
+        {
+            p.Status = CustomerPassStatus.Cancelled;
+            db.Notifications.Add(new Notification
+            {
+                UserId = p.CustomerId,
+                Audience = NotificationAudience.SingleUser,
+                Title = "Pass released",
+                Message = $"{p.PassPlan.PlanName} ({p.PassNumber}) was not paid by the end of its first day, so it has been cancelled. Nothing was charged.",
+                Category = NotificationCategory.Pass,
+                Priority = NotificationPriority.High,
+                ReferenceType = "CustomerPass",
+                ReferenceId = p.CustomerPassId,
+                ActionLabel = "View passes",
+                ActionRoute = "/passes/my",
+                SentUtc = nowUtc
+            });
+            AdminAlerts.Raise(db, new AdminEvent(AdminNotificationType.Payment, "paylater.pass_released",
+                $"Pass released — {p.PassNumber}", $"{p.PassPlan.PlanName}: pay later, not paid by the end of the first day.",
+                AdminNotificationSeverity.Info, p.CustomerId, "CustomerPass", p.CustomerPassId, p.PassNumber), nowUtc);
+        }
+        foreach (AccessToken t in tokens)
+        {
+            t.Status = AccessTokenStatus.Revoked;
+            t.RevokedReason = "PayLaterUnpaid";
+        }
+        foreach (Invoice i in invoices)
+        {
+            i.Status = InvoiceStatus.Cancelled;
+            i.CancellationReason = reason;
+        }
+        await db.SaveChangesAsync(ct);
+        logger.LogInformation("Released {Count} unpaid pay later pass(es)", unpaid.Count);
     }
 
     private async Task RemindAsync(RegalisDbContext db, ISettingService settings, DateTime nowUtc, CancellationToken ct)

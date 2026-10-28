@@ -846,7 +846,7 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<long>("BookingId")
+                    b.Property<long?>("BookingId")
                         .HasColumnType("bigint");
 
                     b.Property<long?>("CashRegisterSessionId")
@@ -869,6 +869,9 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime2(3)");
 
                     b.Property<long>("CustomerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("CustomerPassId")
                         .HasColumnType("bigint");
 
                     b.Property<long?>("DeletedBy")
@@ -937,6 +940,9 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CustomerId");
 
+                    b.HasIndex("CustomerPassId")
+                        .HasDatabaseName("IX_CashCollection_CustomerPass");
+
                     b.HasIndex("InvoiceId");
 
                     b.HasIndex("PaymentId");
@@ -960,6 +966,8 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_CashCollection_Method", "[PaymentMethod] IN (2,3,4,6)");
 
                             t.HasCheckConstraint("CK_CashCollection_Reference", "[PaymentMethod] = 6 OR [ReferenceNumber] IS NOT NULL");
+
+                            t.HasCheckConstraint("CK_CashCollection_Target", "([BookingId] IS NOT NULL AND [CustomerPassId] IS NULL) OR ([BookingId] IS NULL AND [CustomerPassId] IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_CashCollection_Void", "([Status] = 2 AND [VoidedByUserId] IS NOT NULL AND [VoidedUtc] IS NOT NULL AND [VoidReason] IS NOT NULL) OR ([Status] = 1 AND [VoidedUtc] IS NULL)");
                         });
@@ -1089,6 +1097,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("CustomerPassId"));
 
+                    b.Property<decimal>("AmountPaid")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<long?>("CreatedBy")
                         .HasColumnType("bigint");
 
@@ -1116,6 +1128,9 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsPayLater")
+                        .HasColumnType("bit");
+
                     b.Property<int>("LocationId")
                         .HasColumnType("int");
 
@@ -1135,6 +1150,9 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     b.Property<byte>("PassType")
                         .HasColumnType("tinyint");
+
+                    b.Property<DateTime?>("PaymentDueUtc")
+                        .HasColumnType("datetime2(3)");
 
                     b.Property<long?>("PaymentId")
                         .HasColumnType("bigint");
@@ -1174,13 +1192,22 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("PassPlanId");
 
+                    b.HasIndex("PaymentDueUtc")
+                        .HasDatabaseName("IX_CustomerPass_PayLater_Due")
+                        .HasFilter("[IsPayLater] = 1 AND [IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("PaymentDueUtc"), new[] { "CustomerId", "Status", "TotalAmount", "AmountPaid" });
+
                     b.HasIndex("CustomerId", "Status")
                         .HasDatabaseName("IX_CustomerPass_Customer_Status");
 
                     b.HasIndex("ValidTo", "Status")
                         .HasDatabaseName("IX_CustomerPass_ValidTo_Status");
 
-                    b.ToTable("TRN_CustomerPass", (string)null);
+                    b.ToTable("TRN_CustomerPass", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CustomerPass_AmountPaid", "[AmountPaid] >= 0");
+                        });
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.Expense", b =>
@@ -7152,8 +7179,7 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.HasOne("Regalis.Domain.Entities.Booking.Booking", "Booking")
                         .WithMany()
                         .HasForeignKey("BookingId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Regalis.Domain.Entities.Finance.CashRegisterSession", "CashRegisterSession")
                         .WithMany("Collections")
@@ -7171,6 +7197,11 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Regalis.Domain.Entities.Finance.CustomerPass", "CustomerPass")
+                        .WithMany()
+                        .HasForeignKey("CustomerPassId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Regalis.Domain.Entities.Finance.Invoice", null)
                         .WithMany()
@@ -7191,6 +7222,8 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Navigation("Booking");
 
                     b.Navigation("CashRegisterSession");
+
+                    b.Navigation("CustomerPass");
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.CashRegisterSession", b =>

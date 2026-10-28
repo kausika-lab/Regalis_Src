@@ -25,5 +25,13 @@ public class CustomerPass : AuditableEntity
     public long? InvoiceId { get; set; }
     public long? PaymentId { get; set; }
 
+    /// <summary>Bought with "pay later at the front desk": the pass exists and its QR is
+    /// issued, but the gate refuses entry until AmountPaid reaches TotalAmount.</summary>
+    public bool IsPayLater { get; set; }
+    /// <summary>Money received so far (desk receipts, or the invoice paid online).</summary>
+    public decimal AmountPaid { get; set; }
+    /// <summary>Pay later: when the money is due (the start of the first day, IST).</summary>
+    public DateTime? PaymentDueUtc { get; set; }
+
     public PassPlan PassPlan { get; set; } = null!;
 }

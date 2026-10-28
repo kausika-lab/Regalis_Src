@@ -330,6 +330,19 @@ public class AccessService(
                 }
             }
         }
+        // Pay later: a day pass or membership that still owes money does not open the gate.
+        if (token.CustomerPassId is not null && direction == AccessDirection.In)
+        {
+            var passPay = await db.CustomerPasses
+                .Where(p => p.CustomerPassId == token.CustomerPassId)
+                .Select(p => new { p.IsPayLater, p.TotalAmount, p.AmountPaid })
+                .FirstOrDefaultAsync(ct);
+            if (passPay is not null && passPay.IsPayLater && passPay.AmountPaid < passPay.TotalAmount &&
+                await settings.GetBoolAsync(PayLaterPolicy.BlockCheckInUntilPaid, true, ct))
+            {
+                return DenyReasons.PaymentDue;
+            }
+        }
         // Attendance gate: exiting needs an open session; a finished day blocks
         // re-entry while multiple check-ins are disabled.
         if (direction == AccessDirection.Out)

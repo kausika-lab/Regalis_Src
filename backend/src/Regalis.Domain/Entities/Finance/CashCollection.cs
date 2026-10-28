@@ -15,7 +15,10 @@ public class CashCollection : AuditableEntity
     /// <summary>REG/RCPT/2026-27/000123 — gap-free, from MST_NumberSequence.</summary>
     public string ReceiptNumber { get; set; } = string.Empty;
 
-    public long BookingId { get; set; }
+    /// <summary>Exactly one of BookingId and CustomerPassId is set: the pay-later booking,
+    /// or the pay-later day pass / membership, the money was taken against.</summary>
+    public long? BookingId { get; set; }
+    public long? CustomerPassId { get; set; }
     public long? InvoiceId { get; set; }
 
     /// <summary>The PAY- payment this receipt created.</summary>
@@ -49,6 +52,7 @@ public class CashCollection : AuditableEntity
 
     public string? Notes { get; set; }
 
-    public Booking.Booking Booking { get; set; } = null!;
+    public Booking.Booking? Booking { get; set; }
+    public CustomerPass? CustomerPass { get; set; }
     public CashRegisterSession? CashRegisterSession { get; set; }
 }

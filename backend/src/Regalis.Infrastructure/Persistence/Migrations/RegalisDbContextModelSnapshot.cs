@@ -320,6 +320,10 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("BookingId"));
 
+                    b.Property<decimal>("AmountPaid")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("BaseAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -391,6 +395,9 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsPayLater")
+                        .HasColumnType("bit");
+
                     b.Property<int>("LocationId")
                         .HasColumnType("int");
 
@@ -403,6 +410,12 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("PayLaterReminderSentUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<DateTime?>("PaymentDueUtc")
+                        .HasColumnType("datetime2(3)");
 
                     b.Property<byte>("PaymentStatus")
                         .HasColumnType("tinyint");
@@ -445,6 +458,12 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CustomerPassId");
 
+                    b.HasIndex("PaymentDueUtc")
+                        .HasDatabaseName("IX_Booking_PayLater_Due")
+                        .HasFilter("[IsPayLater] = 1 AND [IsDeleted] = 0");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("PaymentDueUtc"), new[] { "CustomerId", "Status", "TotalAmount", "AmountPaid" });
+
                     b.HasIndex("WorkspaceTypeId");
 
                     b.HasIndex("BookingDate", "Status")
@@ -472,6 +491,8 @@ namespace Regalis.Infrastructure.Persistence.Migrations
 
                     b.ToTable("TRN_Booking", null, t =>
                         {
+                            t.HasCheckConstraint("CK_Booking_AmountPaid", "[AmountPaid] >= 0");
+
                             t.HasCheckConstraint("CK_Booking_Amounts", "[BaseAmount] >= 0 AND [TaxAmount] >= 0 AND [TotalAmount] >= 0");
 
                             t.HasCheckConstraint("CK_Booking_Period", "[EndUtc] > [StartUtc]");
@@ -806,6 +827,257 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_BankTxn_Amount", "[Amount] > 0");
 
                             t.HasCheckConstraint("CK_BankTxn_SingleMatch", "[MatchedPaymentId] IS NULL OR [MatchedExpenseId] IS NULL");
+                        });
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.CashCollection", b =>
+                {
+                    b.Property<long>("CashCollectionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("CashCollectionId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("AmountTendered")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long>("BookingId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("CashRegisterSessionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal?>("ChangeReturned")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long>("CollectedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CollectedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long>("CustomerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long?>("InvoiceId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("ModifiedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long?>("PaymentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte>("PaymentMethod")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("ReceiptNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("ReferenceNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<byte>("Status")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long?>("VoidedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("VoidedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("CashCollectionId");
+
+                    b.HasIndex("BookingId")
+                        .HasDatabaseName("IX_CashCollection_Booking");
+
+                    b.HasIndex("CashRegisterSessionId")
+                        .HasDatabaseName("IX_CashCollection_Session");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.HasIndex("PaymentId");
+
+                    b.HasIndex("ReceiptNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CashCollection_Receipt");
+
+                    b.HasIndex("CollectedByUserId", "CollectedUtc")
+                        .HasDatabaseName("IX_CashCollection_Collector_Date");
+
+                    b.HasIndex("LocationId", "CollectedUtc")
+                        .HasDatabaseName("IX_CashCollection_Location_Date");
+
+                    b.ToTable("TRN_CashCollection", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CashCollection_Amount", "[Amount] <> 0");
+
+                            t.HasCheckConstraint("CK_CashCollection_Change", "[AmountTendered] IS NULL OR ([PaymentMethod] = 6 AND [AmountTendered] - ISNULL([ChangeReturned], 0) = [Amount])");
+
+                            t.HasCheckConstraint("CK_CashCollection_Method", "[PaymentMethod] IN (2,3,4,6)");
+
+                            t.HasCheckConstraint("CK_CashCollection_Reference", "[PaymentMethod] = 6 OR [ReferenceNumber] IS NOT NULL");
+
+                            t.HasCheckConstraint("CK_CashCollection_Void", "([Status] = 2 AND [VoidedByUserId] IS NOT NULL AND [VoidedUtc] IS NOT NULL AND [VoidReason] IS NOT NULL) OR ([Status] = 1 AND [VoidedUtc] IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.CashRegisterSession", b =>
+                {
+                    b.Property<long>("CashRegisterSessionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("CashRegisterSessionId"));
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime?>("ClosedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<decimal?>("CountedCash")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<decimal?>("ExpectedCash")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long?>("HandedOverToUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("HandedOverUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("ModifiedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<DateTime>("OpenedUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<decimal>("OpeningFloat")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("SessionNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<byte>("Status")
+                        .HasColumnType("tinyint");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal?>("Variance")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasComputedColumnSql("[CountedCash] - [ExpectedCash]", true);
+
+                    b.Property<string>("VarianceReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("CashRegisterSessionId");
+
+                    b.HasIndex("HandedOverToUserId");
+
+                    b.HasIndex("SessionNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CashSession_Number");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("Status", "BusinessDate")
+                        .HasDatabaseName("IX_CashSession_Status_Date");
+
+                    b.HasIndex("LocationId", "UserId", "BusinessDate")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CashSession_Location_User_Date");
+
+                    b.ToTable("TRN_CashRegisterSession", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CashSession_Closed", "[Status] = 1 OR ([ClosedUtc] IS NOT NULL AND [ExpectedCash] IS NOT NULL AND [CountedCash] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_CashSession_Float", "[OpeningFloat] >= 0");
+
+                            t.HasCheckConstraint("CK_CashSession_VarianceReason", "[Status] = 1 OR [CountedCash] = [ExpectedCash] OR [VarianceReason] IS NOT NULL");
                         });
                 });
 
@@ -3429,6 +3701,11 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Property<string>("PasswordHash")
                         .HasMaxLength(400)
                         .HasColumnType("nvarchar(400)");
+
+                    b.Property<bool>("PayLaterAllowed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("PhotoPath")
                         .HasMaxLength(500)
@@ -6870,6 +7147,72 @@ namespace Regalis.Infrastructure.Persistence.Migrations
                     b.Navigation("BankAccount");
                 });
 
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.CashCollection", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Booking.Booking", "Booking")
+                        .WithMany()
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Regalis.Domain.Entities.Finance.CashRegisterSession", "CashRegisterSession")
+                        .WithMany("Collections")
+                        .HasForeignKey("CashRegisterSessionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("CollectedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Regalis.Domain.Entities.Finance.Invoice", null)
+                        .WithMany()
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Regalis.Domain.Entities.Masters.Location", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Regalis.Domain.Entities.Finance.Payment", null)
+                        .WithMany()
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Booking");
+
+                    b.Navigation("CashRegisterSession");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.CashRegisterSession", b =>
+                {
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("HandedOverToUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Regalis.Domain.Entities.Masters.Location", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Regalis.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.CustomerPass", b =>
                 {
                     b.HasOne("Regalis.Domain.Entities.Identity.User", null)
@@ -7715,6 +8058,11 @@ namespace Regalis.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.BankAccount", b =>
                 {
                     b.Navigation("Transactions");
+                });
+
+            modelBuilder.Entity("Regalis.Domain.Entities.Finance.CashRegisterSession", b =>
+                {
+                    b.Navigation("Collections");
                 });
 
             modelBuilder.Entity("Regalis.Domain.Entities.Finance.Invoice", b =>

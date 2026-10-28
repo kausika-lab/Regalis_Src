@@ -91,6 +91,10 @@ public static class PermissionCodes
         public const string View = "PAYMENT.VIEW";
         public const string Create = "PAYMENT.CREATE";
         public const string Export = "PAYMENT.EXPORT";
+        public const string CashCollect = "PAYMENT.CASH_COLLECT";
+        public const string CashClose = "PAYMENT.CASH_CLOSE";
+        public const string CashVoid = "PAYMENT.CASH_VOID";
+        public const string CashApprove = "PAYMENT.CASH_APPROVE";
     }
 
     public static class Wallet

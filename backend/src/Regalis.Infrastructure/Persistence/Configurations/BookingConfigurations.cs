@@ -14,6 +14,7 @@ public class BookingConfiguration : IEntityTypeConfiguration<Booking>
             t.HasCheckConstraint("CK_Booking_Period", "[EndUtc] > [StartUtc]");
             t.HasCheckConstraint("CK_Booking_Amounts",
                 "[BaseAmount] >= 0 AND [TaxAmount] >= 0 AND [TotalAmount] >= 0");
+            t.HasCheckConstraint("CK_Booking_AmountPaid", "[AmountPaid] >= 0");
         });
         builder.HasKey(x => x.BookingId);
         builder.Property(x => x.BookingNumber).HasMaxLength(30).IsRequired();
@@ -42,6 +43,11 @@ public class BookingConfiguration : IEntityTypeConfiguration<Booking>
             .IncludeProperties(x => new { x.LocationId, x.TotalAmount });
         builder.HasIndex(x => new { x.LocationId, x.StartUtc })
             .HasDatabaseName("IX_Booking_Location_Start");
+        // Pay later: what is owed and when (Cash Collections, the PayLater sweeper).
+        builder.HasIndex(x => x.PaymentDueUtc)
+            .HasDatabaseName("IX_Booking_PayLater_Due")
+            .IncludeProperties(x => new { x.CustomerId, x.Status, x.TotalAmount, x.AmountPaid })
+            .HasFilter("[IsPayLater] = 1 AND [IsDeleted] = 0");
 
         builder.HasOne(x => x.Customer).WithMany()
             .HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);

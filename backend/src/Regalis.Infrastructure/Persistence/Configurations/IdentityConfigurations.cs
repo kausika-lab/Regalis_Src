@@ -33,6 +33,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(x => x.Gstin).HasMaxLength(20);
         // Derived from the columns above, never stored — one definition, on the entity.
         builder.Ignore(x => x.IsProfileComplete);
+        builder.Property(x => x.PayLaterAllowed).HasDefaultValue(true);
 
         builder.HasIndex(x => x.Email).IsUnique().HasDatabaseName("UX_User_Email")
             .HasFilter("[IsDeleted] = 0");

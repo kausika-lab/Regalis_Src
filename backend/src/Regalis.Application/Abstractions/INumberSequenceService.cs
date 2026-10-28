@@ -17,6 +17,8 @@ public static class SequenceKeys
     public const string Quotation = "Quotation";
     public const string MaintenanceWork = "MaintenanceWork";
     public const string Housekeeper = "Housekeeper";
+    public const string CashReceipt = "CashReceipt";
+    public const string CashSession = "CashSession";
 }
 
 /// <summary>

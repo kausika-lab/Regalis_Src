@@ -42,6 +42,10 @@ public class User : AuditableEntity
     /// which until now had no customer-level source.</summary>
     public string? Gstin { get; set; }
 
+    /// <summary>Customer may choose "Pay later at the front desk". Staff switch it off
+    /// after missed payments; three unpaid no-shows switch it off automatically.</summary>
+    public bool PayLaterAllowed { get; set; } = true;
+
     public string? PhotoPath { get; set; }
     public int? DefaultLocationId { get; set; }
     public bool IsEmailVerified { get; set; }

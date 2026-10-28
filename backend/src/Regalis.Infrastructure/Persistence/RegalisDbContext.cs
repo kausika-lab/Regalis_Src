@@ -51,6 +51,8 @@ public class RegalisDbContext(DbContextOptions<RegalisDbContext> options) : DbCo
     public DbSet<WalletTransaction> WalletTransactions => Set<WalletTransaction>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<CashCollection> CashCollections => Set<CashCollection>();
+    public DbSet<CashRegisterSession> CashRegisterSessions => Set<CashRegisterSession>();
     public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
     public DbSet<CustomerPass> CustomerPasses => Set<CustomerPass>();
     public DbSet<ServiceOrder> ServiceOrders => Set<ServiceOrder>();

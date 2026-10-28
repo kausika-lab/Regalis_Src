@@ -47,6 +47,14 @@ public class Booking : AuditableEntity
     /// holds the workspace for the whole term, is priced at PricePerMonth x months, and a
     /// daily check-out does not complete it. Null for an ordinary hourly booking.</summary>
     public byte? BillingMonths { get; set; }
+    /// <summary>Confirmed without payment; paid at the front desk (cash, UPI or card).</summary>
+    public bool IsPayLater { get; set; }
+    /// <summary>Pay later: when the money is due (start - PayLater.DueBeforeStartMinutes).</summary>
+    public DateTime? PaymentDueUtc { get; set; }
+    /// <summary>Pay later: running total of desk collections; balance = TotalAmount - AmountPaid.</summary>
+    public decimal AmountPaid { get; set; }
+    /// <summary>Pay later: when the "payment due" reminder went out, so it goes once.</summary>
+    public DateTime? PayLaterReminderSentUtc { get; set; }
     public byte[] RowVersion { get; set; } = [];
 
     public User Customer { get; set; } = null!;

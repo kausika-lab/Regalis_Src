@@ -54,8 +54,10 @@ public class BookingMutationService(
 
             decimal refundAmount = 0;
             decimal refundPercent = 0;
+            // Pay later: refund rules apply to what was actually collected at the desk.
+            var refundBase = booking.IsPayLater ? booking.AmountPaid : booking.TotalAmount;
             if (booking.Status == BookingStatus.Confirmed &&
-                booking.PaymentStatus == BookingPaymentStatus.Paid)
+                booking.PaymentStatus is BookingPaymentStatus.Paid or BookingPaymentStatus.PartiallyPaid)
             {
                 var cutoffHours = await settings.GetIntAsync(
                     AppSettingKeys.Cancellation.CutoffHours, 24, ct);
@@ -65,7 +67,7 @@ public class BookingMutationService(
                         AppSettingKeys.Cancellation.RefundPercentBeforeCutoff, 100m, ct)
                     : await settings.GetDecimalAsync(
                         AppSettingKeys.Cancellation.RefundPercentAfterCutoff, 0m, ct);
-                refundAmount = Math.Round(booking.TotalAmount * refundPercent / 100m, 2,
+                refundAmount = Math.Round(refundBase * refundPercent / 100m, 2,
                     MidpointRounding.AwayFromZero);
                 if (refundAmount > 0)
                 {
@@ -76,7 +78,7 @@ public class BookingMutationService(
                         referenceType: "Booking", referenceId: booking.BookingId, ct: ct);
                 }
                 booking.RefundAmount = refundAmount;
-                booking.PaymentStatus = refundAmount >= booking.TotalAmount
+                booking.PaymentStatus = refundAmount >= refundBase
                     ? BookingPaymentStatus.Refunded
                     : refundAmount > 0
                         ? BookingPaymentStatus.PartiallyRefunded
@@ -100,6 +102,19 @@ public class BookingMutationService(
             });
 
             await RevokeAccessTokensAsync(booking.BookingId, "BookingCancelled", nowUtc, ct);
+            if (booking.IsPayLater && booking.AmountPaid == 0m)
+            {
+                // Nothing was collected: the unpaid invoice goes with the booking.
+                var unpaid = await db.Invoices
+                    .Where(i => i.BookingId == booking.BookingId &&
+                                i.Status == InvoiceStatus.Pending && i.PaidAmount == 0m)
+                    .ToListAsync(ct);
+                foreach (var invoice in unpaid)
+                {
+                    invoice.Status = InvoiceStatus.Cancelled;
+                    invoice.CancellationReason = "Pay later booking cancelled before payment.";
+                }
+            }
             db.Notifications.Add(BuildNotification(booking,
                 "Booking cancelled",
                 $"{booking.BookingNumber} has been cancelled." +

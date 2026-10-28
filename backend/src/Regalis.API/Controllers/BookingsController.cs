@@ -84,6 +84,20 @@ public class BookingsController(
             "Workspace held for the term. Complete payment to confirm the booking.");
     }
 
+    /// <summary>Before a hold: may the signed-in customer pay later, and for which kinds.</summary>
+    [HttpGet("pay-later")]
+    [HasPermission(PermissionCodes.Booking.Create)]
+    [ProducesResponseType(typeof(ApiResponse<Application.Finance.PayLaterStatusDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> PayLaterStatus(CancellationToken ct) =>
+        OkEnvelope(await bookingService.GetPayLaterStatusAsync(ct));
+
+    /// <summary>Whether this Pending hold may be confirmed with "paylater", and why not.</summary>
+    [HttpGet("{id:long}/pay-later")]
+    [HasPermission(PermissionCodes.Booking.Create)]
+    [ProducesResponseType(typeof(ApiResponse<Application.Finance.PayLaterEligibilityDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> PayLaterEligibility(long id, CancellationToken ct) =>
+        OkEnvelope(await bookingService.GetPayLaterEligibilityAsync(id, ct));
+
     /// <summary>One booking — customers see only their own rows.</summary>
     [HttpGet("{id:long}")]
     [HasPermission(PermissionCodes.Booking.View)]

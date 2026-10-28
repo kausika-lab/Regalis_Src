@@ -108,6 +108,9 @@ public static class DependencyInjection
         services.AddScoped<IWalletDeskService, WalletDeskService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
         services.AddScoped<IPaymentService, PaymentService>();
+        services.AddScoped<ICashCollectionService, CashCollectionService>();
+        services.AddScoped<ICashRegisterService, CashRegisterService>();
+        services.AddHostedService<PayLaterSweeper>();
         services.AddScoped<IPassService, PassService>();
         services.AddScoped<ISupplierService, SupplierService>();
         services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();

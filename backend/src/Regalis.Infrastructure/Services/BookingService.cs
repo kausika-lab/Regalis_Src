@@ -249,6 +249,15 @@ public class BookingService(
                     "The slot has been taken while the hold was pending. The hold is released.");
             }
 
+            if (request.PaymentMethod == PaymentMethods.PayLater)
+            {
+                var refusal = await PayLaterPolicy.CheckAsync(db, settings, booking, ct);
+                if (refusal is not null)
+                {
+                    throw new BusinessRuleException(refusal, "PAY_LATER_NOT_ALLOWED");
+                }
+            }
+
             var result = await SettleAndFinalizeAsync(booking, request, ct);
             await transaction.CommitAsync(ct);
             return result;
@@ -327,6 +336,15 @@ public class BookingService(
             booking.Workspace = await db.Workspaces.FirstAsync(w => w.WorkspaceId == workspace.WorkspaceId, ct);
             booking.WorkspaceType = await db.WorkspaceTypes.FirstAsync(t => t.WorkspaceTypeId == workspace.WorkspaceTypeId, ct);
 
+            if (request.PaymentMethod == PaymentMethods.PayLater)
+            {
+                var refusal = await PayLaterPolicy.CheckAsync(db, settings, booking, ct);
+                if (refusal is not null)
+                {
+                    throw new BusinessRuleException(refusal, "PAY_LATER_NOT_ALLOWED");
+                }
+            }
+
             var result = await SettleAndFinalizeAsync(booking,
                 new ConfirmBookingRequest(request.PaymentMethod, null, null, null), ct);
             await transaction.CommitAsync(ct);
@@ -345,13 +363,15 @@ public class BookingService(
         ConfirmBookingRequest request, CancellationToken ct)
     {
         var nowUtc = clock.UtcNow;
+        var payLater = request.PaymentMethod == PaymentMethods.PayLater;
 
-        // Step 2/3: the money.
-        var payment = request.PaymentMethod switch
+        // Step 2/3: the money. Pay later takes none now; it is collected at the desk.
+        Payment? payment = request.PaymentMethod switch
         {
             PaymentMethods.Wallet => await SettleWithWalletAsync(booking, ct),
             PaymentMethods.Gateway => await SettleWithGatewayAsync(booking, request, ct),
             PaymentMethods.Cash => await SettleWithCashAsync(booking, ct),
+            PaymentMethods.PayLater => null,
             _ => throw new BusinessRuleException("Unknown payment method.")
         };
         await db.SaveChangesAsync(ct); // payment id materializes
@@ -360,20 +380,41 @@ public class BookingService(
         var invoice = await BuildInvoiceAsync(booking, payment, ct);
         db.Invoices.Add(invoice);
         await db.SaveChangesAsync(ct);
-        payment.InvoiceId = invoice.InvoiceId;
+        if (payment is not null)
+        {
+            payment.InvoiceId = invoice.InvoiceId;
+        }
 
         // Step 5: the access token + signed QR payload.
         var accessToken = BuildAccessToken(booking);
         db.AccessTokens.Add(accessToken);
 
         // Step 6: the notification.
-        db.Notifications.Add(BuildConfirmationNotification(booking, nowUtc));
+        var confirmation = BuildConfirmationNotification(booking, nowUtc);
+        if (payLater)
+        {
+            confirmation.Message +=
+                $" Please pay ₹{booking.TotalAmount:N2} at the front desk (cash, UPI or card) before you check in.";
+        }
+        db.Notifications.Add(confirmation);
         await AdminAlerts.BookingAsync(db, booking, "Booking confirmed", nowUtc, ct,
-            $"Paid by {request.PaymentMethod}.");
+            payLater
+                ? $"Pay later: ₹{booking.TotalAmount:N2} to collect at the front desk."
+                : $"Paid by {request.PaymentMethod}.");
 
         // Step 7: state + history.
         booking.Status = BookingStatus.Confirmed;
-        booking.PaymentStatus = BookingPaymentStatus.Paid;
+        if (payLater)
+        {
+            booking.IsPayLater = true;
+            booking.AmountPaid = 0m;
+            booking.PaymentStatus = BookingPaymentStatus.Pending;
+            booking.PaymentDueUtc = await PayLaterPolicy.DueUtcAsync(settings, booking, ct);
+        }
+        else
+        {
+            booking.PaymentStatus = BookingPaymentStatus.Paid;
+        }
         booking.StatusHistory.Add(new BookingStatusHistory
         {
             BookingId = booking.BookingId,
@@ -381,16 +422,18 @@ public class BookingService(
             ToStatus = BookingStatus.Confirmed,
             ChangedByUserId = currentUser.UserId,
             ChangedUtc = nowUtc,
-            Reason = $"Payment {payment.PaymentNumber} ({request.PaymentMethod}) verified."
+            Reason = payLater
+                ? $"Confirmed with pay later; ₹{booking.TotalAmount:N2} due at the front desk."
+                : $"Payment {payment!.PaymentNumber} ({request.PaymentMethod}) verified."
         });
         await db.SaveChangesAsync(ct);
 
         var holdMinutes = await settings.GetIntAsync(AppSettingKeys.Booking.PendingHoldMinutes, 10, ct);
         return new ConfirmBookingResponse(
             ToDto(booking, holdMinutes),
-            payment.PaymentId, payment.PaymentNumber,
+            payment?.PaymentId ?? 0, payment?.PaymentNumber ?? "",
             invoice.InvoiceId, invoice.InvoiceNumber,
-            accessToken.TokenValue, accessToken.QrPayload);
+            accessToken.TokenValue, accessToken.QrPayload, payLater);
     }
 
     private async Task<Payment> SettleWithWalletAsync(Booking booking, CancellationToken ct)
@@ -461,7 +504,7 @@ public class BookingService(
         return payment;
     }
 
-    private async Task<Invoice> BuildInvoiceAsync(Booking booking, Payment payment, CancellationToken ct)
+    private async Task<Invoice> BuildInvoiceAsync(Booking booking, Payment? payment, CancellationToken ct)
     {
         var cgstPercent = await settings.GetDecimalAsync(AppSettingKeys.Tax.CgstPercent, 9m, ct);
         var sgstPercent = await settings.GetDecimalAsync(AppSettingKeys.Tax.SgstPercent, 9m, ct);
@@ -498,10 +541,11 @@ public class BookingService(
             SgstAmount = sgstAmount,
             IgstAmount = 0,
             TotalAmount = booking.TotalAmount,
-            PaidAmount = booking.TotalAmount,
-            Status = InvoiceStatus.Paid,
-            PaymentId = payment.PaymentId,
-            PaidUtc = clock.UtcNow,
+            // No payment = pay later: the invoice stays unpaid until the desk collects.
+            PaidAmount = payment is null ? 0m : booking.TotalAmount,
+            Status = payment is null ? InvoiceStatus.Pending : InvoiceStatus.Paid,
+            PaymentId = payment?.PaymentId,
+            PaidUtc = payment is null ? null : clock.UtcNow,
             CustomerName = booking.Customer.FullName,
             CustomerEmail = booking.Customer.Email,
             CustomerMobile = booking.Customer.MobileNumber,
@@ -577,6 +621,39 @@ public class BookingService(
             ActionRoute = $"/bookings/{booking.BookingId}",
             SentUtc = nowUtc
         };
+    }
+
+    // ── Pay later ────────────────────────────────────────────────────────────
+
+    public async Task<PayLaterStatusDto> GetPayLaterStatusAsync(CancellationToken ct = default)
+    {
+        if (currentUser.UserType != UserType.Customer)
+        {
+            return new PayLaterStatusDto(false, "Pay later is chosen by the customer at checkout.",
+                Array.Empty<string>());
+        }
+        var (reason, kinds) = await PayLaterPolicy.CustomerStatusAsync(db, settings, currentUser.UserId, ct);
+        return new PayLaterStatusDto(reason is null, reason, kinds);
+    }
+
+    public async Task<PayLaterEligibilityDto> GetPayLaterEligibilityAsync(long bookingId,
+        CancellationToken ct = default)
+    {
+        var booking = await db.Bookings.AsNoTracking()
+            .FirstOrDefaultAsync(b => b.BookingId == bookingId, ct)
+            ?? throw new NotFoundException("Booking", bookingId);
+        if (currentUser.UserType == UserType.Customer && booking.CustomerId != currentUser.UserId)
+        {
+            throw new NotFoundException("Booking", bookingId);
+        }
+        if (booking.Status != BookingStatus.Pending)
+        {
+            return new PayLaterEligibilityDto(false, "This booking is not awaiting payment.",
+                booking.TotalAmount, null);
+        }
+        var refusal = await PayLaterPolicy.CheckAsync(db, settings, booking, ct);
+        return new PayLaterEligibilityDto(refusal is null, refusal, booking.TotalAmount,
+            await PayLaterPolicy.DueUtcAsync(settings, booking, ct));
     }
 
     // ── Reads ────────────────────────────────────────────────────────────────
@@ -829,5 +906,5 @@ public class BookingService(
         b.BaseAmount, b.TaxAmount, b.TotalAmount,
         (byte)b.Status, (byte)b.PaymentStatus, (byte)b.BookingSource, b.Notes, b.CreatedDate,
         b.Status == BookingStatus.Pending ? b.CreatedDate.AddMinutes(holdMinutes) : null,
-        b.BillingMonths);
+        b.BillingMonths, b.IsPayLater, b.AmountPaid, b.PaymentDueUtc);
 }

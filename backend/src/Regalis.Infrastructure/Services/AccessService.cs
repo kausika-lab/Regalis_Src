@@ -30,6 +30,7 @@ public class AccessService(
     AttendanceRecorder attendanceRecorder,
     ICurrentUser currentUser,
     IDateTimeProvider clock,
+    ISettingService settings,
     IOptions<JwtOptions> jwtOptions,
     ILogger<AccessService> logger) : IAccessService
 {
@@ -118,6 +119,21 @@ public class AccessService(
         var user = await db.Users.AsNoTracking()
             .FirstOrDefaultAsync(u => u.UserId == request.UserId, ct)
             ?? throw new NotFoundException("User", request.UserId);
+        // Pay later: no override into a booking that still owes money.
+        if (direction == AccessDirection.In && request.BookingId is not null)
+        {
+            var pay = await db.Bookings
+                .Where(b => b.BookingId == request.BookingId.Value)
+                .Select(b => new { b.BookingNumber, b.IsPayLater, b.TotalAmount, b.AmountPaid })
+                .FirstOrDefaultAsync(ct);
+            if (pay is not null && pay.IsPayLater && pay.AmountPaid < pay.TotalAmount &&
+                await settings.GetBoolAsync(PayLaterPolicy.BlockCheckInUntilPaid, true, ct))
+            {
+                throw new BusinessRuleException(
+                    $"₹{pay.TotalAmount - pay.AmountPaid:N2} is still due on {pay.BookingNumber}. Record the payment under Cash Collections first.",
+                    "PAYMENT_DUE");
+            }
+        }
 
         var log = new AccessLog
         {
@@ -300,6 +316,18 @@ public class AccessService(
                 workspaceId != token.WorkspaceId)
             {
                 return DenyReasons.WrongWorkspace;
+            }
+            if (direction == AccessDirection.In)
+            {
+                var pay = await db.Bookings
+                    .Where(b => b.BookingId == token.BookingId)
+                    .Select(b => new { b.IsPayLater, b.TotalAmount, b.AmountPaid })
+                    .FirstOrDefaultAsync(ct);
+                if (pay is not null && pay.IsPayLater && pay.AmountPaid < pay.TotalAmount &&
+                    await settings.GetBoolAsync(PayLaterPolicy.BlockCheckInUntilPaid, true, ct))
+                {
+                    return DenyReasons.PaymentDue;
+                }
             }
         }
         // Attendance gate: exiting needs an open session; a finished day blocks

@@ -284,5 +284,8 @@ public class UserAdminService(
         user.LastLoginUtc, user.LockoutEndUtc,
         user.UserRoles.Select(ur => ur.RoleId).ToList(),
         user.UserRoles.Select(ur => ur.Role.RoleName).ToList(),
-        user.CreatedDate, user.IsActive);
+        user.CreatedDate, user.IsActive,
+        user.Gstin, user.DateOfBirth, (byte?)user.Gender,
+        user.AddressLine1, user.AddressLine2, user.City, user.State, user.PostalCode, user.Country,
+        user.IsProfileComplete);
 }

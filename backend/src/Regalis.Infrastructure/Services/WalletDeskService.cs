@@ -110,6 +110,14 @@ public class WalletDeskService(
     public async Task<AdminAddMoneyResponse> AddMoneyAsync(long customerId, AdminAddMoneyRequest request,
         CancellationToken ct = default)
     {
+        // Decision of 27 Oct 2026: wallets are topped up online only. Desk money is taken
+        // as a pay-later collection against a booking (Cash Collections), not as a top-up.
+        if (!await settings.GetBoolAsync("Wallet.DeskAddMoneyEnabled", true, ct))
+        {
+            throw new BusinessRuleException(
+                "Wallet top-up at the desk is switched off. Customers add money online; take desk payments under Cash Collections.",
+                "DESK_TOPUP_DISABLED");
+        }
         var customer = await LoadCustomerAsync(customerId, ct);
         var method = (PaymentMethod)request.PaymentMethod;
         var today = IstClock.IstDateOf(clock.UtcNow);

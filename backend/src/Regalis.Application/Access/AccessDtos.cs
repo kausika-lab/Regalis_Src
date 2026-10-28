@@ -11,6 +11,8 @@ public static class DenyReasons
     public const string OutsideValidWindow = "OutsideValidWindow";
     public const string BookingCancelled = "BookingCancelled";
     public const string WrongWorkspace = "WrongWorkspace";
+    /// <summary>Pay later booking with a balance; pay at the front desk first.</summary>
+    public const string PaymentDue = "PaymentDue";
     public const string AlreadyCheckedOut = "AlreadyCheckedOut";
     public const string DeviceOffline = "DeviceOffline";
     public const string UsageExceeded = "UsageExceeded";

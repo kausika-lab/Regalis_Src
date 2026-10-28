@@ -45,7 +45,18 @@ public record UserDetailDto(
     IReadOnlyList<int> RoleIds,
     IReadOnlyList<string> Roles,
     DateTime CreatedDate,
-    bool IsActive);
+    bool IsActive,
+    // The member's own profile details, shown on the admin Customer screen.
+    string? Gstin = null,
+    DateOnly? DateOfBirth = null,
+    byte? Gender = null,
+    string? AddressLine1 = null,
+    string? AddressLine2 = null,
+    string? City = null,
+    string? State = null,
+    string? PostalCode = null,
+    string? Country = null,
+    bool IsProfileComplete = true);
 
 public record CreateUserRequest(
     string FullName,

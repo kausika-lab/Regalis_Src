@@ -10,6 +10,8 @@ public static class PaymentMethods
     public const string Gateway = "gateway";
     /// <summary>Admin bookings only — cash collected at the desk.</summary>
     public const string Cash = "cash";
+    /// <summary>Confirmed now, paid at the front desk later (cash, UPI or card).</summary>
+    public const string PayLater = "paylater";
 }
 
 public record ConfirmBookingRequest(
@@ -25,15 +27,16 @@ public record ConfirmBookingResponse(
     long InvoiceId,
     string InvoiceNumber,
     string AccessTokenValue,
-    string QrPayload);
+    string QrPayload,
+    bool IsPayLater = false);
 
 public class ConfirmBookingRequestValidator : AbstractValidator<ConfirmBookingRequest>
 {
     public ConfirmBookingRequestValidator()
     {
         RuleFor(x => x.PaymentMethod)
-            .Must(m => m is PaymentMethods.Wallet or PaymentMethods.Gateway or PaymentMethods.Cash)
-            .WithMessage("Payment method must be 'wallet', 'gateway' or 'cash'.");
+            .Must(m => m is PaymentMethods.Wallet or PaymentMethods.Gateway or PaymentMethods.Cash or PaymentMethods.PayLater)
+            .WithMessage("Payment method must be 'wallet', 'gateway', 'cash' or 'paylater'.");
         When(x => x.PaymentMethod == PaymentMethods.Gateway, () =>
         {
             RuleFor(x => x.GatewayOrderId).NotEmpty();
@@ -61,8 +64,8 @@ public class AdminCreateBookingRequestValidator : AbstractValidator<AdminCreateB
         RuleFor(x => x.DurationMinutes).GreaterThan(0);
         RuleFor(x => x.Notes).MaximumLength(500);
         RuleFor(x => x.PaymentMethod)
-            .Must(m => m is PaymentMethods.Wallet or PaymentMethods.Cash)
-            .WithMessage("Admin bookings are paid by 'wallet' or 'cash'.");
+            .Must(m => m is PaymentMethods.Wallet or PaymentMethods.Cash or PaymentMethods.PayLater)
+            .WithMessage("Admin bookings are paid by 'wallet', 'cash' or 'paylater'.");
     }
 }
 

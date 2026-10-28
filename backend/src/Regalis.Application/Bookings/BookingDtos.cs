@@ -124,7 +124,11 @@ public record BookingDto(
     // When the Pending hold lapses; null once the booking is confirmed.
     DateTime? HoldExpiresUtc,
     // 1, 3, 6 or 12 for a monthly desk/cabin booking; null for an hourly one.
-    byte? BillingMonths = null);
+    byte? BillingMonths = null,
+    // Pay later: confirmed unpaid; the balance is TotalAmount - AmountPaid.
+    bool IsPayLater = false,
+    decimal AmountPaid = 0m,
+    DateTime? PaymentDueUtc = null);
 
 public class QuoteRequestValidator : AbstractValidator<QuoteRequest>
 {
@@ -197,6 +201,12 @@ public interface IBookingService
     /// (wallet or cash) in one call. BookingSource = Admin.</summary>
     Task<ConfirmBookingResponse> AdminCreateAsync(AdminCreateBookingRequest request,
         CancellationToken ct = default);
+
+    /// <summary>Before any hold: whether the signed-in customer may pay later, and for which kinds.</summary>
+    Task<Finance.PayLaterStatusDto> GetPayLaterStatusAsync(CancellationToken ct = default);
+
+    /// <summary>Whether the caller may confirm this Pending hold with "paylater", and why not.</summary>
+    Task<Finance.PayLaterEligibilityDto> GetPayLaterEligibilityAsync(long bookingId, CancellationToken ct = default);
 
     /// <summary>A booking scoped to the caller: customers see only their own rows.</summary>
     Task<BookingDto> GetBookingAsync(long bookingId, CancellationToken ct = default);

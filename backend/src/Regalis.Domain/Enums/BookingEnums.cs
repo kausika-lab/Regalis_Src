@@ -26,7 +26,9 @@ public enum BookingPaymentStatus : byte
     Paid = 2,
     Failed = 3,
     Refunded = 4,
-    PartiallyRefunded = 5
+    PartiallyRefunded = 5,
+    /// <summary>Pay later: some cash taken, a balance still due.</summary>
+    PartiallyPaid = 6
 }
 
 public enum BookingSource : byte

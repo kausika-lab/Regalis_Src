@@ -32,12 +32,28 @@ $block.InnerXml = @'
 '@
 [void]$rules.PrependChild($block)
 
+# Google sign-in on production. Google refuses the public address
+# (https://amstagserver.discus-ordinal.ts.net: "The given origin is not allowed for the
+# given client ID", checked 28 Oct 2026) until it is added under Authorised JavaScript
+# origins of OAuth client 429301379606-liseccp78bpo396jdrv7u1dc7unbprmg in Google Cloud
+# Console. Until then the button is hidden. After adding it, set this to $true and run
+# this script (elevated) to show the button.
+$googleOriginApproved = $false
+
 # The SPA hides the online options when this is false (deploy/offline-payments).
-[IO.File]::WriteAllText((Join-Path (Split-Path $prod) 'env.js'), @'
+$envJs = @'
 // Production: no online payments - customers pay at the front desk.
 // Written by Regalis_Src\deploy\production\sync-frontend-config.ps1 on every promote.
 window.__REGALIS_ONLINE_PAY__ = false;
-'@, (New-Object Text.UTF8Encoding $false))
+'@
+if (-not $googleOriginApproved) {
+    $envJs += @'
+// Google sign-in hidden: the public address is not yet an approved origin of the
+// OAuth client. Set $googleOriginApproved in sync-frontend-config.ps1 to show it.
+window.__REGALIS_GOOGLE_CLIENT_ID__ = "";
+'@
+}
+[IO.File]::WriteAllText((Join-Path (Split-Path $prod) 'env.js'), $envJs, (New-Object Text.UTF8Encoding $false))
 
 if ((& $appcmd list site regalis-prod-ui) -match 'https/') {
     $rule = $x.CreateDocumentFragment()

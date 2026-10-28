@@ -4,11 +4,22 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-        
         {
+            // Google sign-in / sign-up: use THIS one. It opens an ordinary Chrome window with
+            // no debugger attached. Google refuses to sign in inside a browser that a debugger
+            // controls ("Couldn't sign you in - This browser or app may not be secure"), which
+            // is exactly what the debug launch below is, so Google can never work there.
+            // Separate profile, so a Google account signed in here stays signed in.
+            "type": "node-terminal",
+            "request": "launch",
+            "name": "Open Regalis in Chrome (Google sign-in works)",
+            "command": "cmd /c start chrome --user-data-dir=C:\\ChromeRegalis --no-first-run --new-window http://localhost:8080/login"
+        },
+        {
+            // Breakpoints and the debugger, for everything except Google sign-in.
             "type": "chrome",
             "request": "launch",
-            "name": "Launch Chrome against localhost",
+            "name": "Launch Chrome against localhost (debugger, no Google sign-in)",
             "url": "http://localhost:8080",
             "webRoot": "${workspaceFolder}",
             // Keep the debug browser profile on a SHORT path. The default one lives under

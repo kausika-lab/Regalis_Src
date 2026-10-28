@@ -1,10 +1,10 @@
 {
   "version": 2,
-  "dgSpecHash": "UtrzifG4+2E=",
+  "dgSpecHash": "vbjXlOxmzuI=",
   "success": true,
-  "projectFilePath": "D:\\Regalis\\Regalis_Src\\deploy\\customer-profile-fields\\DtoPatcher\\DtoPatcher.csproj",
+  "projectFilePath": "C:\\inetpub\\wwwroot\\Regalis_Src\\deploy\\customer-profile-fields\\DtoPatcher\\DtoPatcher.csproj",
   "expectedPackageFiles": [
-    "C:\\Users\\santh\\.nuget\\packages\\mono.cecil\\0.11.6\\mono.cecil.0.11.6.nupkg.sha512"
+    "C:\\Users\\Administrator.AMSTAGSERVER\\.nuget\\packages\\mono.cecil\\0.11.6\\mono.cecil.0.11.6.nupkg.sha512"
   ],
   "logs": []
 }

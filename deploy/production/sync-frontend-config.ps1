@@ -47,7 +47,8 @@ $envJs = @'
 window.__REGALIS_ONLINE_PAY__ = false;
 '@
 if (-not $googleOriginApproved) {
-    $envJs += @'
+    # A here-string has no trailing newline, so add one between the two parts.
+    $envJs += "`r`n" + @'
 // Google sign-in hidden: the public address is not yet an approved origin of the
 // OAuth client. Set $googleOriginApproved in sync-frontend-config.ps1 to show it.
 window.__REGALIS_GOOGLE_CLIENT_ID__ = "";

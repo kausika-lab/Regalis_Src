@@ -1,0 +1,14 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            // Starts the API (:81) and the website (:8080) in their own windows, or does
+            // nothing if they're already running. The launch entries run this first.
+            "label": "Start Regalis local stack",
+            "type": "shell",
+            "command": "cmd /c D:\\Regalis\\local-dev\\start-local.cmd",
+            "presentation": { "reveal": "silent" },
+            "problemMatcher": []
+        }
+    ]
+}

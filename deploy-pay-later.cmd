@@ -10,7 +10,9 @@ REM      refused until it is paid in full. 2 unpaid pay-later checkouts per cust
 REM      amount limit. Reminder 24 h before; released if nothing is paid 30 min after the
 REM      start; pay later switched off for a customer after 3 such releases.
 REM    - Billing & Finance > Cash Collections: what is owed, Take payment (cash, UPI or
-REM      card), numbered receipts (PDF), void with a reason (Admin only).
+REM      card), numbered receipts (PDF), void with a reason (Admin only). "What is owed"
+REM      includes invoices marked as sent on the Invoices screen (Mark sent); their
+REM      receipts go into the collector's Cash Register like any other.
 REM    - Billing & Finance > Cash Register: each collector's drawer per day, close with a
 REM      count (a difference needs a reason), Admin approves.
 REM    - My Bookings / Admin Bookings show what a pay-later booking still owes; admin
@@ -25,10 +27,13 @@ REM
 REM  BEFORE RUNNING: apply deploy\pay-later\backend to the source in %SRC% (README.md
 REM  in that folder: new files to copy, edits to existing files). This script refuses to
 REM  run until CashCollectionService.cs is there.
-REM  Database: 20261027182059_PayLaterCash (new tables and columns, one transaction) and
-REM  20261027182100_PayLaterAccess (permissions, grants, sidebar, settings, sequences).
+REM  Database: 20261027182059_PayLaterCash (new tables and columns, one transaction),
+REM  20261029030331_CashInvoiceCollections (a receipt may be against a sent invoice
+REM  instead of a booking) and 20261027182100_PayLaterAccess (permissions, grants,
+REM  sidebar, settings, sequences).
 REM  Rollback: db\migrations\20261027182100_PayLaterAccess_Rollback.sql, then
-REM  20261027182059_PayLaterCash_Rollback.sql, then the backup below.
+REM  20261029030331_CashInvoiceCollections_Rollback.sql (refuses while invoice receipts
+REM  exist), then 20261027182059_PayLaterCash_Rollback.sql, then the backup below.
 REM
 REM  Restarting the API signs everyone out once (Auth:EndSessionsOnRestart).
 REM  Run from an ELEVATED command prompt.
@@ -85,6 +90,8 @@ echo === 2. Database migration =================================================
 REM Before the binaries: the new code reads the new columns. The old code ignores them.
 %SQLCMD% -S localhost -d %DB% -E -C -I -b -i "%~dp0db\migrations\20261027182059_PayLaterCash.sql"
 if errorlevel 1 ( echo. & echo The migration failed; it runs in a transaction, so nothing was kept. Nothing else has been changed. & pause & exit /b 1 )
+%SQLCMD% -S localhost -d %DB% -E -C -I -b -i "%~dp0db\migrations\20261029030331_CashInvoiceCollections.sql"
+if errorlevel 1 ( echo. & echo The invoice-collections migration failed; it runs in a transaction. PayLaterCash is applied; nothing else has been changed. & pause & exit /b 1 )
 %SQLCMD% -S localhost -d %DB% -E -C -I -b -W -i "%~dp0db\migrations\20261027182100_PayLaterAccess.sql"
 if errorlevel 1 ( echo. & echo The permissions script failed; it runs in a transaction. Nothing else has been changed. & pause & exit /b 1 )
 echo Migration applied.

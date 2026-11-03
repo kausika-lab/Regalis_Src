@@ -13,6 +13,7 @@
             "type": "node-terminal",
             "request": "launch",
             "name": "Open Regalis in Chrome (Google sign-in works)",
+            "preLaunchTask": "Start Regalis local stack",
             "command": "cmd /c start chrome --user-data-dir=C:\\ChromeRegalis --no-first-run --new-window http://localhost:8080/login"
         },
         {
@@ -21,6 +22,7 @@
             "request": "launch",
             "name": "Launch Chrome against localhost (debugger, no Google sign-in)",
             "url": "http://localhost:8080",
+            "preLaunchTask": "Start Regalis local stack",
             "webRoot": "${workspaceFolder}",
             // Keep the debug browser profile on a SHORT path. The default one lives under
             // %APPDATA%\Code\User\workspaceStorage\<hash>\ms-vscode.js-debug\.profile, and the

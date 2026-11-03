@@ -1,0 +1,28 @@
+--- a/src/Regalis.Infrastructure/DependencyInjection.cs (as decompiled from api/Regalis.Infrastructure.dll)
++++ b/src/Regalis.Infrastructure/DependencyInjection.cs
+@@ -23,6 +23,8 @@
+ using Regalis.Infrastructure.Security;
+ using Regalis.Infrastructure.Services;
+ 
++using Regalis.Infrastructure.Services.Billing;
++
+ namespace Regalis.Infrastructure;
+ 
+ public static class DependencyInjection
+@@ -39,7 +41,7 @@
+ 			{
+ 				sql.EnableRetryOnFailure(3);
+ 			});
+-			dbOptions.AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>(), provider.GetRequiredService<AdminEventInterceptor>(), provider.GetRequiredService<ReportCacheInterceptor>());
++			dbOptions.AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>(), provider.GetRequiredService<AdminEventInterceptor>(), provider.GetRequiredService<ReportCacheInterceptor>(), provider.GetRequiredService<BillingFinanceRulesInterceptor>());
+ 		});
+ 		services.Configure<JwtOptions>(configuration.GetSection("Jwt"));
+ 		services.Configure<GoogleOptions>(configuration.GetSection("Authentication:Google"));
+@@ -136,6 +138,7 @@
+ 		services.AddScoped<SandboxPaymentGateway>();
+ 		services.AddHttpClient<RazorpayPaymentGateway>();
+ 		services.AddScoped((IServiceProvider provider) => (!string.Equals(configuration["Payments:Provider"], "Razorpay", StringComparison.OrdinalIgnoreCase)) ? ((IPaymentGateway)provider.GetRequiredService<SandboxPaymentGateway>()) : ((IPaymentGateway)provider.GetRequiredService<RazorpayPaymentGateway>()));
++		services.AddBillingFinance();
+ 		return services;
+ 	}
+ }

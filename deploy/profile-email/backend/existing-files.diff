@@ -1,0 +1,5 @@
+--- a/src/Regalis.Infrastructure/DependencyInjection.cs (as decompiled from api/Regalis.Infrastructure.dll)
++++ b/src/Regalis.Infrastructure/DependencyInjection.cs
+@@ -129,1 +129,2 @@
+ 		services.AddScoped<IProfileService, ProfileService>();
++		services.AddScoped<IProfileEmailService, ProfileEmailService>();

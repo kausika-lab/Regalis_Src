@@ -30,11 +30,11 @@ import {
   A as ApiClientError
 } from "./index-DI5X4c9f.js";
 
-/* Matches Regalis.Domain.Enums.Gender. The values are the wire format. */
+/* Matches Regalis.Domain.Enums.Gender. The values are the wire format. "Other" (3) is no
+   longer offered (customer-portal-1); a stored 3 starts blank so the member picks again. */
 const GENDERS = [
   { value: "1", label: "Male" },
   { value: "2", label: "Female" },
-  { value: "3", label: "Other" },
   { value: "4", label: "Prefer not to say" }
 ];
 
@@ -80,7 +80,7 @@ const FIELDS = [
   ["State",          "state",        ICONS.pin,      { autoComplete: "address-level1", placeholder: "Enter state" }],
   ["Country",        "country",      ICONS.globe,    { autoComplete: "country-name", placeholder: "Enter country" }],
   ["Postal Code",    "postalCode",   ICONS.pin,      { autoComplete: "postal-code", placeholder: "6-digit PIN", inputMode: "numeric", maxLength: 6 }],
-  ["Date of Birth",  "dateOfBirth",  ICONS.calendar, { autoComplete: "bday", type: "date" }],
+  ["Date of Birth",  "dateOfBirth",  ICONS.calendar, { autoComplete: "bday", type: "date", optional: true }],
   ["GST Number",     "gstin",        ICONS.receipt,  { placeholder: "15-character GSTIN", maxLength: 15, style: { textTransform: "uppercase" }, optional: true }]
 ];
 
@@ -121,7 +121,7 @@ export function OnboardingPage() {
           country: p.country ?? "India",
           postalCode: p.postalCode ?? "",
           dateOfBirth: p.dateOfBirth ?? "",
-          gender: p.gender != null ? String(p.gender) : "",
+          gender: p.gender != null && p.gender !== 3 ? String(p.gender) : "",
           gstin: p.gstin ?? ""
         });
         setPhase("ready");
@@ -152,7 +152,7 @@ export function OnboardingPage() {
         state: form.state.trim(),
         country: form.country.trim(),
         postalCode: form.postalCode.trim(),
-        dateOfBirth: form.dateOfBirth,
+        dateOfBirth: form.dateOfBirth || null,
         gender: Number(form.gender),
         gstin: form.gstin.trim().toUpperCase()
       }));
@@ -213,7 +213,7 @@ export function OnboardingPage() {
       className: "auth__subtitle",
       children: [
         "We need a few more details before you can book a workspace — your invoices are ",
-        "issued against them. Fields marked * are required; company name and GST number are optional.",
+        "issued against them. Fields marked * are required; company name, date of birth and GST number are optional.",
         " ",
         jsx.jsx("span", { className: "auth__required", children: "*" }, "r")
       ]

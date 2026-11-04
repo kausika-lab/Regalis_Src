@@ -1,6 +1,8 @@
 /* Customer dashboard (home-bookings-1, 23 Oct 2026): a "My bookings" card lists the
    customer's current bookings (running or ahead, like the Current tab of My Bookings),
    and a "Customisation available" banner under it opens Book Workspace.
+   customer-portal-1 (3 Nov 2026): "At a glance" removed; the banner moved under Wallet
+   balance so the two columns stay even.
    Data: GET /bookings/my?tab=upcoming, oldest first, first six shown. */
 import{i as k,l as N,m as w,r as c,n as B,j as e,T as b,C,Q as f,g as i,p as d,q as z,W as I,t as S,v as T}from"./index-DI5X4c9f.js";
 import{d as P}from"./reports-CNtuzowc.js";
@@ -101,13 +103,10 @@ function H(){
     e.jsx(q,{banners:j}),
     e.jsx("div",{className:"home__quick",children:$.map(({to:s,icon:p,title:n,meta:l})=>e.jsxs(i,{to:s,className:"home__tile",children:[e.jsx("span",{className:"home__tile-icon",children:e.jsx(p,{size:20})}),e.jsx("span",{className:"home__tile-title",children:n}),e.jsx("span",{className:"home__tile-meta",children:l}),e.jsx(L,{size:16,className:"home__tile-arrow","aria-hidden":!0})]},s))}),
     e.jsxs("div",{className:"home__columns",children:[
-      e.jsxs("div",{className:"home__aside",children:[e.jsx(MyBookings,{dashboard:a}),e.jsx(Promo,{})]}),
+      e.jsx("div",{className:"home__aside",children:e.jsx(MyBookings,{dashboard:a})}),
       e.jsxs("div",{className:"home__aside",children:[
-        e.jsxs(u,{title:"Wallet balance",children:[e.jsx("div",{className:"home__balance",children:v(a?.walletBalance??0)}),e.jsx("p",{style:{color:"var(--text-secondary)",fontSize:"var(--font-size-sm)"},children:"Available credit for bookings, passes and services."}),e.jsx(i,{to:"/wallet",style:{display:"block",marginTop:"var(--space-4)"},children:e.jsxs(d,{variant:"outline",style:{width:"100%"},children:[e.jsx(I,{size:16})," Add money"]})})]}),
-        e.jsx(u,{title:"At a glance",children:e.jsxs("ul",{className:"home__glance",children:[
-          e.jsx("li",{children:e.jsxs(i,{to:"/passes",children:[e.jsx(b,{size:16})," Active passes",e.jsx(m,{tone:(a?.activePasses??0)>0?"info":"neutral",children:a?.activePasses??0})]})}),
-          e.jsx("li",{children:e.jsxs(i,{to:"/notifications",children:[e.jsx(S,{size:16})," Unread notifications",e.jsx(m,{tone:(a?.unreadNotifications??0)>0?"warning":"neutral",children:a?.unreadNotifications??0})]})}),
-          e.jsx("li",{children:e.jsxs(i,{to:"/support",children:[e.jsx(T,{size:16})," Open tickets",e.jsx(m,{tone:(a?.openTickets??0)>0?"warning":"neutral",children:a?.openTickets??0})]})})]})})
+        e.jsxs(u,{title:"Wallet balance",children:[e.jsx("div",{className:"home__balance rg-price",children:v(a?.walletBalance??0)}),e.jsx("p",{style:{color:"var(--text-secondary)",fontSize:"var(--font-size-sm)"},children:"Available credit for bookings, passes and services."}),e.jsx(i,{to:"/wallet",style:{display:"block",marginTop:"var(--space-4)"},children:e.jsxs(d,{variant:"outline",style:{width:"100%"},children:[e.jsx(I,{size:16})," Add money"]})})]}),
+        e.jsx(Promo,{})
       ]})
     ]})
   ]});

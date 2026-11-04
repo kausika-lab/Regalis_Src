@@ -113,7 +113,7 @@ function MyQuotationsPage() {
     {
       key: "total",
       header: "Total",
-      render: (q) => e.jsx("strong", { children: formatInr(q.totalAmount) }),
+      render: (q) => e.jsx("strong", { className: "rg-price", children: formatInr(q.totalAmount) }),
     },
     {
       key: "valid",
@@ -221,7 +221,7 @@ function ApproveModal({ quotation, onClose, onDone }) {
             "You are approving ",
             e.jsx("strong", { children: quotation.quotationNumber }),
             " for ",
-            e.jsx("strong", { children: formatInr(quotation.totalAmount) }),
+            e.jsx("strong", { className: "rg-price", children: formatInr(quotation.totalAmount) }),
             ".",
           ],
         }),

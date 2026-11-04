@@ -446,3 +446,5 @@ a.rep-card__title:hover{color:var(--regalis-gold-dark)}
 :root .mem-hero .btn--outline{background:#ffffff14;border-color:#ffffff8c;color:var(--regalis-white)}
 :root .mem-hero .btn--outline:hover:not(:disabled){background:#ffffff26;border-color:var(--accent-bright);color:var(--accent-bright)}
 :root .mem-hero .btn--outline:focus-visible{outline:2px solid var(--accent-bright);outline-offset:2px}
+/* customer-portal-1: amounts in the customer portal (span.rg-price) in a dark, bold price colour; inside dark banners and buttons they keep the surrounding colour */
+:root{--price-text:#0b0b0d}[data-theme=dark]{--price-text:#ffffff}.rg-price{color:var(--price-text);font-weight:700;font-variant-numeric:tabular-nums}.hero .rg-price,.home__promo .rg-price,.mem-hero .rg-price,.btn .rg-price{color:inherit}

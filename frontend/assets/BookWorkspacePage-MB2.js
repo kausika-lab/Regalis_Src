@@ -30,6 +30,10 @@ import { a as L, b as p, c as DY, f as O } from "./formatters-DFe5xCRi.js";
 import { C as Te } from "./circle-check-DvPmllJi.js";
 import { D as ze } from "./download-Dlifs1Q2.js";
 
+/* customer-portal-1: amounts shown on the page render through PR, in the dark price style
+   (.rg-price in index-*.css). Text built into strings (messages, button labels) keeps p. */
+const PR = (v) => e.jsx("span", { className: "rg-price", children: p(v) });
+
 const MAX_RANGE_DAYS = 31;
 
 function ne(o, T) {
@@ -833,20 +837,8 @@ function Ee() {
           ? `Live availability at ${K.locationName} — the calendar you see is the calendar the front desk sees.`
           : "Live availability — the calendar you see is the calendar the front desk sees.",
       }),
-      e.jsx("div", {
-        className: "wizard-steps",
-        children: X.map((t, s) =>
-          e.jsx(
-            "span",
-            {
-              className: `wizard-step${s === Z ? " wizard-step--active" : ""}${s < Z ? " wizard-step--done" : ""}`,
-              children: t.label,
-            },
-            t.key,
-          ),
-        ),
-      }),
-
+      /* customer-portal-1: the step chips (What / Workspace / Review / Pay) are no longer
+         shown; the steps themselves and their Back / Continue buttons are unchanged. */
       f === "when" &&
         e.jsx(C, {
           title: "What, where and when",
@@ -991,7 +983,7 @@ function Ee() {
                                       e.jsxs("div", {
                                         className: "choice-card__price",
                                         children: [
-                                          p(t.price / VOMONTHS(t)),
+                                          PR(t.price / VOMONTHS(t)),
                                           " ",
                                           e.jsx("span", {
                                             style: {
@@ -1198,10 +1190,10 @@ function Ee() {
                             className: "choice-card__price",
                             children: isM
                               ? t.pricePerMonth != null
-                                ? [p(t.pricePerMonth), "/month"]
+                                ? [PR(t.pricePerMonth), "/month"]
                                 : [t.unavailableReason === "Booked" ? "Booked" : "Monthly price not set"]
                               : [
-                                  W ? p(t.pricePerHour) : p(dayRateOf(t) ?? 0),
+                                  W ? PR(t.pricePerHour) : PR(dayRateOf(t) ?? 0),
                                   W ? "/hour" : "/day",
                                 ],
                           }),
@@ -1269,20 +1261,20 @@ function Ee() {
                   e.jsxs("div", {
                     children: [
                       e.jsx("span", { children: "Per month" }),
-                      e.jsx("span", { children: p(voPlan.price / (VOMONTHS(voPlan) || 1)) }),
+                      e.jsx("span", { children: PR(voPlan.price / (VOMONTHS(voPlan) || 1)) }),
                     ],
                   }),
                   e.jsxs("div", {
                     children: [
                       e.jsx("span", { children: "Base amount" }),
-                      e.jsx("span", { children: p(voPlan.price) }),
+                      e.jsx("span", { children: PR(voPlan.price) }),
                     ],
                   }),
                   e.jsxs("div", {
                     children: [
                       e.jsx("span", { children: "CGST + SGST" }),
                       e.jsx("span", {
-                        children: p(
+                        children: PR(
                           (voPlan.totalAmount ?? 0) - (voPlan.price ?? 0),
                         ),
                       }),
@@ -1292,7 +1284,7 @@ function Ee() {
                     className: "summary-total",
                     children: [
                       e.jsx("span", { children: "Total" }),
-                      e.jsx("span", { children: p(voPlan.totalAmount) }),
+                      e.jsx("span", { children: PR(voPlan.totalAmount) }),
                     ],
                   }),
                 ],
@@ -1331,7 +1323,7 @@ function Ee() {
                   },
                   children: [
                     "Wallet balance ",
-                    p(c.balance),
+                    PR(c.balance),
                     ONLINE_PAY ? " doesn't cover this — pay online or top up from the Wallet page." : " doesn't cover this — add money at the front desk (cash, UPI or card), then pay from your wallet.",
                   ],
                 }),
@@ -1402,7 +1394,7 @@ function Ee() {
                           e.jsxs("div", {
                             children: [
                               e.jsx("span", { children: "Rate per month" }),
-                              e.jsx("strong", { children: p(n.pricePerMonth) }),
+                              e.jsx("strong", { children: PR(n.pricePerMonth) }),
                             ],
                           }),
                         ],
@@ -1440,7 +1432,7 @@ function Ee() {
                               e.jsx("strong", {
                                 children:
                                   n.perDayTotal !== null
-                                    ? `${p(n.perDayTotal)} · ${n.perDayMinutes} min`
+                                    ? [PR(n.perDayTotal), ` · ${n.perDayMinutes} min`]
                                     : "varies by day",
                               }),
                             ],
@@ -1470,7 +1462,7 @@ function Ee() {
                   e.jsxs("div", {
                     children: [
                       e.jsx("span", { children: "Base amount" }),
-                      e.jsx("span", { children: p(n.baseAmount) }),
+                      e.jsx("span", { children: PR(n.baseAmount) }),
                     ],
                   }),
                   e.jsxs("div", {
@@ -1478,7 +1470,7 @@ function Ee() {
                       e.jsxs("span", {
                         children: ["CGST @ ", n.cgstPercent, "%"],
                       }),
-                      e.jsx("span", { children: p(n.cgstAmount) }),
+                      e.jsx("span", { children: PR(n.cgstAmount) }),
                     ],
                   }),
                   e.jsxs("div", {
@@ -1486,14 +1478,14 @@ function Ee() {
                       e.jsxs("span", {
                         children: ["SGST @ ", n.sgstPercent, "%"],
                       }),
-                      e.jsx("span", { children: p(n.sgstAmount) }),
+                      e.jsx("span", { children: PR(n.sgstAmount) }),
                     ],
                   }),
                   e.jsxs("div", {
                     className: "summary-total",
                     children: [
                       e.jsx("span", { children: "Total" }),
-                      e.jsx("span", { children: p(n.totalAmount) }),
+                      e.jsx("span", { children: PR(n.totalAmount) }),
                     ],
                   }),
                 ],
@@ -1513,7 +1505,7 @@ function Ee() {
                               " – ",
                               L(qq.endUtc),
                               " · ",
-                              p(qq.totalAmount),
+                              PR(qq.totalAmount),
                             ],
                           }),
                         ],
@@ -1569,7 +1561,7 @@ function Ee() {
                   },
                   children: [
                     "Wallet balance ",
-                    p(c.balance),
+                    PR(c.balance),
                     ONLINE_PAY ? " doesn't cover this booking — pay online or top up from the Wallet page." : " doesn't cover this booking — add money at the front desk (cash, UPI or card), then pay from your wallet.",
                   ],
                 }),
@@ -1616,7 +1608,7 @@ function Ee() {
                   " from ",
                   dayLabel(b),
                   " · ",
-                  p(voDone.pass?.totalAmount ?? voPlan.totalAmount),
+                  PR(voDone.pass?.totalAmount ?? voPlan.totalAmount),
                   " paid, including GST",
                 ],
               }),

@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DtoPatcher")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6a3e8d348215dee3804b9b0afeaa53db52965010")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8543e55178e2303c5b37f0f3ca3ff0952b2a92c4")]
 [assembly: System.Reflection.AssemblyProductAttribute("DtoPatcher")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DtoPatcher")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

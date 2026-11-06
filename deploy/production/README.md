@@ -34,7 +34,9 @@ quotation); customers see "Pay at the front desk" on it.
 5. `05-backup-task.ps1`: nightly backup.
 6. `06-https.ps1 -Email <address>`: Let's Encrypt certificate once public DNS points here.
    The server sits behind Jio CGNAT, so a plain A record likely can't reach it;
-   a Cloudflare Tunnel is the planned route instead.
+   a Cloudflare Tunnel is the route instead: `09-go-public-cloudflare.ps1`
+   (browser steps at the top of the script). `08-go-public-tailscale.ps1` is the
+   fallback address on `*.ts.net`.
 7. `07-move-to-sqlexpress.ps1`: moves the production database off the Developer
    edition (not licensed for production) onto SQL Server 2025 Express,
    `localhost\SQLEXPRESS`. Because this server is a domain controller, it first

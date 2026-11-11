@@ -1,0 +1,24 @@
+--- a/Regalis.Infrastructure/Services/PassService.cs
++++ b/Regalis.Infrastructure/Services/PassService.cs
+@@ -549,10 +549,18 @@
+ 
+ 	/// <summary>The customer's running (or not yet started) day pass, if any: Active and
+ 	/// not yet past its last day. Data from before the one-pass rule may hold several;
+-	/// the biggest pack wins, then the one ending last.</summary>
+-	private Task<CustomerPass?> LiveDayPassAsync(long customerId, DateOnly todayIst, CancellationToken ct)
++	/// the biggest pack wins, then the one ending last.
++	/// Only consulted while MST_AppSetting "Passes.OnePassAtATime" is true. It is false by
++	/// default (customer-ux-1, 6 Nov 2026): a customer may hold several day passes, each
++	/// bought at full price for its own dates, so no pass is treated as the running one and
++	/// there is no upgrade credit.</summary>
++	private async Task<CustomerPass?> LiveDayPassAsync(long customerId, DateOnly todayIst, CancellationToken ct)
+ 	{
+-		return (from p in db.CustomerPasses.AsNoTracking().Include((CustomerPass p) => p.PassPlan)
++		if (!await settings.GetBoolAsync("Passes.OnePassAtATime", fallback: false, ct))
++		{
++			return null;
++		}
++		return await (from p in db.CustomerPasses.AsNoTracking().Include((CustomerPass p) => p.PassPlan)
+ 			where p.CustomerId == customerId && p.PassType == PassType.DayPass && p.Status == CustomerPassStatus.Active && p.ValidTo >= todayIst
+ 			orderby p.PassPlan.ValidityDays descending, p.ValidTo descending, p.CustomerPassId descending
+ 			select p).FirstOrDefaultAsync(ct);

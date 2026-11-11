@@ -147,7 +147,15 @@ function Ee() {
   const [f, r] = a.useState("when");
   const z = ye((t) => t.locationId);
   const [j, M] = a.useState("");
-  const [v, Q] = a.useState("");
+  /* customer-ux-1: /book?type=custom (the dashboard's Custom tile) opens with the
+     Customisation card already chosen. */
+  const [v, Q] = a.useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("type") === "custom" ? "custom" : "";
+    } catch {
+      return "";
+    }
+  });
   const w = firstOpenDay(null);
   const [b, ie] = a.useState(w);
   const [A, q] = a.useState(w);
@@ -364,6 +372,7 @@ function Ee() {
      that is free for the whole term. No time slots. */
   const isMonthlyType = (t) => !!t && MONTHLY_TYPES.test(t.typeCode ?? "");
   const isM = isMonthlyType(T.find((t) => String(t.workspaceTypeId) === v));
+  const isDeskType = /^DESK$/i.test(T.find((t) => String(t.workspaceTypeId) === v)?.typeCode ?? "");
   const [mMonths, setMMonths] = a.useState(null);
   const mEnd = mMonths && b ? termEnd(b, mMonths) : null;
 
@@ -844,7 +853,50 @@ function Ee() {
           title: "What, where and when",
           children: e.jsxs("div", {
             className: "form-stack",
+            /* customer-ux-1: the workspace comes first. The dates and time only appear once
+               one is picked, and the choice is kept while the dates and time change. */
             children: [
+              e.jsx("div", {
+                className: "field__label",
+                children: "1 · Choose your workspace",
+              }),
+              e.jsx("div", {
+                className: "choice-grid",
+                children: [
+                  ...T.map((t) =>
+                  e.jsxs(
+                    "button",
+                    {
+                      type: "button",
+                      className: `choice-card${v === String(t.workspaceTypeId) ? " choice-card--selected" : ""}`,
+                      "aria-pressed": v === String(t.workspaceTypeId),
+                      onClick: () => Q(String(t.workspaceTypeId)),
+                      children: [
+                        e.jsx("div", {
+                          className: "choice-card__title",
+                          children: t.typeName,
+                        }),
+                        e.jsx("div", {
+                          className: "choice-card__meta",
+                          children:
+                            VOT && t.workspaceTypeId === VOT.workspaceTypeId
+                              ? "Business address · from 1 month"
+                              : `${t.workspaceCount} workspace${t.workspaceCount === 1 ? "" : "s"}${isMonthlyType(t) ? " · by the month" : ""}`,
+                        }),
+                      ],
+                    },
+                    t.workspaceTypeId,
+                  ),
+                ),
+                  customCard(),
+                ],
+              }),
+              !!v &&
+                e.jsx("div", {
+                  className: "field__label",
+                  children: isCustom ? "2 · Choose your dates" : isVO || isM ? "2 · Choose your start date" : "2 · Choose your date and time",
+                }),
+              !!v &&
               e.jsxs("div", {
                 className: "toolbar toolbar--when",
                 style: { marginBottom: 0 },
@@ -887,6 +939,7 @@ function Ee() {
                     }),
                 ],
               }),
+              !!v &&
               e.jsx("p", {
                 className: "choice-card__meta",
                 style: { margin: 0 },
@@ -900,46 +953,12 @@ function Ee() {
                     ? `${nDays} day${nDays === 1 ? "" : "s"}${W ? " · pick a start time below" : " · booked as a whole day on each date"}`
                     : "The To date cannot be before the From date.",
               }),
-              e.jsx("div", {
-                className: "field__label",
-                children: "Workspace",
-              }),
-              e.jsx("div", {
-                className: "choice-grid",
-                children: [
-                  ...T.map((t) =>
-                  e.jsxs(
-                    "button",
-                    {
-                      type: "button",
-                      className: `choice-card${v === String(t.workspaceTypeId) ? " choice-card--selected" : ""}`,
-                      onClick: () => Q(String(t.workspaceTypeId)),
-                      children: [
-                        e.jsx("div", {
-                          className: "choice-card__title",
-                          children: t.typeName,
-                        }),
-                        e.jsx("div", {
-                          className: "choice-card__meta",
-                          children:
-                            VOT && t.workspaceTypeId === VOT.workspaceTypeId
-                              ? "Business address · from 1 month"
-                              : `${t.workspaceCount} workspace${t.workspaceCount === 1 ? "" : "s"}${isMonthlyType(t) ? " · by the month" : ""}`,
-                        }),
-                      ],
-                    },
-                    t.workspaceTypeId,
-                  ),
-                ),
-                  customCard(),
-                ],
-              }),
 
               !v
                 ? e.jsx(E, {
-                    title: "Pick a workspace type",
+                    title: "Pick a workspace first",
                     description:
-                      "Choose Desk, Cabin or Meeting Room to see live availability for the dates above — or Virtual Office for a monthly business address. Pick Customisation to tell us what you need.",
+                      "Choose Desk, Cabin or Meeting Room, then pick your dates and time — or Virtual Office for a monthly business address. Pick Customisation to tell us what you need.",
                   })
                 : isCustom
                   ? customPanel()
@@ -1092,6 +1111,7 @@ function Ee() {
                         description: `${dayLabel(b)} to ${dayLabel(A)} — both dates included. Every date is booked for the full working day, and the range is only offered if the same workspace is free on all ${nDays} days.`,
                       }),
 
+              !!v &&
               !isCustom &&
               e.jsx(h, {
                 size: "lg",
@@ -1149,10 +1169,7 @@ function Ee() {
                         /* A taken workspace stays on the list, greyed out and unselectable. */
                         disabled: busy || t.isAvailable === !1,
                         "aria-disabled": t.isAvailable === !1 || void 0,
-                        title:
-                          t.isAvailable === !1
-                            ? (TAKEN_LABEL[t.unavailableReason] ?? "Booked")
-                            : void 0,
+                        /* customer-ux-1: the status shows once, as the badge below. */
                         style:
                           t.isAvailable === !1
                             ? { filter: "grayscale(1)", background: "var(--surface-inset)", boxShadow: "none" }
@@ -1176,9 +1193,8 @@ function Ee() {
                             children: [
                               t.workspaceCode,
                               t.floorNumber ? ` · Floor ${t.floorNumber}` : "",
-                              " · seats",
-                              " ",
-                              t.capacity,
+                              /* customer-ux-1: a desk is one seat, so desks show no seat count. */
+                              isDeskType ? "" : ` · seats ${t.capacity}`,
                             ],
                           }),
                           t.amenities.length > 0 &&
@@ -1186,12 +1202,15 @@ function Ee() {
                               className: "choice-card__meta",
                               children: t.amenities.join(" · "),
                             }),
+                          /* customer-ux-1: a taken workspace without a monthly price used to
+                             repeat "Booked" here under the badge; the badge alone says it now. */
+                          !(isM && t.pricePerMonth == null && t.isAvailable === !1) &&
                           e.jsxs("div", {
                             className: "choice-card__price",
                             children: isM
                               ? t.pricePerMonth != null
                                 ? [PR(t.pricePerMonth), "/month"]
-                                : [t.unavailableReason === "Booked" ? "Booked" : "Monthly price not set"]
+                                : ["Monthly price not set"]
                               : [
                                   W ? PR(t.pricePerHour) : PR(dayRateOf(t) ?? 0),
                                   W ? "/hour" : "/day",

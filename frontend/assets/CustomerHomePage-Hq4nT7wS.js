@@ -3,6 +3,8 @@
    and a "Customisation available" banner under it opens Book Workspace.
    customer-portal-1 (3 Nov 2026): "At a glance" removed; the banner moved under Wallet
    balance so the two columns stay even.
+   customer-ux-1 (6 Nov 2026): the customisation banner is now a "Custom" quick tile next to
+   Membership (same tile as the others); it opens Book Workspace with Customisation chosen.
    Data: GET /bookings/my?tab=upcoming, oldest first, first six shown. */
 import{i as k,l as N,m as w,r as c,n as B,j as e,T as b,C,Q as f,g as i,p as d,q as z,W as I,t as S,v as T}from"./index-DI5X4c9f.js";
 import{d as P}from"./reports-CNtuzowc.js";
@@ -18,7 +20,7 @@ const E=[["path",{d:"M5 12h14",key:"1ays0h"}],["path",{d:"m12 5 7 7-7 7",key:"xq
 const R=[["path",{d:"M16 19h6",key:"xwg31i"}],["path",{d:"M16 2v4",key:"4m81vk"}],["path",{d:"M19 16v6",key:"tddt3s"}],["path",{d:"M21 12.598V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8.5",key:"1glfrc"}],["path",{d:"M3 10h18",key:"8toen8"}],["path",{d:"M8 2v4",key:"1cmpym"}]],y=k("calendar-plus",R);
 const SLD=[["line",{x1:"21",x2:"14",y1:"4",y2:"4",key:"s1"}],["line",{x1:"10",x2:"3",y1:"4",y2:"4",key:"s2"}],["line",{x1:"21",x2:"12",y1:"12",y2:"12",key:"s3"}],["line",{x1:"8",x2:"3",y1:"12",y2:"12",key:"s4"}],["line",{x1:"21",x2:"16",y1:"20",y2:"20",key:"s5"}],["line",{x1:"12",x2:"3",y1:"20",y2:"20",key:"s6"}],["line",{x1:"14",x2:"14",y1:"2",y2:"6",key:"s7"}],["line",{x1:"8",x2:"8",y1:"10",y2:"14",key:"s8"}],["line",{x1:"16",x2:"16",y1:"18",y2:"22",key:"s9"}]],Sliders=k("sliders-horizontal",SLD);
 
-const $=[{to:"/book",icon:y,title:"Book a space",meta:"Desks, cabins and meeting rooms"},{to:"/day-pass",icon:b,title:"Day pass",meta:"Flexible access for a single day"},{to:"/membership",icon:C,title:"Membership",meta:"Unlimited access, one price"}];
+const $=[{to:"/book",icon:y,title:"Book a space",meta:"Desks, cabins and meeting rooms"},{to:"/day-pass",icon:b,title:"Day pass",meta:"Flexible access for a single day"},{to:"/membership",icon:C,title:"Membership",meta:"Unlimited access, one price"},{to:"/book?type=custom",icon:Sliders,title:"Custom",meta:"A workspace set up your way"}];
 
 // ---- IST date helpers (same parsing rule as formatters-*.js) --------------------------
 const IST="Asia/Kolkata";
@@ -80,19 +82,6 @@ function Row({b:o,first}){
   ]});
 }
 
-// ---- Customisation banner -> Book Workspace -------------------------------------------
-const PROMO={display:"flex",alignItems:"center",gap:"var(--space-4)",flexWrap:"wrap",padding:"var(--space-5) var(--space-6)",borderRadius:"var(--radius-lg)",background:"radial-gradient(600px 240px at 90% -30%,rgb(var(--accent-rgb) / 32%),transparent),linear-gradient(120deg,var(--regalis-black),#1d1d24)",color:"var(--regalis-white)",boxShadow:"var(--shadow-md)",textDecoration:"none"};
-function Promo(){
-  return e.jsxs(i,{to:"/book",className:"home__promo",style:PROMO,"aria-label":"Customisation available: set up a workspace your way in Book Workspace",children:[
-    e.jsx("span",{"aria-hidden":!0,style:{display:"inline-flex",alignItems:"center",justifyContent:"center",width:48,height:48,flex:"none",borderRadius:"var(--radius-full)",background:"rgb(var(--accent-rgb) / 18%)",color:"var(--accent-bright)"},children:e.jsx(Sliders,{size:22})}),
-    e.jsxs("div",{style:{flex:1,minWidth:220},children:[
-      e.jsx("div",{style:{fontSize:"var(--font-size-xs)",fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--accent-bright)"},children:"Customisation available"}),
-      e.jsx("div",{style:{fontFamily:"var(--font-display)",fontSize:"var(--font-size-lg)",fontWeight:800,marginTop:2},children:"Set up a workspace your way"}),
-      e.jsx("p",{style:{marginTop:"var(--space-1)",color:"#ffffffd1",fontSize:"var(--font-size-sm)",maxWidth:"48ch",lineHeight:1.5},children:"Pick a desk, cabin or meeting room, choose your dates and hours, and tell us what else you need — we'll tailor the space for you."})]}),
-    e.jsxs(d,{children:["Customise & book ",e.jsx(L,{size:16})]})
-  ]});
-}
-
 // ---- Page ------------------------------------------------------------------------------
 function H(){
   const{user:h}=N(),r=w(s=>s.locationId),[a,x]=c.useState(null),[j,t]=c.useState([]);
@@ -106,7 +95,6 @@ function H(){
       e.jsx("div",{className:"home__aside",children:e.jsx(MyBookings,{dashboard:a})}),
       e.jsxs("div",{className:"home__aside",children:[
         e.jsxs(u,{title:"Wallet balance",children:[e.jsx("div",{className:"home__balance rg-price",children:v(a?.walletBalance??0)}),e.jsx("p",{style:{color:"var(--text-secondary)",fontSize:"var(--font-size-sm)"},children:"Available credit for bookings, passes and services."}),e.jsx(i,{to:"/wallet",style:{display:"block",marginTop:"var(--space-4)"},children:e.jsxs(d,{variant:"outline",style:{width:"100%"},children:[e.jsx(I,{size:16})," Add money"]})})]}),
-        e.jsx(Promo,{})
       ]})
     ]})
   ]});

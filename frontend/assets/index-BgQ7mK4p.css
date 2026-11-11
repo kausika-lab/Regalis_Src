@@ -448,3 +448,39 @@ a.rep-card__title:hover{color:var(--regalis-gold-dark)}
 :root .mem-hero .btn--outline:focus-visible{outline:2px solid var(--accent-bright);outline-offset:2px}
 /* customer-portal-1: amounts in the customer portal (span.rg-price) in a dark, bold price colour; inside dark banners and buttons they keep the surrounding colour */
 :root{--price-text:#0b0b0d}[data-theme=dark]{--price-text:#ffffff}.rg-price{color:var(--price-text);font-weight:700;font-variant-numeric:tabular-nums}.hero .rg-price,.home__promo .rg-price,.mem-hero .rg-price,.btn .rg-price{color:inherit}
+
+/* Admin -> Support & Contact (AdminSupportContactPage-SC1.js): Customer Profile fields with inputs */
+.supc-form{display:contents}
+.supc-field{display:flex;flex-direction:column;gap:var(--space-2);min-width:0}
+.supc-field--wide{grid-column:1/-1}
+.supc-field__control{display:flex;flex-direction:column}
+.supc-field .field__input{height:auto}
+.supc-hours{display:flex;align-items:center;gap:var(--space-3)}
+.supc-hours .field__input{flex:1 1 0;min-width:0}
+.supc-hours__to{color:var(--text-muted);font-size:var(--font-size-sm)}
+.supc-textarea{resize:vertical;min-height:88px;line-height:1.5}
+.supc-actions{display:flex;justify-content:flex-end;gap:var(--space-3);margin-top:var(--space-6);padding-top:var(--space-5);border-top:1px solid var(--border-subtle)}
+.supc-preview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4) var(--space-8)}
+.supc-preview__title{font-weight:700;font-size:var(--font-size-lg);color:var(--text-primary)}
+.supc-preview__message{margin-top:var(--space-1);margin-bottom:var(--space-4);color:var(--text-secondary)}
+.supc-preview__title+.supc-preview,.supc-preview__title+.custp-field__value{margin-top:var(--space-4)}
+.supc-preview__row{display:flex;gap:var(--space-3);align-items:center}
+.supc-preview__row svg{flex:none;color:var(--regalis-gold-dark)}
+.supc-preview__label{font-size:var(--font-size-xs);color:var(--text-muted)}
+.supc-preview__value{font-weight:600;overflow-wrap:anywhere}
+@media (max-width:720px){.supc-preview{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:480px){.supc-actions{flex-direction:column-reverse}.supc-actions .btn{width:100%}.supc-hours{flex-wrap:wrap}.supc-hours .field__input{flex-basis:100%}.supc-hours__to{display:none}}
+
+/* customer-ux-1 (6 Nov 2026): payment status on My Bookings and My Passes - PAID / TO PAY, a little larger than the text around it */
+.pay-tag{display:inline-block;margin-top:var(--space-1);padding:2px 10px;border-radius:var(--radius-full);font-size:var(--font-size-sm);font-weight:800;letter-spacing:.06em;line-height:1.5;white-space:nowrap}
+.pay-tag--paid{background:#16a34a1f;color:var(--color-success)}
+.pay-tag--due{background:#d977061f;color:var(--color-warning)}
+/* customer-ux-1: Membership page type one step larger */
+.mem-page .choice-card__title{font-size:var(--font-size-md)}
+.mem-page .choice-card__meta{font-size:var(--font-size-sm)}
+.mem-page .choice-card__price{font-size:var(--font-size-lg)}
+.mem-page .summary-rows{font-size:var(--font-size-md);gap:var(--space-3)}
+.mem-page .summary-rows .summary-total{font-size:var(--font-size-lg)}
+.mem-page .wizard-step{font-size:var(--font-size-sm)}
+.mem-page .data-table{font-size:var(--font-size-md)}
+.mem-page .card__title{font-size:var(--font-size-xl)}

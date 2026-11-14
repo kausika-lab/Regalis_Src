@@ -125,3 +125,6 @@ Tested: `tests/ui_profile_role_photo.py` **23/23** on the local stack. Covers:
 - Admin → Customers shows the role
 
 The test puts the customer's photo and role back afterwards. `tests/ui_admin_customer.py` was updated to the centred layout but not re-run, because that needs a Dev restore.
+
+Follow-up 2 (14 Nov): the user saw the new Profile page drawn with a **stale** copy of `index-BgQ7mK4p.css`. The pencil showed as a plain grey button under the photo, and the header was left-aligned. Fix: the header's layout (centring, photo size, pencil position and look, role line) is now set inline in `ProfilePage-DRLk3DkQ.js`, so it no longer depends on the stylesheet being current. The CSS keeps only the hover glow and the spinner animation. Checked by serving the browser the pre-change stylesheet: centred and pencil on the photo at 1366 and 390 px. `tests/ui_profile_role_photo.py` still 23/23. sw revision `admin-customer-4`.
+

@@ -751,6 +751,12 @@ function AdminCustomerDetailPage() {
           muted: !customer.companyName
         }),
         el(ProfileField, {
+          icon: IconUser,
+          label: "Role",
+          value: customer.jobTitle || DASH,
+          muted: !customer.jobTitle
+        }),
+        el(ProfileField, {
           icon: IconGst,
           label: "Company GST Number",
           value: gstin ?? "Not captured",

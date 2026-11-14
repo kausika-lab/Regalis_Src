@@ -12,6 +12,39 @@
  	}
  
  	/// <summary>Own-record aggregates — safe for any signed-in user.</summary>
+--- a/src/Regalis.Application/Regalis.Application.Administration/UserDetailDto.cs (as decompiled from api/)
++++ b/src/Regalis.Application/Regalis.Application.Administration/UserDetailDto.cs
+@@ -3,4 +3,4 @@
+ 
+ namespace Regalis.Application.Administration;
+ 
+-public record UserDetailDto(long UserId, string FullName, string Email, string MobileNumber, byte UserType, byte Status, string? CompanyName, string? Address, string? PhotoPath, int? DefaultLocationId, bool IsEmailVerified, bool IsMobileVerified, bool MustChangePassword, DateTime? LastLoginUtc, DateTime? LockoutEndUtc, IReadOnlyList<int> RoleIds, IReadOnlyList<string> Roles, DateTime CreatedDate, bool IsActive, string? Gstin = null, DateOnly? DateOfBirth = null, byte? Gender = null, string? AddressLine1 = null, string? AddressLine2 = null, string? City = null, string? State = null, string? PostalCode = null, string? Country = null, bool IsProfileComplete = true);
++public record UserDetailDto(long UserId, string FullName, string Email, string MobileNumber, byte UserType, byte Status, string? CompanyName, string? Address, string? PhotoPath, int? DefaultLocationId, bool IsEmailVerified, bool IsMobileVerified, bool MustChangePassword, DateTime? LastLoginUtc, DateTime? LockoutEndUtc, IReadOnlyList<int> RoleIds, IReadOnlyList<string> Roles, DateTime CreatedDate, bool IsActive, string? Gstin = null, DateOnly? DateOfBirth = null, byte? Gender = null, string? AddressLine1 = null, string? AddressLine2 = null, string? City = null, string? State = null, string? PostalCode = null, string? Country = null, bool IsProfileComplete = true, string? JobTitle = null);
+--- a/src/Regalis.Application/Regalis.Application.Auth/ProfileDto.cs (as decompiled from api/)
++++ b/src/Regalis.Application/Regalis.Application.Auth/ProfileDto.cs
+@@ -7,4 +7,4 @@
+ /// structured parts on save and kept because TRN_Invoice snapshots it — read the parts.
+ /// The new members are optional so existing callers compile unchanged.
+ /// </summary>
+-public record ProfileDto(long UserId, string FullName, string Email, string MobileNumber, string? CompanyName, string? Address, bool HasPhoto, byte UserType, DateTime CreatedDate, string? AddressLine1 = null, string? AddressLine2 = null, string? City = null, string? State = null, string? Country = null, string? PostalCode = null, DateOnly? DateOfBirth = null, byte? Gender = null, string? Gstin = null, bool IsProfileComplete = true, bool HasPassword = true, bool IsGoogleLinked = false);
++public record ProfileDto(long UserId, string FullName, string Email, string MobileNumber, string? CompanyName, string? Address, bool HasPhoto, byte UserType, DateTime CreatedDate, string? AddressLine1 = null, string? AddressLine2 = null, string? City = null, string? State = null, string? Country = null, string? PostalCode = null, DateOnly? DateOfBirth = null, byte? Gender = null, string? Gstin = null, bool IsProfileComplete = true, bool HasPassword = true, bool IsGoogleLinked = false, string? JobTitle = null);
+--- a/src/Regalis.Application/Regalis.Application.Auth/UpdateProfileRequest.cs (as decompiled from api/)
++++ b/src/Regalis.Application/Regalis.Application.Auth/UpdateProfileRequest.cs
+@@ -2,4 +2,4 @@
+ 
+ /// <summary>Email is the login and is never edited here; a change of email is an
+ /// admin action with re-verification (out of Phase 1 scope).</summary>
+-public record UpdateProfileRequest(string FullName, string MobileNumber, string? CompanyName, string? Address);
++public record UpdateProfileRequest(string FullName, string MobileNumber, string? CompanyName, string? Address, string? JobTitle = null);
+--- a/src/Regalis.Application/Regalis.Application.Auth/UpdateProfileRequestValidator.cs (as decompiled from api/)
++++ b/src/Regalis.Application/Regalis.Application.Auth/UpdateProfileRequestValidator.cs
+@@ -10,5 +10,6 @@
+ 		RuleFor((UpdateProfileRequest x) => x.MobileNumber).NotEmpty().Matches("^\\+?[0-9]{10,15}$");
+ 		RuleFor((UpdateProfileRequest x) => x.CompanyName).MaximumLength(200);
+ 		RuleFor((UpdateProfileRequest x) => x.Address).MaximumLength(500);
++		RuleFor((UpdateProfileRequest x) => x.JobTitle).MaximumLength(100).WithMessage("Keep the role under 100 characters.");
+ 	}
+ }
 --- a/src/Regalis.Application/Regalis.Application.Reporting/IDashboardService.cs (as decompiled from api/)
 +++ b/src/Regalis.Application/Regalis.Application.Reporting/IDashboardService.cs
 @@ -5,7 +5,8 @@
@@ -24,6 +57,29 @@
  
  	/// <summary>The Billing &amp; Finance summary (document §16).</summary>
  	Task<AdminDashboardDto> GetFinanceAsync(CancellationToken ct = default(CancellationToken));
+--- a/src/Regalis.Domain/Regalis.Domain.Entities.Identity/User.cs (as decompiled from api/)
++++ b/src/Regalis.Domain/Regalis.Domain.Entities.Identity/User.cs
+@@ -61,6 +61,10 @@
+ 	/// after missed payments; three unpaid no-shows switch it off automatically.</summary>
+ 	public bool PayLaterAllowed { get; set; } = true;
+ 
++	/// <summary>Free-text job title / role the person enters on their profile ("Role" on
++	/// screen), e.g. "Founder". Not an access role. MST_User.JobTitle, nvarchar(100).</summary>
++	public string? JobTitle { get; set; }
++
+ 	public string? PhotoPath { get; set; }
+ 
+ 	public int? DefaultLocationId { get; set; }
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Persistence.Configurations/UserConfiguration.cs (as decompiled from api/)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Persistence.Configurations/UserConfiguration.cs
+@@ -28,6 +28,7 @@
+ 		builder.Property((User x) => x.Country).HasMaxLength(100);
+ 		builder.Property((User x) => x.PostalCode).HasMaxLength(20);
+ 		builder.Property((User x) => x.Gstin).HasMaxLength(20);
++		builder.Property((User x) => x.JobTitle).HasMaxLength(100);
+ 		builder.Ignore((User x) => x.IsProfileComplete);
+ 		builder.Property((User x) => x.PayLaterAllowed).HasDefaultValue(true);
+ 		builder.HasIndex((User x) => x.Email).IsUnique().HasDatabaseName("UX_User_Email")
 --- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/AuthService.cs (as decompiled from api/)
 +++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/AuthService.cs
 @@ -311,7 +311,8 @@
@@ -153,7 +209,15 @@
  		}
  		if (flag)
  		{
-@@ -116,7 +117,8 @@
+@@ -53,6 +54,7 @@
+ 		user.MobileNumber = mobile;
+ 		user.CompanyName = request.CompanyName?.Trim();
+ 		user.Address = request.Address?.Trim();
++		user.JobTitle = string.IsNullOrWhiteSpace(request.JobTitle) ? null : request.JobTitle.Trim();
+ 		await AdminAlerts.AccountAsync(db, user, "Profile updated", "was updated", clock.UtcNow, ct);
+ 		await db.SaveChangesAsync(ct);
+ 		return ToDto(user);
+@@ -116,7 +118,8 @@
  		bool flag = mobile != user.MobileNumber;
  		if (flag)
  		{
@@ -163,6 +227,14 @@
  		}
  		if (flag)
  		{
+@@ -177,6 +180,6 @@
+ 
+ 	private static ProfileDto ToDto(User user)
+ 	{
+-		return new ProfileDto(user.UserId, user.FullName, user.Email, user.MobileNumber, user.CompanyName, user.Address, user.PhotoPath != null, (byte)user.UserType, user.CreatedDate, user.AddressLine1, user.AddressLine2, user.City, user.State, user.Country, user.PostalCode, user.DateOfBirth, (byte?)user.Gender, user.Gstin, user.IsProfileComplete, user.PasswordHash != null, user.GoogleId != null);
++		return new ProfileDto(user.UserId, user.FullName, user.Email, user.MobileNumber, user.CompanyName, user.Address, user.PhotoPath != null, (byte)user.UserType, user.CreatedDate, user.AddressLine1, user.AddressLine2, user.City, user.State, user.Country, user.PostalCode, user.DateOfBirth, (byte?)user.Gender, user.Gstin, user.IsProfileComplete, user.PasswordHash != null, user.GoogleId != null, user.JobTitle);
+ 	}
+ }
 --- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/UserAdminService.cs (as decompiled from api/)
 +++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/UserAdminService.cs
 @@ -60,7 +60,8 @@
@@ -185,6 +257,14 @@
  		{
  			throw new BusinessRuleException("Another user already uses this mobile number.", "DUPLICATE_RECORD");
  		}
+@@ -242,6 +244,6 @@
+ 
+ 	private static UserDetailDto ToDetail(User user)
+ 	{
+-		return new UserDetailDto(user.UserId, user.FullName, user.Email, user.MobileNumber, (byte)user.UserType, (byte)user.Status, user.CompanyName, user.Address, user.PhotoPath, user.DefaultLocationId, user.IsEmailVerified, user.IsMobileVerified, user.MustChangePassword, user.LastLoginUtc, user.LockoutEndUtc, user.UserRoles.Select((UserRole ur) => ur.RoleId).ToList(), user.UserRoles.Select((UserRole ur) => ur.Role.RoleName).ToList(), user.CreatedDate, user.IsActive, user.Gstin, user.DateOfBirth, (byte?)user.Gender, user.AddressLine1, user.AddressLine2, user.City, user.State, user.PostalCode, user.Country, user.IsProfileComplete);
++		return new UserDetailDto(user.UserId, user.FullName, user.Email, user.MobileNumber, (byte)user.UserType, (byte)user.Status, user.CompanyName, user.Address, user.PhotoPath, user.DefaultLocationId, user.IsEmailVerified, user.IsMobileVerified, user.MustChangePassword, user.LastLoginUtc, user.LockoutEndUtc, user.UserRoles.Select((UserRole ur) => ur.RoleId).ToList(), user.UserRoles.Select((UserRole ur) => ur.Role.RoleName).ToList(), user.CreatedDate, user.IsActive, user.Gstin, user.DateOfBirth, (byte?)user.Gender, user.AddressLine1, user.AddressLine2, user.City, user.State, user.PostalCode, user.Country, user.IsProfileComplete, user.JobTitle);
+ 	}
+ }
 --- a/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs (as decompiled from api/)
 +++ b/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs
 @@ -107,6 +107,10 @@

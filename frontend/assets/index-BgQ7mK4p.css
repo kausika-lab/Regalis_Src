@@ -517,3 +517,17 @@ a.rep-card__title:hover{color:var(--regalis-gold-dark)}
 /* PhoneField must not widen its grid column (number input has an intrinsic width) */
 .rg-phone-field{min-width:0}
 .rg-phone .rg-phone__num{width:0}
+/* admin-customer-3 (14 Nov 2026): Profile header centred, pencil badge on the photo */
+.rg-prof-head{margin-top:24px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+.rg-prof-head__text{display:flex;flex-direction:column;align-items:center;gap:4px;max-width:100%;text-align:center!important}
+.rg-prof-head__role{font-size:15px;font-weight:600;color:var(--auth-label)}
+.rg-prof-photo{position:relative;width:104px;height:104px;flex:none}
+.rg-prof-photo .rg-prof-photo__img{width:104px!important;height:104px!important;transition:box-shadow .15s ease}
+.rg-prof-photo .rg-prof-photo__img:hover,.rg-prof-photo .rg-prof-photo__img:focus-visible{box-shadow:0 0 0 3px rgb(var(--accent-rgb) / 35%)}
+.rg-prof-photo__edit{position:absolute;right:0;bottom:2px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;border:3px solid var(--auth-surface,#fffdf8);background:linear-gradient(180deg,#e2be5a,#c79a22);color:#1b1608;box-shadow:0 2px 6px rgba(0,0,0,.18);transition:transform .12s ease}
+.rg-prof-photo__edit svg{width:15px;height:15px}
+.rg-prof-photo__edit:hover{transform:scale(1.06)}
+.rg-prof-photo__edit:focus-visible{outline:2px solid #c79a22;outline-offset:2px}
+.rg-prof-photo__edit:disabled{cursor:wait;opacity:.85}
+.rg-prof-photo__spin{width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:rgspin .7s linear infinite}
+@keyframes rgspin{to{transform:rotate(360deg)}}

@@ -99,3 +99,29 @@ Results:
 - **Staff mobile** used to be India-only (`^(?:\+91)?[6-9]\d{9}$`). It now accepts any listed country. **Housekeepers** (Maintenance) and **suppliers** keep their own rules: the API still requires a 10-digit Indian number for housekeepers, so they were not switched to the country-code field.
 - **Profile mobile** was not editable before (it was sent back unchanged). It is now an editable field with the country code, as item 2 asked.
 - Seen, not changed: in the admin sidebar, "Dashboard" stays highlighted on every admin page (`/admin` matches as a prefix).
+
+## Follow-up, 14 Nov 2026: Profile layout, Role, photo pencil
+
+The user's decisions: centre the photo with the name below; Role is a free-text job title; it applies to customers and staff.
+
+| Change | Detail | Where |
+|---|---|---|
+| **Centred header** (replaces item 15's "photo on the left") | The photo is centred in the profile card. Name (plus the "Staff" badge for staff), role, email and a short hint are centred below it. The rest of the form is unchanged. Desktop and 390 px. | `ProfilePage-DRLk3DkQ.js`, `index-BgQ7mK4p.css` |
+| **Pencil on the photo** | A small gold round button with a pencil, at the photo's bottom-right ("Change profile picture"). It opens the file picker; clicking the photo still works too. A spinner shows while uploading. Files over 3 MB are refused before upload. The new picture shows at once (profile and top-bar avatar) and stays after a reload: it is saved by the existing `POST /profile/photo`. | same |
+| **Role field** | Optional free-text "Role" (job title, e.g. "Marketing Manager", max 100). Shown as a row on the profile and under the name. Editable on Edit Profile for customers and staff. Also shown to admins on Admin → Customers → Profile Details. It is **not** an access role. | `ProfilePage`, `AdminCustomersPages`; API below |
+
+API / DB:
+- New column `MST_User.JobTitle nvarchar(100) NULL`. Migration `db/migrations/20261114120000_ProfileJobTitle.sql` (rollback drops the column). **Run it before the new API starts**: EF reads the column on every user query.
+- `User.JobTitle`, mapped with max length 100.
+- `UpdateProfileRequest` gains a trailing optional `JobTitle` (validator: max 100). `ProfileService.UpdateAsync` saves it trimmed, with blank stored as NULL.
+- `ProfileDto` and `UserDetailDto` gain a trailing optional `JobTitle`.
+- These edits are in `backend/existing-files.diff`, now 13 files.
+
+Tested: `tests/ui_profile_role_photo.py` **23/23** on the local stack. Covers:
+- centred photo and text, pencil at bottom-right, no sideways scroll, at 1366 and 390 px
+- upload via the pencil: "Photo updated", picture and top-bar avatar change, `PhotoPath` saved, still there after a reload
+- Role: input present, saved to `JobTitle`, shown after a reload, 100-character limit
+- admin profile header
+- Admin → Customers shows the role
+
+The test puts the customer's photo and role back afterwards. `tests/ui_admin_customer.py` was updated to the centred layout but not re-run, because that needs a Dev restore.

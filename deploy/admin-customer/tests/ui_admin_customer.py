@@ -190,11 +190,11 @@ for label, w, h, mob in [("desktop", 1366, 900, False), ("mobile", 390, 844, Tru
     # Profile (15, 16, 2)
     n = len(events); go("/profile", 5)
     p = js("""(() => { const h = document.querySelector('.rg-prof-head'); if (!h) return null;
-      const av = h.querySelector('button'), name = h.querySelector('.rg-prof-head__text');
+      const av = h.querySelector('.rg-prof-photo'), name = h.querySelector('.rg-prof-head__text'), pan = document.querySelector('.auth__panel').getBoundingClientRect();
       const a = av.getBoundingClientRect(), t = name.getBoundingClientRect();
-      return { row: getComputedStyle(h).flexDirection, photoLeft: a.right <= t.left + 1, sameBand: a.top < t.bottom && t.top < a.bottom,
+      return { centred: Math.abs((a.left + a.width/2) - (pan.left + pan.width/2)) < 3, below: t.top >= a.bottom - 1, pencil: !!h.querySelector('.rg-prof-photo__edit'),
                text: name.innerText, phone: [...document.querySelectorAll('.auth__grid')].map(g => g.innerText + ' ' + [...g.querySelectorAll('input')].map(i => i.value).join(' ')).join(' ') }; })()""")
-    check(f"[{label}] profile: photo on the left, name beside it (15)", p and p["row"] == "row" and p["photoLeft"] and p["sameBand"], p)
+    check(f"[{label}] profile: photo centred, name below, pencil on the photo (15, 14 Nov follow-up)", p and p["centred"] and p["below"] and p["pencil"], p)
     check(f"[{label}] profile: no 'Customer' label by the name (16)", p and "Customer" not in p["text"], p and p["text"])
     check(f"[{label}] profile: phone shown as '+91 <number>'", p and "+91 " in p["phone"], p and p["phone"][:200])
     shot(f"{label}_profile")

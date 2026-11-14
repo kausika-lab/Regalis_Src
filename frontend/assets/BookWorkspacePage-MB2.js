@@ -1351,7 +1351,7 @@ function Ee() {
               voCanPayLater &&
                 e.jsx("p", {
                   style: { color: "var(--text-muted)", fontSize: "var(--font-size-xs)" },
-                  children: "Pay later reserves your Virtual Office now. Pay at the front desk in cash, UPI or card — the invoice stays open until it is paid. Unpaid by the end of the first day, it is released.",
+                  children: "Pay later reserves your Virtual Office now. Pay at the front desk in cash, UPI or card — it becomes active once it is paid. Unpaid by the end of the first day, it is released.",
                 }),
               !U &&
                 c &&

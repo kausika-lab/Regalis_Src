@@ -1,0 +1,586 @@
+--- a/Regalis.Application/Regalis.Application.Bookings/IBookingService.cs
++++ b/Regalis.Application/Regalis.Application.Bookings/IBookingService.cs
+@@ -49,4 +49,9 @@
+ 	/// <summary>Bookings and revenue per month of the requested year (default: this
+ 	/// year), under the same filters as the admin list.</summary>
+ 	Task<BookingMonthlyDto> GetMonthlyAsync(BookingMonthlyRequest request, CancellationToken ct = default(CancellationToken));
++
++	/// <summary>Gateway webhook (signature already verified): finishes the booking the
++	/// captured payment belongs to, or credits the customer's wallet when the slot was
++	/// lost (customer-10 kit). Idempotent: returns false when nothing was left to do.</summary>
++	Task<bool> CompleteGatewayPaymentAsync(long paymentId, string gatewayPaymentId, string rawGatewayResponse, CancellationToken ct = default(CancellationToken));
+ }
+--- a/Regalis.Domain/Regalis.Domain.Enums/CustomerPassStatus.cs
++++ b/Regalis.Domain/Regalis.Domain.Enums/CustomerPassStatus.cs
+@@ -5,5 +5,7 @@
+ 	Active = 1,
+ 	Used,
+ 	Expired,
+-	Cancelled
++	Cancelled,
++	/// <summary>Bought with pay later; not usable until it is paid in full at the desk (customer-10 kit).</summary>
++	AwaitingPayment
+ }
+--- a/Regalis.Domain/Regalis.Domain.Enums/OtpPurpose.cs
++++ b/Regalis.Domain/Regalis.Domain.Enums/OtpPurpose.cs
+@@ -4,5 +4,7 @@
+ {
+ 	Registration = 1,
+ 	ForgotPassword,
+-	MobileVerification
++	MobileVerification,
++	/// <summary>Confirms a customer's own account deletion (customer-10 kit).</summary>
++	AccountDeletion
+ }
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.BackgroundJobs/BookingHoldSweeper.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.BackgroundJobs/BookingHoldSweeper.cs
+@@ -85,7 +85,7 @@
+ 		await db.SaveChangesAsync(ct);
+ 		logger.LogInformation("Expired {Count} stale booking hold(s)", staleHolds.Count);
+ 		DateOnly todayIst = IstClock.IstDateOf(nowUtc);
+-		List<CustomerPass> stalePasses = await db.CustomerPasses.Where((CustomerPass p) => p.Status == CustomerPassStatus.Active && p.ValidTo < todayIst).ToListAsync(ct);
++		List<CustomerPass> stalePasses = await db.CustomerPasses.Where((CustomerPass p) => (p.Status == CustomerPassStatus.Active || p.Status == CustomerPassStatus.AwaitingPayment) && p.ValidTo < todayIst).ToListAsync(ct);
+ 		if (stalePasses.Count > 0)
+ 		{
+ 			foreach (CustomerPass item2 in stalePasses)
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.BackgroundJobs/PayLaterSweeper.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.BackgroundJobs/PayLaterSweeper.cs
+@@ -86,7 +86,7 @@
+ 		}
+ 		DateTime firstDayOverBefore = nowUtc.AddDays(-1.0);
+ 		List<CustomerPass> unpaid = await (from p in db.CustomerPasses.Include((CustomerPass p) => p.PassPlan)
+-			where p.IsPayLater && p.Status == CustomerPassStatus.Active && p.AmountPaid == 0m && p.PaymentDueUtc != null && p.PaymentDueUtc <= firstDayOverBefore
++			where p.IsPayLater && (p.Status == CustomerPassStatus.Active || p.Status == CustomerPassStatus.AwaitingPayment) && p.AmountPaid == 0m && p.PaymentDueUtc != null && p.PaymentDueUtc <= firstDayOverBefore
+ 			select p).ToListAsync(ct);
+ 		if (unpaid.Count == 0)
+ 		{
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Reporting.Analytics/DayPassSalesReport.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Reporting.Analytics/DayPassSalesReport.cs
+@@ -125,7 +125,7 @@
+ 				Total = p.TotalAmount,
+ 				Mode = ((pay == null) ? "Not paid" : ((pay.PaymentMethod == PaymentMethod.Wallet) ? "Wallet" : ((pay.PaymentMethod == PaymentMethod.Cash || pay.PaymentMethod == PaymentMethod.Other) ? "Desk / invoice" : "Online"))),
+ 				Channel = ((p.CreatedBy == (long?)p.CustomerId) ? "Online" : "Walk-in"),
+-				Status = ((p.Status == CustomerPassStatus.Active) ? "Active" : ((p.Status == CustomerPassStatus.Used) ? "Used" : ((p.Status == CustomerPassStatus.Expired) ? "Expired" : "Cancelled")))
++				Status = ((p.Status == CustomerPassStatus.Active) ? "Active" : ((p.Status == CustomerPassStatus.Used) ? "Used" : ((p.Status == CustomerPassStatus.Expired) ? "Expired" : ((p.Status == CustomerPassStatus.AwaitingPayment) ? "Awaiting payment" : "Cancelled"))))
+ 			};
+ 		List<string> modes = (from m in ctx.Multi("mode")
+ 			select m switch
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Security/JwtOptions.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Security/JwtOptions.cs
+@@ -16,4 +16,15 @@
+ 	public int AccessTokenMinutes { get; set; } = 15;
+ 
+ 	public int RefreshTokenDays { get; set; } = 7;
++
++	/// <summary>customer-10: a customer session that is not refreshed for this many minutes
++	/// ends on the server (the refresh token expires); every refresh slides it on. The browser
++	/// signs the customer out at exactly 10 idle minutes (warning at 9); 11 here leaves room
++	/// for "Stay signed in" late in the warning minute, and ends a session whose page was
++	/// closed or killed within 11 minutes.</summary>
++	public int CustomerIdleMinutes { get; set; } = 11;
++
++	/// <summary>customer-10: customer access tokens live at most this long, so an ended or
++	/// idle session stops working within minutes even if a token was copied.</summary>
++	public int CustomerAccessTokenMinutes { get; set; } = 5;
+ }
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Security/JwtTokenService.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Security/JwtTokenService.cs
+@@ -21,7 +21,7 @@
+ 	public AccessTokenResult CreateAccessToken(User user, IReadOnlyCollection<string> roles, IReadOnlyCollection<string> permissions)
+ 	{
+ 		DateTime utcNow = clock.UtcNow;
+-		DateTime dateTime = utcNow.AddMinutes(_options.AccessTokenMinutes);
++		DateTime dateTime = utcNow.AddMinutes((user.UserType == Regalis.Domain.Enums.UserType.Customer) ? Math.Min(_options.AccessTokenMinutes, Math.Max(1, _options.CustomerAccessTokenMinutes)) : _options.AccessTokenMinutes);
+ 		List<Claim> list = new List<Claim>
+ 		{
+ 			new Claim("sub", user.UserId.ToString()),
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Services/AuthService.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Services/AuthService.cs
+@@ -92,7 +92,7 @@
+ 			UserId = user.UserId,
+ 			TokenHash = refresh.TokenHash,
+ 			FamilyId = Guid.NewGuid(),
+-			ExpiresUtc = refresh.ExpiresUtc,
++			ExpiresUtc = SessionExpiry(user, refresh.ExpiresUtc, nowUtc),
+ 			CreatedUtc = nowUtc,
+ 			CreatedByIp = currentUser.IpAddress
+ 		});
+@@ -249,7 +249,7 @@
+ 			UserId = user.UserId,
+ 			TokenHash = refresh.TokenHash,
+ 			FamilyId = Guid.NewGuid(),
+-			ExpiresUtc = refresh.ExpiresUtc,
++			ExpiresUtc = SessionExpiry(user, refresh.ExpiresUtc, nowUtc),
+ 			CreatedUtc = nowUtc,
+ 			CreatedByIp = currentUser.IpAddress
+ 		});
+@@ -559,7 +559,7 @@
+ 			UserId = user.UserId,
+ 			TokenHash = replacement.TokenHash,
+ 			FamilyId = token.FamilyId,
+-			ExpiresUtc = replacement.ExpiresUtc,
++			ExpiresUtc = SessionExpiry(user, replacement.ExpiresUtc, nowUtc),
+ 			CreatedUtc = nowUtc,
+ 			CreatedByIp = ipAddress
+ 		});
+@@ -629,6 +629,17 @@
+ 		return ttlMinutes;
+ 	}
+ 
++	/// <summary>customer-10: customers get a sliding idle window instead of the 7-day token.</summary>
++	private DateTime SessionExpiry(User user, DateTime tokenExpiresUtc, DateTime nowUtc)
++	{
++		if (user.UserType != UserType.Customer)
++		{
++			return tokenExpiresUtc;
++		}
++		DateTime idle = nowUtc.AddMinutes(Math.Max(1, jwtOptions.Value.CustomerIdleMinutes));
++		return (idle < tokenExpiresUtc) ? idle : tokenExpiresUtc;
++	}
++
+ 	private static string HashOtp(string code, string destination)
+ 	{
+ 		return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(code + "|" + destination.ToLowerInvariant())));
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Services/AvailabilityService.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Services/AvailabilityService.cs
+@@ -129,8 +129,10 @@
+ 	/// the window — the two documented occupancy sources, nothing else.</summary>
+ 	private async Task<List<Occupancy>> LoadOccupancyAsync(List<int> workspaceIds, DateTime windowStartUtc, DateTime windowEndUtc, CancellationToken ct)
+ 	{
++		// customer-10: a Pending hold past its window no longer shows the slot as taken.
++		DateTime holdCutoffUtc = clock.UtcNow.AddMinutes(-(await settings.GetIntAsync("Booking.PendingHoldMinutes", 10, ct)));
+ 		List<Occupancy> bookings = await (from b in db.Bookings.AsNoTracking()
+-			where workspaceIds.Contains(b.WorkspaceId) && Enumerable.Contains(Booking.OccupancyStatuses, b.Status) && b.StartUtc < windowEndUtc && windowStartUtc < b.EndUtc
++			where workspaceIds.Contains(b.WorkspaceId) && Enumerable.Contains(Booking.OccupancyStatuses, b.Status) && !(b.Status == BookingStatus.Pending && b.CreatedDate < holdCutoffUtc) && b.StartUtc < windowEndUtc && windowStartUtc < b.EndUtc
+ 			select new Occupancy(b.WorkspaceId, b.StartUtc, b.EndUtc)).ToListAsync(ct);
+ 		bookings.AddRange(await (from k in db.WorkspaceBlocks.AsNoTracking()
+ 			where workspaceIds.Contains(k.WorkspaceId) && k.IsActive && k.StartUtc < windowEndUtc && windowStartUtc < k.EndUtc
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingEngineLocks.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingEngineLocks.cs
+@@ -27,7 +27,7 @@
+ 		await using (DbCommand command = connection.CreateCommand())
+ 		{
+ 			command.Transaction = db.Database.CurrentTransaction.GetDbTransaction();
+-			command.CommandText = "SELECT\r\n  (SELECT COUNT(*) FROM dbo.TRN_Booking WITH (UPDLOCK, HOLDLOCK)\r\n    WHERE WorkspaceId = @workspaceId AND IsDeleted = 0\r\n      AND Status IN (1,2,3)\r\n      AND BookingId <> @excludeBookingId\r\n      AND StartUtc < @endUtc AND @startUtc < EndUtc)\r\n+ (SELECT COUNT(*) FROM dbo.TRN_WorkspaceBlock WITH (UPDLOCK, HOLDLOCK)\r\n    WHERE WorkspaceId = @workspaceId AND IsDeleted = 0 AND IsActive = 1\r\n      AND StartUtc < @endUtc AND @startUtc < EndUtc);";
++			command.CommandText = "SET NOCOUNT ON;\r\nDECLARE @holdMinutes int = ISNULL((SELECT TOP (1) TRY_CAST(SettingValue AS int) FROM dbo.MST_AppSetting WHERE SettingKey = 'Booking.PendingHoldMinutes' AND IsDeleted = 0), 10);\r\nDECLARE @lapsed TABLE (BookingId bigint);\r\nUPDATE dbo.TRN_Booking WITH (UPDLOCK, HOLDLOCK) SET Status = 6, ModifiedDate = SYSUTCDATETIME()\r\n  OUTPUT inserted.BookingId INTO @lapsed\r\n  WHERE WorkspaceId = @workspaceId AND IsDeleted = 0 AND Status = 1\r\n    AND BookingId <> @excludeBookingId\r\n    AND StartUtc < @endUtc AND @startUtc < EndUtc\r\n    AND CreatedDate < DATEADD(minute, -@holdMinutes, SYSUTCDATETIME());\r\nINSERT dbo.TRN_BookingStatusHistory (BookingId, FromStatus, ToStatus, ChangedByUserId, ChangedUtc, Reason)\r\n  SELECT BookingId, 1, 6, 0, SYSUTCDATETIME(), CONCAT('Hold expired after ', @holdMinutes, ' minutes without payment.') FROM @lapsed;\r\nSELECT\r\n  (SELECT COUNT(*) FROM dbo.TRN_Booking WITH (UPDLOCK, HOLDLOCK)\r\n    WHERE WorkspaceId = @workspaceId AND IsDeleted = 0\r\n      AND Status IN (1,2,3)\r\n      AND BookingId <> @excludeBookingId\r\n      AND StartUtc < @endUtc AND @startUtc < EndUtc)\r\n+ (SELECT COUNT(*) FROM dbo.TRN_WorkspaceBlock WITH (UPDLOCK, HOLDLOCK)\r\n    WHERE WorkspaceId = @workspaceId AND IsDeleted = 0 AND IsActive = 1\r\n      AND StartUtc < @endUtc AND @startUtc < EndUtc);";
+ 			AddParameter(command, "@workspaceId", workspaceId);
+ 			AddParameter(command, "@startUtc", startUtc);
+ 			AddParameter(command, "@endUtc", endUtc);
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingService.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingService.cs
+@@ -175,6 +175,10 @@
+ 		{
+ 			throw new ForbiddenException("Cash settlement is available at the front desk only.");
+ 		}
++		if (request.PaymentMethod == "webhook")
++		{
++			throw new BusinessRuleException("Unknown payment method.");
++		}
+ 		ConfirmBookingResponse confirmBookingResponse = await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+ 		{
+ 			db.ChangeTracker.Clear();
+@@ -187,19 +191,50 @@
+ 				{
+ 					throw new NotFoundException("Booking", bookingId);
+ 				}
+-				if (booking.Status != BookingStatus.Pending)
++				bool viaGateway = request.PaymentMethod == "gateway";
++				if (viaGateway && booking.Status != BookingStatus.Pending)
++				{
++					// customer-10: the webhook may have finished this booking (or credited the
++					// wallet) before the browser came back. Answer with what already happened.
++					Payment settled = await db.Payments.FirstOrDefaultAsync((Payment p) => p.GatewayOrderId == request.GatewayOrderId && p.BookingId == (long?)booking.BookingId, ct);
++					if (settled != null && settled.Status == PaymentStatus.Success && (booking.Status == BookingStatus.Confirmed || booking.Status == BookingStatus.CheckedIn))
++					{
++						ConfirmBookingResponse done = await ExistingConfirmationAsync(booking, settled, ct);
++						await transaction.CommitAsync(ct);
++						return done;
++					}
++					if (settled != null && settled.Status == PaymentStatus.Refunded)
++					{
++						throw new ConflictException($"The slot was taken before your payment arrived. ₹{settled.Amount:N2} has been credited to your Regalis wallet.", "SLOT_UNAVAILABLE");
++					}
++				}
++				if (booking.Status != BookingStatus.Pending && !(viaGateway && booking.Status == BookingStatus.Expired))
+ 				{
+ 					throw new BusinessRuleException($"This booking is not awaiting payment (status {booking.Status}).");
+ 				}
+ 				int num = await settings.GetIntAsync("Booking.PendingHoldMinutes", 10, ct);
+-				if (booking.CreatedDate.AddMinutes(num) <= clock.UtcNow)
++				bool holdLapsed = booking.Status == BookingStatus.Expired || booking.CreatedDate.AddMinutes(num) <= clock.UtcNow;
++				if (holdLapsed && !viaGateway)
+ 				{
+ 					throw new BusinessRuleException("The hold has expired. Start a new booking — the slot may still be free.");
+ 				}
+ 				if (await CountConflictsWithRangeLocksAsync(booking.WorkspaceId, booking.StartUtc, booking.EndUtc, booking.BookingId, ct) > 0)
+ 				{
++					if (viaGateway)
++					{
++						// Paid, but someone else holds the slot now: the verified money goes to the wallet.
++						Payment lost = await LoadPendingGatewayPaymentAsync(booking, request, ct);
++						await CreditLostSlotAsync(booking, lost, ct);
++						await transaction.CommitAsync(ct);
++						throw new ConflictException($"The slot was taken while your payment was in progress. ₹{lost.Amount:N2} has been credited to your Regalis wallet.", "SLOT_UNAVAILABLE");
++					}
+ 					throw new ConflictException("The slot has been taken while the hold was pending. The hold is released.");
+ 				}
++				if (holdLapsed)
++				{
++					// Paid after the 10 minutes, and the slot is still free: re-validated, so it may be confirmed.
++					ReviveLapsedHold(booking, num);
++				}
+ 				if (request.PaymentMethod == "paylater")
+ 				{
+ 					string text = await PayLaterPolicy.CheckAsync(db, settings, booking, ct);
+@@ -304,6 +339,7 @@
+ 		{
+ 			"wallet" => await SettleWithWalletAsync(booking, ct), 
+ 			"gateway" => await SettleWithGatewayAsync(booking, request, ct), 
++			"webhook" => await SettleFromWebhookAsync(booking, request, ct), 
+ 			"cash" => await SettleWithCashAsync(booking, ct), 
+ 			"paylater" => null, 
+ 			_ => throw new BusinessRuleException("Unknown payment method."), 
+@@ -367,6 +403,145 @@
+ 		return payment3;
+ 	}
+ 
++	// ---- customer-10 kit: late and webhook-first gateway payments --------------------
++
++	/// <summary>The caller's still-pending gateway payment for this booking, signature-checked.
++	/// A payment the webhook already marked Success is accepted as it is.</summary>
++	private async Task<Payment> LoadPendingGatewayPaymentAsync(Booking booking, ConfirmBookingRequest request, CancellationToken ct)
++	{
++		Payment payment = (await db.Payments.FirstOrDefaultAsync((Payment p) => p.GatewayOrderId == request.GatewayOrderId && p.BookingId == (long?)booking.BookingId, ct)) ?? throw new BusinessRuleException("No payment order exists for this booking. Create the order first.", "PAYMENT_VERIFICATION_FAILED");
++		if (payment.Status == PaymentStatus.Success)
++		{
++			return payment;
++		}
++		if (payment.Status != PaymentStatus.Pending)
++		{
++			throw new BusinessRuleException("This payment order is already settled.", "PAYMENT_VERIFICATION_FAILED");
++		}
++		if (!paymentGateway.VerifySignature(request.GatewayOrderId, request.GatewayPaymentId, request.GatewaySignature))
++		{
++			payment.Status = PaymentStatus.Failed;
++			payment.FailureReason = "Signature verification failed";
++			await db.SaveChangesAsync(ct);
++			throw new BusinessRuleException("Payment verification failed.", "PAYMENT_VERIFICATION_FAILED");
++		}
++		payment.GatewayPaymentId = request.GatewayPaymentId;
++		payment.GatewaySignature = request.GatewaySignature;
++		payment.IsSignatureVerified = true;
++		payment.Status = PaymentStatus.Success;
++		payment.PaidUtc = clock.UtcNow;
++		return payment;
++	}
++
++	/// <summary>The hold lapsed (and may already have been swept to Expired), but the
++	/// slot was re-checked under the range locks and is free: back to Pending so the
++	/// normal confirmation can run.</summary>
++	private void ReviveLapsedHold(Booking booking, int holdMinutes)
++	{
++		if (booking.Status == BookingStatus.Expired)
++		{
++			booking.StatusHistory.Add(new BookingStatusHistory
++			{
++				BookingId = booking.BookingId,
++				FromStatus = BookingStatus.Expired,
++				ToStatus = BookingStatus.Pending,
++				ChangedByUserId = currentUser.UserId,
++				ChangedUtc = clock.UtcNow,
++				Reason = $"Paid after the {holdMinutes}-minute hold lapsed; the slot was re-checked and is still free."
++			});
++			booking.Status = BookingStatus.Pending;
++		}
++	}
++
++	/// <summary>A captured payment whose slot is gone: full amount to the wallet, the
++	/// payment is marked Refunded (so it is never credited twice) and the customer told.</summary>
++	private async Task CreditLostSlotAsync(Booking booking, Payment payment, CancellationToken ct)
++	{
++		DateTime nowUtc = clock.UtcNow;
++		await walletService.CreditAsync(booking.CustomerId, payment.Amount, WalletCategory.Refund, "Refund " + booking.BookingNumber + ": slot taken before the payment arrived", "Booking", booking.BookingId, payment.PaymentId, ct);
++		payment.Status = PaymentStatus.Refunded;
++		payment.RefundedAmount = payment.Amount;
++		payment.RefundReference = "Wallet credit: slot taken before the payment arrived";
++		if (booking.Status == BookingStatus.Pending)
++		{
++			booking.Status = BookingStatus.Expired;
++			booking.StatusHistory.Add(new BookingStatusHistory
++			{
++				BookingId = booking.BookingId,
++				FromStatus = BookingStatus.Pending,
++				ToStatus = BookingStatus.Expired,
++				ChangedByUserId = currentUser.UserId,
++				ChangedUtc = nowUtc,
++				Reason = $"Payment {payment.PaymentNumber} arrived after the slot was taken; ₹{payment.Amount:N2} credited to the wallet."
++			});
++		}
++		db.Notifications.Add(new Notification
++		{
++			UserId = booking.CustomerId,
++			Audience = NotificationAudience.SingleUser,
++			Title = "Payment credited to your wallet",
++			Message = $"The slot for {booking.BookingNumber} was taken before your payment of ₹{payment.Amount:N2} arrived, so the full amount has been credited to your Regalis wallet. Please pick another slot.",
++			Category = NotificationCategory.Payment,
++			Priority = NotificationPriority.High,
++			ReferenceType = "Booking",
++			ReferenceId = booking.BookingId,
++			ActionLabel = "Open wallet",
++			ActionRoute = "/wallet",
++			SentUtc = nowUtc
++		});
++		await db.SaveChangesAsync(ct);
++		logger.LogWarning("Payment {PaymentNumber} for {BookingNumber} arrived after the slot was taken; credited to the wallet", payment.PaymentNumber, booking.BookingNumber);
++	}
++
++	/// <summary>The response a confirm call would have returned, rebuilt from the rows.</summary>
++	private async Task<ConfirmBookingResponse> ExistingConfirmationAsync(Booking booking, Payment payment, CancellationToken ct)
++	{
++		Invoice invoice = await db.Invoices.AsNoTracking().Where((Invoice i) => i.BookingId == (long?)booking.BookingId).OrderBy((Invoice i) => i.InvoiceId).FirstOrDefaultAsync(ct);
++		AccessToken token = await db.AccessTokens.AsNoTracking().Where((AccessToken t) => t.BookingId == (long?)booking.BookingId).OrderByDescending((AccessToken t) => t.AccessTokenId).FirstOrDefaultAsync(ct);
++		return new ConfirmBookingResponse(ToDto(booking, await settings.GetIntAsync("Booking.PendingHoldMinutes", 10, ct)), payment.PaymentId, payment.PaymentNumber, invoice?.InvoiceId ?? 0, invoice?.InvoiceNumber ?? "", token?.TokenValue ?? "", token?.QrPayload ?? "", false);
++	}
++
++	public async Task<bool> CompleteGatewayPaymentAsync(long paymentId, string gatewayPaymentId, string rawGatewayResponse, CancellationToken ct = default(CancellationToken))
++	{
++		return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
++		{
++			db.ChangeTracker.Clear();
++			await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
++			Payment payment = await db.Payments.FirstOrDefaultAsync((Payment p) => p.PaymentId == paymentId, ct);
++			if (payment == null || payment.Status != PaymentStatus.Pending || !payment.BookingId.HasValue)
++			{
++				return false;
++			}
++			Booking booking = await db.Bookings.Include((Booking b) => b.Customer).Include((Booking b) => b.Workspace).Include((Booking b) => b.WorkspaceType)
++				.FirstAsync((Booking b) => b.BookingId == payment.BookingId.Value, ct);
++			payment.GatewayPaymentId = gatewayPaymentId;
++			payment.RawGatewayResponse = rawGatewayResponse;
++			payment.IsSignatureVerified = true;
++			payment.Status = PaymentStatus.Success;
++			payment.PaidUtc = clock.UtcNow;
++			int holdMinutes = await settings.GetIntAsync("Booking.PendingHoldMinutes", 10, ct);
++			bool open = booking.Status == BookingStatus.Pending || booking.Status == BookingStatus.Expired;
++			if (!open || await CountConflictsWithRangeLocksAsync(booking.WorkspaceId, booking.StartUtc, booking.EndUtc, booking.BookingId, ct) > 0)
++			{
++				// Lost the slot, or the booking was cancelled / paid another way meanwhile.
++				await CreditLostSlotAsync(booking, payment, ct);
++				await transaction.CommitAsync(ct);
++				return true;
++			}
++			ReviveLapsedHold(booking, holdMinutes);
++			await SettleAndFinalizeAsync(booking, new ConfirmBookingRequest("webhook", payment.GatewayOrderId, gatewayPaymentId, null), ct);
++			await transaction.CommitAsync(ct);
++			logger.LogInformation("Booking {BookingNumber} confirmed from the payment webhook ({PaymentNumber})", booking.BookingNumber, payment.PaymentNumber);
++			return true;
++		});
++	}
++
++	private async Task<Payment> SettleFromWebhookAsync(Booking booking, ConfirmBookingRequest request, CancellationToken ct)
++	{
++		// The caller already marked it Success after the webhook HMAC check.
++		return await db.Payments.FirstAsync((Payment p) => p.GatewayOrderId == request.GatewayOrderId && p.BookingId == (long?)booking.BookingId, ct);
++	}
++
+ 	private async Task<Payment> SettleWithGatewayAsync(Booking booking, ConfirmBookingRequest request, CancellationToken ct)
+ 	{
+ 		Payment payment = (await db.Payments.FirstOrDefaultAsync((Payment p) => p.GatewayOrderId == request.GatewayOrderId && p.BookingId == (long?)booking.BookingId, ct)) ?? throw new BusinessRuleException("No payment order exists for this booking. Create the order first.", "PAYMENT_VERIFICATION_FAILED");
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Services/CashCollectionService.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Services/CashCollectionService.cs
+@@ -68,7 +68,7 @@
+ 			source = source.Where((Booking b) => b.BookingNumber.Contains(s) || b.Customer.FullName.Contains(s) || b.Customer.MobileNumber.Contains(s) || b.Customer.Email.Contains(s));
+ 		}
+ 		IQueryable<CustomerPass> passes = from p in db.CustomerPasses.AsNoTracking()
+-			where p.IsPayLater && p.Status == CustomerPassStatus.Active && p.AmountPaid < p.TotalAmount
++			where p.IsPayLater && (p.Status == CustomerPassStatus.Active || p.Status == CustomerPassStatus.AwaitingPayment) && p.AmountPaid < p.TotalAmount
+ 			select p;
+ 		if (request.LocationId.HasValue)
+ 		{
+@@ -270,7 +270,7 @@
+ 				{
+ 					throw new BusinessRuleException(pass.PassNumber + " was not bought with pay later.");
+ 				}
+-				if (pass.Status != CustomerPassStatus.Active)
++				if (pass.Status != CustomerPassStatus.Active && pass.Status != CustomerPassStatus.AwaitingPayment)
+ 				{
+ 					throw new BusinessRuleException($"{pass.PassNumber} is {pass.Status}; nothing can be collected on it.");
+ 				}
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Services/PassService.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Services/PassService.cs
+@@ -80,7 +80,7 @@
+ 	public async Task DeletePlanAsync(int passPlanId, CancellationToken ct = default(CancellationToken))
+ 	{
+ 		PassPlan plan = (await db.PassPlans.FirstOrDefaultAsync((PassPlan p) => p.PassPlanId == passPlanId, ct)) ?? throw new NotFoundException("PassPlan", passPlanId);
+-		if (await db.CustomerPasses.AnyAsync((CustomerPass p) => p.PassPlanId == passPlanId && p.Status == CustomerPassStatus.Active, ct))
++		if (await db.CustomerPasses.AnyAsync((CustomerPass p) => p.PassPlanId == passPlanId && (p.Status == CustomerPassStatus.Active || p.Status == CustomerPassStatus.AwaitingPayment), ct))
+ 		{
+ 			throw new BusinessRuleException("Active customer passes use this plan. Deactivate it instead.");
+ 		}
+@@ -253,7 +253,7 @@
+ 				{
+ 					Payment payment = (await db.Payments.FirstOrDefaultAsync((Payment p) => p.GatewayOrderId == request.GatewayOrderId && p.CustomerId == customerId, ct)) ?? throw new BusinessRuleException("No payment order exists for this purchase.", "PAYMENT_VERIFICATION_FAILED");
+ 					payment2 = payment;
+-					if (payment.Status != PaymentStatus.Pending)
++					if (payment.Status != PaymentStatus.Pending && !(payment.Status == PaymentStatus.Success && !payment.IsSignatureVerified && payment.CustomerPassId == null))
+ 					{
+ 						throw new BusinessRuleException("This payment order is already settled.", "PAYMENT_VERIFICATION_FAILED");
+ 					}
+@@ -307,7 +307,7 @@
+ 				customerPass2.Price = taxable;
+ 				customerPass2.TaxAmount = cgst2 + sgst2;
+ 				customerPass2.TotalAmount = total2;
+-				customerPass2.Status = CustomerPassStatus.Active;
++				customerPass2.Status = (isPayLater ? CustomerPassStatus.AwaitingPayment : CustomerPassStatus.Active);
+ 				customerPass2.PaymentId = payment2?.PaymentId;
+ 				customerPass2.IsPayLater = isPayLater;
+ 				customerPass2.AmountPaid = (isPayLater ? 0m : total2);
+@@ -388,8 +388,8 @@
+ 				{
+ 					UserId = customerId,
+ 					Audience = NotificationAudience.SingleUser,
+-					Title = (quote.IsUpgrade ? "Pass upgraded" : "Pass activated"),
+-					Message = $"{plan.PlanName} ({pass.PassNumber}) is valid {pass.ValidFrom:dd MMM} – {pass.ValidTo:dd MMM yyyy}. " + ((quote.IsUpgrade && existing != null) ? $"It replaces {existing.PassNumber}, whose {quote.RemainingDays} unused day(s) were credited. " : "") + (isPayLater ? $"Please pay ₹{total2:N2} at the front desk (cash, UPI or card) before you check in on {pass.ValidFrom:dd MMM}. " : "") + "Your QR access pass is ready.",
++					Title = (isPayLater ? "Pass reserved - pay at the front desk" : (quote.IsUpgrade ? "Pass upgraded" : "Pass activated")),
++					Message = $"{plan.PlanName} ({pass.PassNumber}) is valid {pass.ValidFrom:dd MMM} – {pass.ValidTo:dd MMM yyyy}. " + ((quote.IsUpgrade && existing != null) ? $"It replaces {existing.PassNumber}, whose {quote.RemainingDays} unused day(s) were credited. " : "") + (isPayLater ? $"It becomes active once ₹{total2:N2} is paid at the front desk (cash, UPI or card), before {pass.ValidFrom:dd MMM}. Until then it cannot be used for entry." : "Your QR access pass is ready."),
+ 					Category = NotificationCategory.Pass,
+ 					Priority = NotificationPriority.Normal,
+ 					ReferenceType = "CustomerPass",
+@@ -443,7 +443,7 @@
+ 				{
+ 					throw new NotFoundException("CustomerPass", customerPassId);
+ 				}
+-				if (pass.Status != CustomerPassStatus.Active)
++				if (pass.Status != CustomerPassStatus.Active && pass.Status != CustomerPassStatus.AwaitingPayment)
+ 				{
+ 					throw new BusinessRuleException("Only active passes can be cancelled.");
+ 				}
+@@ -561,7 +561,7 @@
+ 			return null;
+ 		}
+ 		return await (from p in db.CustomerPasses.AsNoTracking().Include((CustomerPass p) => p.PassPlan)
+-			where p.CustomerId == customerId && p.PassType == PassType.DayPass && p.Status == CustomerPassStatus.Active && p.ValidTo >= todayIst
++			where p.CustomerId == customerId && p.PassType == PassType.DayPass && (p.Status == CustomerPassStatus.Active || p.Status == CustomerPassStatus.AwaitingPayment) && p.ValidTo >= todayIst
+ 			orderby p.PassPlan.ValidityDays descending, p.ValidTo descending, p.CustomerPassId descending
+ 			select p).FirstOrDefaultAsync(ct);
+ 	}
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Services/PayLaterPolicy.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Services/PayLaterPolicy.cs
+@@ -158,7 +158,7 @@
+ 	private static async Task<(int Count, decimal Owed)> OpenPassesAsync(RegalisDbContext db, long customerId, long? exceptPassId, CancellationToken ct)
+ 	{
+ 		List<decimal> list = await (from p in db.CustomerPasses.AsNoTracking()
+-			where p.CustomerId == customerId && p.IsPayLater && p.Status == CustomerPassStatus.Active && p.AmountPaid < p.TotalAmount && (exceptPassId == (long?)null || (long?)p.CustomerPassId != exceptPassId)
++			where p.CustomerId == customerId && p.IsPayLater && (p.Status == CustomerPassStatus.Active || p.Status == CustomerPassStatus.AwaitingPayment) && p.AmountPaid < p.TotalAmount && (exceptPassId == (long?)null || (long?)p.CustomerPassId != exceptPassId)
+ 			select p.TotalAmount - p.AmountPaid).ToListAsync(ct);
+ 		return (Count: list.Count, Owed: list.Sum());
+ 	}
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Services/PaymentService.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Services/PaymentService.cs
+@@ -25,7 +25,7 @@
+ 
+ namespace Regalis.Infrastructure.Services;
+ 
+-public class PaymentService(RegalisDbContext db, IPaymentGateway paymentGateway, ISettingService settings, INumberSequenceService sequences, ICurrentUser currentUser, IDateTimeProvider clock, IConfiguration configuration, ILogger<PaymentService> logger) : IPaymentService
++public class PaymentService(RegalisDbContext db, IPaymentGateway paymentGateway, ISettingService settings, INumberSequenceService sequences, ICurrentUser currentUser, IDateTimeProvider clock, IConfiguration configuration, ILogger<PaymentService> logger, Regalis.Application.Bookings.IBookingService bookingService) : IPaymentService
+ {
+ 	public async Task<PagedResult<PaymentDto>> GetPaymentsAsync(PaymentListRequest request, CancellationToken ct = default(CancellationToken))
+ 	{
+@@ -144,12 +144,48 @@
+ 		JsonElement property = document.RootElement.GetProperty("payload").GetProperty("payment").GetProperty("entity");
+ 		string gatewayPaymentId = property.GetProperty("id").GetString();
+ 		string gatewayOrderId = property.GetProperty("order_id").GetString();
++		// customer-10: only a captured payment counts. "payment.failed" carries the same
++		// payload shape and used to be recorded as Success.
++		string eventName = document.RootElement.TryGetProperty("event", out JsonElement ev) ? (ev.GetString() ?? "") : "";
++		string entityStatus = property.TryGetProperty("status", out JsonElement st) ? (st.GetString() ?? "") : "";
++		long? amountPaise = property.TryGetProperty("amount", out JsonElement am) && am.ValueKind == JsonValueKind.Number ? am.GetInt64() : null;
+ 		Payment payment = await db.Payments.FirstOrDefaultAsync((Payment p) => p.GatewayOrderId == gatewayOrderId, ct);
+ 		if (payment == null)
+ 		{
+ 			logger.LogWarning("Webhook for unknown order {OrderId} ignored", gatewayOrderId);
++			return;
+ 		}
+-		else if (payment.Status == PaymentStatus.Pending)
++		if (eventName == "payment.failed" || entityStatus == "failed")
++		{
++			if (payment.Status == PaymentStatus.Pending)
++			{
++				payment.Status = PaymentStatus.Failed;
++				payment.GatewayPaymentId ??= gatewayPaymentId;
++				string reason = property.TryGetProperty("error_description", out JsonElement ed) ? ed.GetString() : null;
++				payment.FailureReason = string.IsNullOrWhiteSpace(reason) ? "Payment failed at the gateway" : (reason.Length > 300 ? reason.Substring(0, 300) : reason);
++				payment.RawGatewayResponse = body;
++				await db.SaveChangesAsync(ct);
++				logger.LogInformation("Webhook marked payment {PaymentNumber} failed", payment.PaymentNumber);
++			}
++			return;
++		}
++		if (entityStatus != "captured" && eventName != "payment.captured" && eventName != "order.paid")
++		{
++			logger.LogInformation("Webhook event {Event} for {OrderId} ignored", eventName, gatewayOrderId);
++			return;
++		}
++		if (amountPaise.HasValue && amountPaise.Value != (long)Math.Round(payment.Amount * 100m))
++		{
++			logger.LogWarning("Webhook amount {Amount} paise does not match payment {PaymentNumber} ({Expected}); ignored", amountPaise, payment.PaymentNumber, payment.Amount);
++			return;
++		}
++		if (payment.BookingId.HasValue && payment.Status == PaymentStatus.Pending)
++		{
++			// The booking is finished server-side, so it does not depend on the browser coming back.
++			await bookingService.CompleteGatewayPaymentAsync(payment.PaymentId, gatewayPaymentId, body, ct);
++			return;
++		}
++		if (payment.Status == PaymentStatus.Pending)
+ 		{
+ 			payment.GatewayPaymentId = gatewayPaymentId;
+ 			payment.Status = PaymentStatus.Success;
+@@ -217,7 +253,7 @@
+ 			await using (IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(ct))
+ 			{
+ 				Payment payment = (await db.Payments.FirstOrDefaultAsync((Payment p) => p.GatewayOrderId == request.GatewayOrderId && p.CustomerId == currentUser.UserId && p.InvoiceId != (long?)null, ct)) ?? throw new BusinessRuleException("No payment order was found for this invoice.", "PAYMENT_VERIFICATION_FAILED");
+-				if (payment.Status != PaymentStatus.Pending)
++				if (payment.Status != PaymentStatus.Pending && !(payment.Status == PaymentStatus.Success && !payment.IsSignatureVerified))
+ 				{
+ 					throw new BusinessRuleException("This payment is already settled.", "PAYMENT_VERIFICATION_FAILED");
+ 				}
+--- a/Regalis.Infrastructure/Regalis.Infrastructure.Services/WalletAdminService.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure.Services/WalletAdminService.cs
+@@ -58,7 +58,7 @@
+ 			await using (IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(ct))
+ 			{
+ 				Payment payment = (await db.Payments.FirstOrDefaultAsync((Payment p) => p.GatewayOrderId == request.GatewayOrderId && p.CustomerId == currentUser.UserId, ct)) ?? throw new BusinessRuleException("No recharge order was found.", "PAYMENT_VERIFICATION_FAILED");
+-				if (payment.Status != PaymentStatus.Pending)
++				if (payment.Status != PaymentStatus.Pending && !(payment.Status == PaymentStatus.Success && !payment.IsSignatureVerified))
+ 				{
+ 					throw new BusinessRuleException("This recharge is already settled.", "PAYMENT_VERIFICATION_FAILED");
+ 				}
+--- a/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs
++++ b/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs
+@@ -33,6 +33,7 @@
+ 	{
+ 		services.AddScoped<AuditSaveChangesInterceptor>();
+ 		services.AddScoped<AdminEventInterceptor>();
++		services.AddScoped<PassActivationInterceptor>();
+ 		services.AddSingleton<ReportCacheVersion>();
+ 		services.AddScoped<ReportCacheInterceptor>();
+ 		services.AddDbContext<RegalisDbContext>((IServiceProvider provider, DbContextOptionsBuilder dbOptions) =>
+@@ -41,7 +42,7 @@
+ 			{
+ 				sql.EnableRetryOnFailure(3);
+ 			});
+-			dbOptions.AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>(), provider.GetRequiredService<AdminEventInterceptor>(), provider.GetRequiredService<ReportCacheInterceptor>(), provider.GetRequiredService<BillingFinanceRulesInterceptor>());
++			dbOptions.AddInterceptors(provider.GetRequiredService<PassActivationInterceptor>(), provider.GetRequiredService<AuditSaveChangesInterceptor>(), provider.GetRequiredService<AdminEventInterceptor>(), provider.GetRequiredService<ReportCacheInterceptor>(), provider.GetRequiredService<BillingFinanceRulesInterceptor>());
+ 		});
+ 		services.Configure<JwtOptions>(configuration.GetSection("Jwt"));
+ 		services.Configure<GoogleOptions>(configuration.GetSection("Authentication:Google"));
+@@ -94,6 +95,8 @@
+ 		services.AddScoped<ICashRegisterService, CashRegisterService>();
+ 		services.AddHostedService<PayLaterSweeper>();
+ 		services.AddScoped<IPassService, PassService>();
++		services.AddScoped<Regalis.Application.Account.IAccountDeletionService, AccountDeletionService>();
++		services.AddScoped<Regalis.Application.Account.IMyPaymentsService, MyPaymentsService>();
+ 		services.AddScoped<ISupplierService, SupplierService>();
+ 		services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+ 		services.AddScoped<IExpenseService, ExpenseService>();

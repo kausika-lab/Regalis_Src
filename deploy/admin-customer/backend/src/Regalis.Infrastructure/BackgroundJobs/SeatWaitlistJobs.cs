@@ -49,7 +49,7 @@ public class SeatWaitlistJobs(RegalisDbContext db, IAvailabilityService availabi
 		List<SeatWaitlistEntry> live = open.Where(e => e.Status == SeatWaitlistStatus.Waiting).ToList();
 		List<long> customerIds = live.Select(e => e.CustomerId).Distinct().ToList();
 		var passes = await db.CustomerPasses.AsNoTracking()
-			.Where(p => customerIds.Contains(p.CustomerId) && p.PassType == PassType.DayPass && p.Status == CustomerPassStatus.Active && p.ValidTo >= todayIst)
+			.Where(p => customerIds.Contains(p.CustomerId) && p.PassType == PassType.DayPass && (p.Status == CustomerPassStatus.Active || p.Status == CustomerPassStatus.AwaitingPayment) && p.ValidTo >= todayIst)
 			.Select(p => new { p.CustomerId, p.ValidFrom, p.ValidTo }).ToListAsync(ct);
 		foreach (SeatWaitlistEntry entry in live)
 		{

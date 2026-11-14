@@ -17,7 +17,8 @@ import {
   p as Button,
   I as Input,
   F as Select,
-  G as Spinner
+  G as Spinner,
+  m as useUiStore
 } from "./index-DI5X4c9f.js";
 import { c as calendarApi } from "./bookings-DrKATIWm.js";
 import { B as Badge } from "./Badge-BU5iAxex.js";
@@ -148,6 +149,12 @@ function AdminCalendarPage() {
   const [types, setTypes] = React.useState([]);
   const [date, setDate] = React.useState(() => istToday());
   const [locationId, setLocationId] = React.useState("");
+  /* Follows the location picked in the admin top bar (13 Nov 2026), both ways. */
+  const headerLocationId = useUiStore((s) => s.locationId);
+  const setHeaderLocationId = useUiStore((s) => s.setLocationId);
+  React.useEffect(() => {
+    if (headerLocationId != null) setLocationId(String(headerLocationId));
+  }, [headerLocationId]);
   const [typeId, setTypeId] = React.useState("");
   const [calendar, setCalendar] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -159,7 +166,8 @@ function AdminCalendarPage() {
       .then(([locationPage, typeList]) => {
         setLocations(locationPage.items);
         setTypes(typeList);
-        const preferred = locationPage.items.find((l) => l.isDefault) ?? locationPage.items[0];
+        const current = useUiStore.getState().locationId;
+        const preferred = locationPage.items.find((l) => l.locationId === current) ?? locationPage.items.find((l) => l.isDefault) ?? locationPage.items[0];
         if (preferred) setLocationId(String(preferred.locationId));
       })
       .catch(() => toast.error("Failed to load reference data."));
@@ -376,7 +384,10 @@ function AdminCalendarPage() {
               className: "field__input",
               "aria-label": "Location",
               value: locationId,
-              onChange: (event) => setLocationId(event.target.value)
+              onChange: (event) => {
+                setLocationId(event.target.value);
+                if (event.target.value) setHeaderLocationId(Number(event.target.value));
+              }
             },
             locations.map((location) =>
               el("option", { key: location.locationId, value: location.locationId }, location.locationName)

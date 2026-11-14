@@ -1,0 +1,200 @@
+--- a/src/Regalis.API/Regalis.API.Controllers/DashboardController.cs (as decompiled from api/)
++++ b/src/Regalis.API/Regalis.API.Controllers/DashboardController.cs
+@@ -15,9 +15,9 @@
+ 	[HttpGet("admin")]
+ 	[HasPermission("DASHBOARD.VIEW")]
+ 	[ProducesResponseType(typeof(ApiResponse<AdminDashboardDto>), 200)]
+-	public async Task<IActionResult> GetAdmin(CancellationToken ct)
++	public async Task<IActionResult> GetAdmin([FromQuery] int? locationId, CancellationToken ct)
+ 	{
+-		return OkEnvelope(await dashboardService.GetAdminAsync(ct));
++		return OkEnvelope(await dashboardService.GetAdminAsync(locationId, ct));
+ 	}
+ 
+ 	/// <summary>Own-record aggregates — safe for any signed-in user.</summary>
+--- a/src/Regalis.Application/Regalis.Application.Reporting/IDashboardService.cs (as decompiled from api/)
++++ b/src/Regalis.Application/Regalis.Application.Reporting/IDashboardService.cs
+@@ -5,7 +5,8 @@
+ 
+ public interface IDashboardService
+ {
+-	Task<AdminDashboardDto> GetAdminAsync(CancellationToken ct = default(CancellationToken));
++	/// <summary>Admin home cards; <paramref name="locationId" /> narrows the location-bound ones.</summary>
++	Task<AdminDashboardDto> GetAdminAsync(int? locationId = null, CancellationToken ct = default(CancellationToken));
+ 
+ 	/// <summary>The Billing &amp; Finance summary (document §16).</summary>
+ 	Task<AdminDashboardDto> GetFinanceAsync(CancellationToken ct = default(CancellationToken));
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/AuthService.cs (as decompiled from api/)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/AuthService.cs
+@@ -311,7 +311,8 @@
+ 		string mobile = request.MobileNumber.Trim();
+ 		await EnforcePasswordPolicyAsync(request.Password, ct);
+ 		string passwordHash = passwordHasher.Hash(request.Password);
+-		User user = await db.Users.FirstOrDefaultAsync((User u) => u.Email == email || u.MobileNumber == mobile, ct);
++		string[] mobileAliases = MobileNumbers.Aliases(mobile);
++		User user = await db.Users.FirstOrDefaultAsync((User u) => u.Email == email || mobileAliases.Contains(u.MobileNumber), ct);
+ 		User user2;
+ 		if (user != null)
+ 		{
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/DashboardService.cs (as decompiled from api/)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/DashboardService.cs
+@@ -27,7 +27,11 @@
+ /// </summary>
+ public class DashboardService(RegalisDbContext db, ICurrentUser currentUser, IDateTimeProvider clock) : IDashboardService
+ {
+-	public async Task<AdminDashboardDto> GetAdminAsync(CancellationToken ct = default(CancellationToken))
++	/// <summary>The admin home cards. With <paramref name="locationId" /> (the location picked in
++	/// the admin top bar) the location-bound cards -- bookings, pending holds, occupancy, checked
++	/// in, active passes, housekeeping -- count that location only; money, tickets and customers
++	/// stay company-wide.</summary>
++	public async Task<AdminDashboardDto> GetAdminAsync(int? locationId = null, CancellationToken ct = default(CancellationToken))
+ 	{
+ 		if (currentUser.UserType == UserType.Customer)
+ 		{
+@@ -39,24 +43,22 @@
+ 		DateTime todayStartUtc = IstClock.ToUtc(todayIst.ToDateTime(TimeOnly.MinValue));
+ 		DateTime todayEndUtc = IstClock.ToUtc(todayIst.AddDays(1).ToDateTime(TimeOnly.MinValue));
+ 		DateTime monthStartUtc = IstClock.ToUtc(monthStartIst.ToDateTime(TimeOnly.MinValue));
+-		int bookingsToday = await db.Bookings.CountAsync((Booking b) => b.BookingDate == todayIst && b.Status != BookingStatus.Cancelled && b.Status != BookingStatus.Expired, ct);
+-		int pendingHolds = await db.Bookings.CountAsync((Booking b) => b.Status == BookingStatus.Pending, ct);
+-		int checkedInNow = await db.Attendances.CountAsync((Attendance a) => a.Status == AttendanceStatus.CheckedIn, ct);
++		int bookingsToday = await db.Bookings.CountAsync((Booking b) => b.BookingDate == todayIst && b.Status != BookingStatus.Cancelled && b.Status != BookingStatus.Expired && (locationId == null || b.LocationId == locationId), ct);
++		int pendingHolds = await db.Bookings.CountAsync((Booking b) => b.Status == BookingStatus.Pending && (locationId == null || b.LocationId == locationId), ct);
++		int checkedInNow = await db.Attendances.CountAsync((Attendance a) => a.Status == AttendanceStatus.CheckedIn && (locationId == null || a.LocationId == locationId), ct);
+ 		decimal revenueToday = (await db.Payments.Where((Payment p) => p.Status == PaymentStatus.Success && p.PaidUtc >= todayStartUtc && p.PaidUtc < todayEndUtc).SumAsync(((Payment p) => (decimal?)(p.Amount)), ct)).GetValueOrDefault();
+ 		decimal revenueMonth = (await db.Payments.Where((Payment p) => p.Status == PaymentStatus.Success && p.PaidUtc >= monthStartUtc).SumAsync(((Payment p) => (decimal?)(p.Amount)), ct)).GetValueOrDefault();
+-		int activePasses = await db.CustomerPasses.CountAsync((CustomerPass p) => p.Status == CustomerPassStatus.Active && p.ValidFrom <= todayIst && todayIst <= p.ValidTo, ct);
++		int activePasses = await db.CustomerPasses.CountAsync((CustomerPass p) => p.Status == CustomerPassStatus.Active && p.ValidFrom <= todayIst && todayIst <= p.ValidTo && (locationId == null || p.LocationId == locationId), ct);
+ 		int openTickets = await db.Tickets.CountAsync((Ticket t) => t.Status != TicketStatus.Resolved && t.Status != TicketStatus.Closed, ct);
+ 		int customers = await db.Users.CountAsync((User u) => u.UserType == UserType.Customer, ct);
+-		int housekeepingToday = await db.HousekeepingSchedules.CountAsync((HousekeepingSchedule h) => h.ScheduledDate == todayIst && (h.Status == HousekeepingStatus.Scheduled || h.Status == HousekeepingStatus.InProgress), ct);
+-		int bookedMinutesToday = (await db.Bookings.Where((Booking b) => Enumerable.Contains(Booking.OccupancyStatuses, b.Status) && b.StartUtc < todayEndUtc && todayStartUtc < b.EndUtc).SumAsync(((Booking b) => (int?)(b.DurationMinutes)), ct)).GetValueOrDefault();
+-		int bookableWorkspaces = await db.Workspaces.CountAsync((Workspace w) => w.IsBookable, ct);
+-		Location location = await db.Locations.AsNoTracking().FirstAsync((Location l) => l.IsDefault, ct);
+-		decimal num = (decimal)(location.WorkingHoursEnd - location.WorkingHoursStart).TotalHours;
+-		decimal value = ((bookableWorkspaces == 0 || num == 0m) ? 0m : Math.Round((decimal)bookedMinutesToday / 60m / ((decimal)bookableWorkspaces * num) * 100m, 1));
++		int housekeepingToday = await db.HousekeepingSchedules.CountAsync((HousekeepingSchedule h) => h.ScheduledDate == todayIst && (h.Status == HousekeepingStatus.Scheduled || h.Status == HousekeepingStatus.InProgress) && (locationId == null || h.LocationId == locationId), ct);
++		var (occupancyPercent, bookableWorkspaces, bookedHours, openHours) = await OccupancyTodayAsync(todayIst, locationId, ct);
++		string locationName = locationId.HasValue ? (await db.Locations.AsNoTracking().Where((Location l) => l.LocationId == locationId).Select((Location l) => l.LocationName).FirstOrDefaultAsync(ct)) : null;
++		string at = string.IsNullOrEmpty(locationName) ? "" : " at " + locationName;
+ 		return new AdminDashboardDto(new List<DashboardCard>
+ 		{
+-			new DashboardCard("bookings-today", "Bookings today", bookingsToday.ToString(), (pendingHolds > 0) ? $"{pendingHolds} pending hold{((pendingHolds > 1) ? "s" : "")}" : null, "/admin/bookings"),
+-			new DashboardCard("occupancy", "Occupancy today", $"{value:0.#}%", $"{bookableWorkspaces} bookable workspaces", "/admin/calendar"),
++			new DashboardCard("bookings-today", "Bookings today", bookingsToday.ToString(), (pendingHolds > 0) ? $"{pendingHolds} pending hold{((pendingHolds > 1) ? "s" : "")}{at}" : (string.IsNullOrEmpty(at) ? null : at.Trim()), "/admin/bookings"),
++			new DashboardCard("occupancy", "Occupancy today", $"{occupancyPercent:0.#}%", $"{bookedHours:0.#} of {openHours:0.#} h booked · {bookableWorkspaces} bookable workspace{((bookableWorkspaces == 1) ? "" : "s")}{at}", "/admin/calendar"),
+ 			new DashboardCard("checked-in", "Checked in now", checkedInNow.ToString(), null, "/admin/attendance"),
+ 			new DashboardCard("revenue-today", "Revenue today", $"₹ {revenueToday:N0}", null, "/admin/payments"),
+ 			new DashboardCard("revenue-month", "Revenue this month", $"₹ {revenueMonth:N0}", $"since {monthStartIst:dd MMM}", "/admin/payments"),
+@@ -67,6 +69,54 @@
+ 		}, nowUtc);
+ 	}
+ 
++	/// <summary>
++	/// Today's occupancy: booked workspace-hours / open workspace-hours, per location.
++	/// For each active location: open hours = today's WorkingHoursStart..End (IST) x its active
++	/// bookable workspaces. Booked hours = every occupying booking (Booking.OccupancyStatuses)
++	/// on an active bookable workspace there, CLIPPED to that open window -- so a monthly or
++	/// multi-day booking counts only today's open hours, and a booking running past closing
++	/// counts only up to closing. (Before 13 Nov 2026 the whole DurationMinutes of any booking
++	/// touching today was added, and every location's workspaces were divided by the default
++	/// location's hours; one confirmed monthly booking alone showed ~400%.)
++	/// </summary>
++	internal async Task<(decimal Percent, int Workspaces, decimal BookedHours, decimal OpenHours)> OccupancyTodayAsync(DateOnly todayIst, int? locationId, CancellationToken ct)
++	{
++		DateTime dayStartUtc = IstClock.ToUtc(todayIst.ToDateTime(TimeOnly.MinValue));
++		DateTime dayEndUtc = IstClock.ToUtc(todayIst.AddDays(1).ToDateTime(TimeOnly.MinValue));
++		var locations = await db.Locations.AsNoTracking().Where((Location l) => l.IsActive && (locationId == null || l.LocationId == locationId)).Select((Location l) => new { l.LocationId, l.WorkingHoursStart, l.WorkingHoursEnd }).ToListAsync(ct);
++		var workspaceCounts = await (from w in db.Workspaces.AsNoTracking()
++			where w.IsBookable && w.IsActive && (locationId == null || w.LocationId == locationId)
++			group w by w.LocationId into g
++			select new { LocationId = g.Key, Count = g.Count() }).ToListAsync(ct);
++		var bookings = await db.Bookings.AsNoTracking().Where((Booking b) => Booking.OccupancyStatuses.Contains(b.Status) && b.StartUtc < dayEndUtc && dayStartUtc < b.EndUtc && b.Workspace.IsBookable && b.Workspace.IsActive && (locationId == null || b.LocationId == locationId)).Select((Booking b) => new { b.LocationId, b.StartUtc, b.EndUtc }).ToListAsync(ct);
++		decimal bookedMinutes = 0m;
++		decimal openMinutes = 0m;
++		int workspaces = 0;
++		foreach (var location in locations)
++		{
++			int count = workspaceCounts.FirstOrDefault(x => x.LocationId == location.LocationId)?.Count ?? 0;
++			if (count == 0 || location.WorkingHoursEnd <= location.WorkingHoursStart)
++			{
++				continue;
++			}
++			DateTime openUtc = IstClock.ToUtc(todayIst.ToDateTime(location.WorkingHoursStart));
++			DateTime closeUtc = IstClock.ToUtc(todayIst.ToDateTime(location.WorkingHoursEnd));
++			workspaces += count;
++			openMinutes += (decimal)count * (decimal)(closeUtc - openUtc).TotalMinutes;
++			foreach (var booking in bookings.Where(b => b.LocationId == location.LocationId))
++			{
++				DateTime from = (booking.StartUtc > openUtc) ? booking.StartUtc : openUtc;
++				DateTime to = (booking.EndUtc < closeUtc) ? booking.EndUtc : closeUtc;
++				if (to > from)
++				{
++					bookedMinutes += (decimal)(to - from).TotalMinutes;
++				}
++			}
++		}
++		decimal percent = (openMinutes == 0m) ? 0m : Math.Round(bookedMinutes / openMinutes * 100m, 1);
++		return (Percent: percent, Workspaces: workspaces, BookedHours: Math.Round(bookedMinutes / 60m, 1), OpenHours: Math.Round(openMinutes / 60m, 1));
++	}
++
+ 	public async Task<CustomerDashboardDto> GetCustomerAsync(CancellationToken ct = default(CancellationToken))
+ 	{
+ 		DateTime nowUtc = clock.UtcNow;
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/ProfileService.cs (as decompiled from api/)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/ProfileService.cs
+@@ -43,7 +43,8 @@
+ 		bool flag = mobile != user.MobileNumber;
+ 		if (flag)
+ 		{
+-			flag = await db.Users.AnyAsync((User u) => u.MobileNumber == mobile && u.UserId != user.UserId, ct);
++			string[] mobileAliases = MobileNumbers.Aliases(mobile);
++			flag = await db.Users.AnyAsync((User u) => mobileAliases.Contains(u.MobileNumber) && u.UserId != user.UserId, ct);
+ 		}
+ 		if (flag)
+ 		{
+@@ -116,7 +117,8 @@
+ 		bool flag = mobile != user.MobileNumber;
+ 		if (flag)
+ 		{
+-			flag = await db.Users.AnyAsync((User u) => u.MobileNumber == mobile && u.UserId != user.UserId, ct);
++			string[] mobileAliases = MobileNumbers.Aliases(mobile);
++			flag = await db.Users.AnyAsync((User u) => mobileAliases.Contains(u.MobileNumber) && u.UserId != user.UserId, ct);
+ 		}
+ 		if (flag)
+ 		{
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/UserAdminService.cs (as decompiled from api/)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/UserAdminService.cs
+@@ -60,7 +60,8 @@
+ 	{
+ 		string email = request.Email.Trim();
+ 		string mobile = request.MobileNumber.Trim();
+-		if (await db.Users.AnyAsync((User u) => u.Email == email || u.MobileNumber == mobile, ct))
++		string[] mobileAliases = MobileNumbers.Aliases(mobile);
++		if (await db.Users.AnyAsync((User u) => u.Email == email || mobileAliases.Contains(u.MobileNumber), ct))
+ 		{
+ 			throw new BusinessRuleException("A user with this email or mobile number already exists.", "DUPLICATE_RECORD");
+ 		}
+@@ -112,7 +113,8 @@
+ 	{
+ 		User user = (await db.Users.Include((User u) => u.UserRoles).FirstOrDefaultAsync((User u) => u.UserId == userId, ct)) ?? throw new NotFoundException("User", userId);
+ 		string mobile = request.MobileNumber.Trim();
+-		if (await db.Users.AnyAsync((User u) => u.MobileNumber == mobile && u.UserId != userId, ct))
++		string[] mobileAliases = MobileNumbers.Aliases(mobile);
++		if (await db.Users.AnyAsync((User u) => mobileAliases.Contains(u.MobileNumber) && u.UserId != userId, ct))
+ 		{
+ 			throw new BusinessRuleException("Another user already uses this mobile number.", "DUPLICATE_RECORD");
+ 		}
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs (as decompiled from api/)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs
+@@ -107,6 +107,10 @@
+ 		services.AddHostedService<AdminNotificationWorker>();
+ 		services.AddScoped<CustomerNotificationEmailJobs>();
+ 		services.AddHostedService<CustomerNotificationEmailWorker>();
++		// Seat waiting list for day passes (admin-customer kit, 13 Nov 2026).
++		services.AddScoped<Regalis.Application.Waitlist.IWaitlistService, WaitlistService>();
++		services.AddScoped<SeatWaitlistJobs>();
++		services.AddHostedService<SeatWaitlistWorker>();
+ 		services.AddScoped<IHousekeepingService, HousekeepingService>();
+ 		services.AddScoped<IMaintenanceService, MaintenanceService>();
+ 		services.AddHostedService<MaintenanceOverdueSweeper>();

@@ -29,6 +29,7 @@ import {
   a as useToast,
   A as ApiClientError
 } from "./index-DI5X4c9f.js";
+import { PhoneField, phoneError } from "./PhoneField-PH1.js";
 
 /* Matches Regalis.Domain.Enums.Gender. The values are the wire format. "Other" (3) is no
    longer offered (customer-portal-1); a stored 3 starts blank so the member picks again. */
@@ -139,6 +140,13 @@ export function OnboardingPage() {
 
   const submit = async event => {
     event.preventDefault();
+    /* Country code + number checked here first (admin-customer-1, 13 Nov 2026). */
+    const mobileProblem = phoneError(form.mobileNumber);
+    if (mobileProblem) {
+      setErrors({ mobileNumber: mobileProblem });
+      toast.error("Check the highlighted fields.");
+      return;
+    }
     setSaving(true);
     setErrors({});
     try {
@@ -225,7 +233,14 @@ export function OnboardingPage() {
         jsx.jsxs("div", {
           className: "auth__grid",
           children: [
-            ...FIELDS.map(([label, key, glyph, attrs]) => jsx.jsx(AuthField, {
+            ...FIELDS.map(([label, key, glyph, attrs]) => key === "mobileNumber" ? jsx.jsx(PhoneField, {
+              variant: "auth",
+              label,
+              icon: glyph,
+              error: errors[key],
+              value: form[key],
+              onChange: value => set(key, value)
+            }, key) : jsx.jsx(AuthField, {
               label,
               icon: glyph,
               error: errors[key],

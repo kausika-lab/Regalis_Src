@@ -1,4 +1,4 @@
-import{l as h,r as t,j as e,g as n,a3 as u,a8 as WS,y as WT,a9 as PAY,R as UP}from"./index-DI5X4c9f.js";
+import{l as h,r as t,j as e,g as n,a3 as u,a8 as WS,y as WT,a9 as PAY,R as UP,m as UIS}from"./index-DI5X4c9f.js";
 import{b as BK}from"./bookings-DrKATIWm.js";
 import{d as x}from"./reports-CNtuzowc.js";
 import{C as o}from"./Card-CNXipofE.js";
@@ -102,7 +102,10 @@ function _(){
   const[total,setTotal]=t.useState(null);
   const canSeePayments=UP("PAYMENT.VIEW");
 
-  t.useEffect(()=>{x.admin().then(m).catch(()=>{})},[]);
+  /* The location picked in the admin top bar (13 Nov 2026): the server narrows the
+     location-bound cards; today's list and the availability card are narrowed here. */
+  const loc=UIS(s=>s.locationId);
+  t.useEffect(()=>{x.admin(loc!=null?{locationId:loc}:void 0).then(m).catch(()=>{})},[loc]);
   t.useEffect(()=>{
     if(!canSeePayments)return;
     let dead=!1;
@@ -136,16 +139,16 @@ function _(){
        midnight still counts for today. */
     const k=ISTD(new Date()),
       y=ISTD(new Date(Date.now()-864e5));
-    Promise.all([BK.list({page:1,pageSize:200,from:y,to:k}),WS.list({page:1,pageSize:200}),WT.list()]).then(([bres,wres,types])=>{
+    Promise.all([BK.list({page:1,pageSize:200,from:y,to:k,locationId:loc??void 0}),WS.list({page:1,pageSize:200}),WT.list()]).then(([bres,wres,types])=>{
       if(dead)return;
       const bookings=bres?.items??(Array.isArray(bres)?bres:[]),
-        rows=wres?.items??(Array.isArray(wres)?wres:[]),
+        rows=(wres?.items??(Array.isArray(wres)?wres:[])).filter(w=>loc==null||w.locationId==null||w.locationId===loc),
         tl=Array.isArray(types)?types:types?.items??[];
       setToday(bookings.filter(b=>ISTD(b.startUtc)===k).sort((a,b)=>toUtc(a.startUtc)-toUtc(b.startUtc)));
       setAvail(CALC({bookings:bookings,workspaces:rows,types:tl,today:k}))
     }).catch(()=>{if(!dead){setToday([]);setAvail([])}});
     return()=>{dead=!0}
-  },[]);
+  },[loc]);
 
   return e.jsxs(e.Fragment,{children:[
     e.jsxs(o,{className:"dash-hello",children:[

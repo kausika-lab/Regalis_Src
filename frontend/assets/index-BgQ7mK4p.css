@@ -484,3 +484,36 @@ a.rep-card__title:hover{color:var(--regalis-gold-dark)}
 .mem-page .wizard-step{font-size:var(--font-size-sm)}
 .mem-page .data-table{font-size:var(--font-size-md)}
 .mem-page .card__title{font-size:var(--font-size-xl)}
+/* admin-customer-1 (13 Nov 2026) ---------------------------------------------------------- */
+/* Mobile number: country code + number (PhoneField-PH1.js) */
+.rg-phone{display:flex;gap:var(--space-2);align-items:stretch}
+.rg-phone .rg-phone__cc{flex:0 0 auto;width:auto;min-width:96px;max-width:118px}
+.rg-phone .rg-phone__num{flex:1 1 auto;min-width:0}
+.rg-phone--auth{gap:10px;align-items:center}
+.rg-phone--auth .rg-phone__sep{height:24px;align-self:center;margin:0}
+.rg-phone--auth .rg-phone__cc--auth{flex:0 0 auto;border:none;background:transparent;font-family:var(--auth-font-body);font-size:15px;color:var(--auth-label);outline:none;padding:0 2px;cursor:pointer;max-width:96px}
+.rg-phone--auth .rg-phone__cc--auth option{color:#111}
+.rg-phone--auth .rg-phone__sep{width:1px;align-self:stretch;margin:12px 0;background:var(--auth-input-border)}
+.rg-phone--auth .rg-phone__num{flex:1;min-width:0;border:none;background:transparent;font-family:var(--auth-font-body);font-size:15.5px;color:var(--auth-label);outline:none}
+/* Membership: What's included + Amenities, and the two-column payment step */
+.mem-incl{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:var(--space-4);align-items:start}
+.mem-pay{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:var(--space-5);align-items:start}
+.mem-pay .pay-options{grid-template-columns:1fr;gap:var(--space-3)}
+.mem-pay .pay-options .btn{width:100%;min-height:46px;justify-content:center;font-size:var(--font-size-md)}
+.mem-pay__panel{line-height:1.5}
+.mem-pay__due{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-3);padding-bottom:var(--space-3);border-bottom:1px solid var(--border-subtle);font-size:var(--font-size-md);font-weight:600}
+.mem-pay__due .rg-price{font-size:var(--font-size-xl)}
+.mem-page .summary-rows strong,.mem-page .summary-rows .summary-total span:last-child{font-variant-numeric:tabular-nums}
+.mem-save .rg-price{color:inherit}
+@media (max-width:900px){.mem-pay{grid-template-columns:1fr}}
+/* Profile: photo on the left, name beside it */
+.rg-prof-head__text{text-align:left}
+@media (max-width:420px){.rg-prof-head{gap:14px!important}}
+/* Admin header: location picker sits beside the theme toggle on narrow screens too */
+@media (max-width:600px){.portal__user .locpick__name{max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+/* Membership step headings: title and "Change ..." link on one line */
+.mem-headrow{margin-bottom:var(--space-4)}
+.mem-headrow h2{margin-bottom:0!important}
+/* PhoneField must not widen its grid column (number input has an intrinsic width) */
+.rg-phone-field{min-width:0}
+.rg-phone .rg-phone__num{width:0}

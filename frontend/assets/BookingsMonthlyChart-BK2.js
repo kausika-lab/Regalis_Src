@@ -106,7 +106,7 @@ export function useBookingsStyles() {
   useStyles();
 }
 
-export function BookingsMonthlyChart({ search, status }) {
+export function BookingsMonthlyChart({ search, status, locationId }) {
   useStyles();
   const [year, setYear] = React.useState(() => new Date().getFullYear());
   const [measure, setMeasure] = React.useState("count");
@@ -120,14 +120,14 @@ export function BookingsMonthlyChart({ search, status }) {
     let live = true;
     setFailed(false);
     unwrap(http.get("/bookings/monthly", {
-      params: { year, search: search || undefined, status: status ? Number(status) : undefined }
+      params: { year, search: search || undefined, status: status ? Number(status) : undefined, locationId: locationId || undefined }
     }))
       .then((result) => live && setData(result))
       .catch(() => live && setFailed(true));
     return () => {
       live = false;
     };
-  }, [year, search, status]);
+  }, [year, search, status, locationId]);
 
   const now = new Date().getFullYear();
   const years = [];

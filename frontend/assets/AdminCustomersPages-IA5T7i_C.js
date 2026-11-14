@@ -32,6 +32,7 @@ import {
   q as IconCalendar
 } from "./index-DI5X4c9f.js";
 import { c as customersApi } from "./admin-DtGep2Hs.js";
+import { displayPhone } from "./PhoneField-PH1.js";
 import { a as USER_STATUS } from "./admin-uaE5vem6.js";
 import { B as Badge } from "./Badge-BU5iAxex.js";
 import { C as Card } from "./Card-CNXipofE.js";
@@ -390,7 +391,7 @@ function AdminCustomersPage() {
                 ),
                 el("td", null, row.companyName || el("span", { className: "custl-muted" }, DASH)),
                 el("td", null, row.email),
-                el("td", null, row.mobileNumber || el("span", { className: "custl-muted" }, DASH)),
+                el("td", null, displayPhone(row.mobileNumber) || el("span", { className: "custl-muted" }, DASH)),
                 el(
                   "td",
                   null,
@@ -759,7 +760,7 @@ function AdminCustomerDetailPage() {
         el(ProfileField, {
           icon: IconPhone,
           label: "Contact Number",
-          value: customer.mobileNumber || DASH,
+          value: displayPhone(customer.mobileNumber) || DASH,
           muted: !customer.mobileNumber
         }),
         captured(IconUser, "Gender", gender),

@@ -181,6 +181,13 @@ function Ee() {
   a.useEffect(() => {
     fe(je.get("/bookings/pay-later")).then(setPayLater).catch(() => setPayLater(null));
   }, []);
+  /* Virtual Office pay later (admin-customer-2, 14 Nov 2026): a VO is a membership-type pass,
+     so it follows the pass rules (GET /passes/pay-later, kind "Membership"). */
+  const [voPayLater, setVoPayLater] = a.useState(null);
+  a.useEffect(() => {
+    fe(je.get("/passes/pay-later")).then(setVoPayLater).catch(() => setVoPayLater(null));
+  }, []);
+  const voCanPayLater = !!(voPayLater?.available && (voPayLater.allowedKinds || []).includes("Membership"));
   const K = g.find((t) => String(t.locationId) === j) ?? null;
 
   /* Move the dates on when today is over or closed (deploy/next-open-day). */
@@ -766,11 +773,11 @@ function Ee() {
     N(method);
     try {
       let res;
-      if (method === "wallet")
+      if (method === "wallet" || method === "paylater")
         res = await PASS.purchase({
           passPlanId: voPlan.passPlanId,
           validFrom: b,
-          paymentMethod: "wallet",
+          paymentMethod: method,
         });
       else {
         const ord = await PASS.order(voPlan.passPlanId);
@@ -1331,8 +1338,21 @@ function Ee() {
                     onClick: () => payVO("gateway"),
                     children: [e.jsx(we, { size: 18 }), " Pay online"],
                   }),
+                  voCanPayLater && e.jsx(h, {
+                    size: "lg",
+                    variant: "outline",
+                    disabled: S !== null,
+                    loading: S === "paylater",
+                    onClick: () => payVO("paylater"),
+                    children: "Pay later at the front desk",
+                  }),
                 ],
               }),
+              voCanPayLater &&
+                e.jsx("p", {
+                  style: { color: "var(--text-muted)", fontSize: "var(--font-size-xs)" },
+                  children: "Pay later reserves your Virtual Office now. Pay at the front desk in cash, UPI or card — the invoice stays open until it is paid. Unpaid by the end of the first day, it is released.",
+                }),
               !U &&
                 c &&
                 e.jsxs("p", {
@@ -1613,7 +1633,7 @@ function Ee() {
                   fontWeight: 800,
                   marginTop: "var(--space-3)",
                 },
-                children: "Virtual Office active",
+                children: voDone.pass?.isPayLater ? "Virtual Office reserved" : "Virtual Office active",
               }),
               e.jsxs("p", {
                 style: {
@@ -1628,7 +1648,7 @@ function Ee() {
                   dayLabel(b),
                   " · ",
                   PR(voDone.pass?.totalAmount ?? voPlan.totalAmount),
-                  " paid, including GST",
+                  voDone.pass?.isPayLater ? " including GST, to pay at the front desk" : " paid, including GST",
                 ],
               }),
               e.jsx("p", {

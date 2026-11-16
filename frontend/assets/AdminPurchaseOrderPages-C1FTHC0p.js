@@ -971,6 +971,8 @@ function fe() {
             (can.approve || can.approveDraft) && e.jsx(x, { onClick: () => run.approve(order), children: "Approve" }),
             can.send && e.jsx(x, { onClick: () => run.send(order), children: "Send to supplier" }),
             can.receive && e.jsx(x, { onClick: () => run.receive(order), children: "Receive goods" }),
+            /* BF_BILLING: a supplier bill against this PO (deploy/billing-finance) */
+            [S.approved, S.sent, S.partial, S.received].includes(order.status) && e.jsx(x, { variant: "outline", onClick: () => navigate(`/admin/billing/purchase-bills/new?po=${order.purchaseOrderId}`), children: "Create bill" }),
             can.cancel && e.jsx(x, { variant: "ghost", onClick: () => run.cancel(order), children: "Cancel PO" })
           ]
         })

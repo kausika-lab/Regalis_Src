@@ -417,6 +417,19 @@ function AdminCustomersPage() {
                       "aria-label": "View " + row.fullName
                     },
                     "View"
+                  ),
+                  /* BF_BILLING: the customer's ledger (deploy/billing-finance) */
+                  el(
+                    Button,
+                    {
+                      size: "sm",
+                      variant: "ghost",
+                      onClick: (event) => {
+                        event.stopPropagation();
+                        navigate("/admin/billing/ledger/customer/" + row.userId);
+                      }
+                    },
+                    "Ledger"
                   )
                 )
               )
@@ -688,10 +701,15 @@ function AdminCustomerDetailPage() {
       title: "Customer Profile",
       description: "Full profile as filled by the customer in their Customer Portal.",
       actions: el(
-        Button,
-        { variant: "outline", onClick: () => navigate("/admin/customers") },
-        el(IconArrowLeft, { size: 16 }),
-        " Back to Customers"
+        F,
+        null,
+        el(Button, { variant: "outline", onClick: () => navigate("/admin/billing/ledger/customer/" + customerId) }, "Ledger"),
+        el(
+          Button,
+          { variant: "outline", onClick: () => navigate("/admin/customers") },
+          el(IconArrowLeft, { size: 16 }),
+          " Back to Customers"
+        )
       )
     }),
 

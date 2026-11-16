@@ -55,3 +55,31 @@ deploy\production\promote-uat-to-prod.cmd db\migrations\<the change's migration>
 It backs up production, applies the listed migrations, copies UAT's API and
 frontend, checks `/health`, and rebuilds the frontend web.config
 (`sync-frontend-config.ps1`). Never pass `_Rollback` or `_UAT_ONLY` scripts.
+
+## 16 Nov 2026: all kits deployed straight to production (UAT skipped)
+
+UAT could not be updated: `REGALIS\Administrator` has no login on the default SQL instance
+that holds `RegalisWorkSpace_UAT`. Production was therefore released directly, after testing
+on a restored copy of the production database.
+
+- **API**: rebuilt on this server from `Downloads\Regalis-live\backend` plus the kits, in
+  this order: profile-email, customer-portal, billing-finance, customer-ux, admin-customer,
+  customer-10. The source with one git commit per kit is in `C:\RegalisBuild` (`git log`);
+  the published build is `C:\RegalisBuild\publish`.
+- **Database**: the 8 migrations from `20261101165945_BillingFinance` to
+  `20261114150000_CustomerTenItems` (oldest first), plus
+  `Notifications.CustomerEmailPortalUrl = https://myregalis.com`.
+- **Frontend**: repo `frontend/` plus `deploy\billing-finance\frontend\apply.mjs`.
+- **Tests** (on the copy): API smoke tests (Role on the profile, dashboard by location,
+  payment history, delete-account check, waiting list, pay-later pass → Awaiting payment →
+  desk payment → Active, a pay-later booking, double booking refused, billing endpoints), and
+  a headless Chrome tour of 13 customer and 50 admin pages with no errors.
+- **Backups**: `C:\inetpub\wwwroot\Regalis_Prod_backup_20261116_1308_all_kits` and
+  `RegalisWorkSpace_PROD_20261116_1308_all_kits.bak` (SQLEXPRESS Backup folder). To roll back,
+  run the eight `_Rollback.sql` scripts newest first, then restore both folders.
+
+**Until UAT is brought up to the same build, `promote-uat-to-prod.cmd` refuses to run**
+(UAT's API is older). To bring UAT level: give an admin a login on the default instance,
+apply the same 8 migrations to `RegalisWorkSpace_UAT`, then copy `C:\RegalisBuild\publish`
+(without web.config) to `Regalis_Src\api` and the production frontend files to
+`Regalis_Src\frontend`.

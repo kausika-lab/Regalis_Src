@@ -4,9 +4,13 @@
         {
             // Starts the API (:81) and the website (:8080) in their own windows, or does
             // nothing if they're already running. The launch entries run this first.
+            // D:\Regalis\local-dev exists only on the developer PC. On the server
+            // (AMSTAGSERVER) the same ports are the IIS sites regalis-api and regalis-ui,
+            // which are always running, so the task just says so and succeeds.
             "label": "Start Regalis local stack",
             "type": "shell",
-            "command": "cmd /c D:\\Regalis\\local-dev\\start-local.cmd",
+            "options": { "shell": { "executable": "cmd.exe", "args": ["/d", "/c"] } },
+            "command": "if exist D:\\Regalis\\local-dev\\start-local.cmd (call D:\\Regalis\\local-dev\\start-local.cmd) else (echo No D:\\Regalis\\local-dev here - using the IIS sites: API :81, website :8080.)",
             "presentation": { "reveal": "silent" },
             "problemMatcher": []
         }

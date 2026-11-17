@@ -34,6 +34,43 @@ import { D as ze } from "./download-Dlifs1Q2.js";
    (.rg-price in index-*.css). Text built into strings (messages, button labels) keeps p. */
 const PR = (v) => e.jsx("span", { className: "rg-price", children: p(v) });
 
+/* book-icons-1 (17 Nov 2026): glyphs for the step 1 cards. Drawn here rather
+   than imported, because the index chunk only publishes the icons it already
+   uses and these five are not among them. Same 24 box, 1.8 stroke and round
+   joins as the lucide set the rest of the portal uses. */
+const glyph =
+  (...d) =>
+  function Glyph() {
+    return e.jsx("svg", {
+      width: 18,
+      height: 18,
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: 1.8,
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      "aria-hidden": true,
+      children: d.map((p, i) => e.jsx("path", { d: p }, i)),
+    });
+  };
+const IconDesk = glyph("M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z", "M8 21h8", "M12 17v4");
+const IconCabin = glyph("M18 20V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v14", "M2 20h20", "M14 12v.01");
+const IconMeeting = glyph("M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", "M9 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8z", "M22 21v-2a4 4 0 0 0-3-3.87", "M16 3.13a4 4 0 0 1 0 7.75");
+const IconVirtual = glyph("M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z", "M2 12h20", "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20");
+const IconCustom = glyph("M21 4h-7", "M10 4H3", "M21 12h-9", "M8 12H3", "M21 20h-5", "M12 20H3", "M14 2v4", "M8 10v4", "M16 18v4");
+
+/* The seeded codes are DESK, CABIN, MEETING_ROOM and VIRTUAL_WORKSPACE. The
+   name is matched as well, so a location that words its types differently
+   still gets a glyph instead of nothing. */
+const typeIcon = (t) => {
+  const k = `${t.typeCode ?? ""} ${t.typeName ?? ""}`;
+  if (/virtual/i.test(k)) return IconVirtual;
+  if (/meeting|conference|board/i.test(k)) return IconMeeting;
+  if (/cabin|private|suite/i.test(k)) return IconCabin;
+  return IconDesk;
+};
+
 const MAX_RANGE_DAYS = 31;
 
 function ne(o, T) {
@@ -214,7 +251,13 @@ function Ee() {
      centre as "Needs action", and the team replies on the ticket itself. */
   const CUSTOM = "custom";
   const isCustom = v === CUSTOM;
-  const CUSTOM_KINDS = ["Desk", "Cabin", "Meeting Room", "Virtual Office"];
+  /* Virtual Office is not a customisation (17 Nov 2026): it is a monthly
+     product with its own card in step 1, not something the team sets up per
+     request. It is dropped from this fallback list and filtered out of the
+     list the API returns, so the ticket taxonomy in MST_TicketIssueType is
+     left as it is and Support keeps whatever types it has. */
+  const CUSTOM_KINDS = ["Desk", "Cabin", "Meeting Room"];
+  const notVirtualOffice = (name) => !/virtual\s*office/i.test(name ?? "");
   const [cKind, setCKind] = a.useState(CUSTOM_KINDS[0]);
   const [cText, setCText] = a.useState("");
   const [cBusy, setCBusy] = a.useState(!1);
@@ -228,10 +271,11 @@ function Ee() {
   }, [isCustom, cCats]);
   const cCat =
     (cCats ?? []).find((t) => /customi[sz]/i.test(t.categoryName ?? "")) ?? null;
-  const cKinds =
+  const cKindsFromApi =
     cCat && cCat.issueTypes?.length
-      ? cCat.issueTypes.map((t) => t.issueTypeName)
-      : CUSTOM_KINDS;
+      ? cCat.issueTypes.map((t) => t.issueTypeName).filter(notVirtualOffice)
+      : [];
+  const cKinds = cKindsFromApi.length ? cKindsFromApi : CUSTOM_KINDS;
   a.useEffect(() => {
     cKinds.includes(cKind) || setCKind(cKinds[0]);
   }, [cKinds.join("|")]);
@@ -284,7 +328,13 @@ function Ee() {
         style: { borderStyle: "dashed" },
         onClick: () => Q(CUSTOM),
         children: [
-          e.jsx("div", { className: "choice-card__title", children: "Customisation" }),
+          e.jsxs("div", {
+            className: "choice-card__head",
+            children: [
+              e.jsx("span", { className: "choice-card__icon", children: e.jsx(IconCustom, {}) }),
+              e.jsx("div", { className: "choice-card__title", children: "Customisation" }),
+            ],
+          }),
           e.jsx("div", {
             className: "choice-card__meta",
             children: "Need something different? Tell us what you need",
@@ -849,9 +899,6 @@ function Ee() {
     children: [
       e.jsx(Ie, {
         title: "Book a Workspace",
-        description: K
-          ? `Live availability at ${K.locationName} — the calendar you see is the calendar the front desk sees.`
-          : "Live availability — the calendar you see is the calendar the front desk sees.",
       }),
       /* customer-portal-1: the step chips (What / Workspace / Review / Pay) are no longer
          shown; the steps themselves and their Back / Continue buttons are unchanged. */
@@ -879,9 +926,18 @@ function Ee() {
                       "aria-pressed": v === String(t.workspaceTypeId),
                       onClick: () => Q(String(t.workspaceTypeId)),
                       children: [
-                        e.jsx("div", {
-                          className: "choice-card__title",
-                          children: t.typeName,
+                        e.jsxs("div", {
+                          className: "choice-card__head",
+                          children: [
+                            e.jsx("span", {
+                              className: "choice-card__icon",
+                              children: e.jsx(typeIcon(t), {}),
+                            }),
+                            e.jsx("div", {
+                              className: "choice-card__title",
+                              children: t.typeName,
+                            }),
+                          ],
                         }),
                         e.jsx("div", {
                           className: "choice-card__meta",

@@ -4,9 +4,17 @@
         {
             // Starts the API (:81) and the website (:8080) in their own windows, or does
             // nothing if they're already running. The launch entries run this first.
+            //
+            // The script lives in the repo, so every clone can start the stack. It used to
+            // be D:\Regalis\local-dev\start-local.cmd, a path only one machine ever had.
+            // Machine-specific values (SQL instance, ports) go in local-dev\local.env.cmd.
+            //
+            // "process" rather than "shell": the .cmd is handed straight to cmd.exe, so the
+            // integrated PowerShell never gets a chance to requote the path.
             "label": "Start Regalis local stack",
-            "type": "shell",
-            "command": "cmd /c D:\\Regalis\\local-dev\\start-local.cmd",
+            "type": "process",
+            "command": "cmd",
+            "args": ["/c", "${workspaceFolder}\\local-dev\\start-local.cmd"],
             "presentation": { "reveal": "silent" },
             "problemMatcher": []
         }

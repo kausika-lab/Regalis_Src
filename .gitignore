@@ -22,3 +22,7 @@ api/web.config
 
 # ---- Verification leftovers (screenshots, dumps, scripts with UAT test logins) ----
 deploy/*/evidence/
+
+# ---- Local dev stack (machine-specific: SQL instance, ports, JWT key) ----
+local-dev/local.env.cmd
+local-dev/logs/

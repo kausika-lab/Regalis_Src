@@ -731,3 +731,23 @@ html{font-size:87.5%}
 .portal__content:has(.home__quick) .hero__subtitle{margin-top:var(--space-2)}
 .portal__content:has(.home__quick) .home__empty-icon{width:28px;height:28px;margin-bottom:0}
 .portal__content:has(.home__quick) .home__greeting p{margin-top:2px}
+
+/* --- Sign in: one screen, no scroll ---------------------------------------
+   auth-fit-1, 17 Nov 2026. The auth pages were drawn at fixed pixel sizes, so
+   the density pass went past them: the login panel stood 730px tall inside
+   80px of page padding, against the ~630px a 1366x768 laptop actually gives,
+   and a sign-in form you have to scroll to submit is a poor first impression.
+   The logo dropped to 92px in the bundle; the rest is here. Nothing is
+   restyled - every value is the same design, one step tighter - and because
+   these rules are on .auth they carry to register, forgot and verify too. */
+.auth{padding:16px 20px;min-height:100dvh}
+.auth__panel{padding:22px 40px 26px}
+.auth__label{margin-top:14px}
+.auth__input{margin-top:8px;height:46px}
+.auth__error{margin-top:4px}
+.auth__row-right{margin-top:10px}
+.auth__btn{margin-top:16px;height:48px}
+.auth__divider{margin-top:16px}
+.auth__google{margin-top:var(--space-3);min-height:40px}
+.auth__footer{margin-top:16px}
+.auth__seg{margin-top:18px}

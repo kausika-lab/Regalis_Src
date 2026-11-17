@@ -24,7 +24,7 @@ Every rule, figure, status and default below carries a source tag:
 
 ### 0.2 What "live" means here, and the limits of this reading
 
-Production is the site `myregalis.com`. That domain currently resolves to 127.0.0.1 in public DNS. The site is published through Tailscale Funnel at `https://amstagserver.discus-ordinal.ts.net` (`deploy/production/08-go-public-tailscale.ps1:5`). The production API listens only on `127.0.0.1:82` on the server (`deploy/production/README.md:8`).
+Production is the site `https://myregalis.com` (and `www.`), published since 6 Nov 2026 through a Cloudflare Tunnel (`deploy/production/09-go-public-cloudflare.ps1`); the domain is registered at BigRock with Cloudflare name servers. Tailscale Funnel at `https://amstagserver.discus-ordinal.ts.net` (`deploy/production/08-go-public-tailscale.ps1:5`) still serves the same site as a fallback. The production API listens only on `127.0.0.1:82` on the server (`deploy/production/README.md:8`).
 
 This reading was done on the PC `santhosh`, not on the server. Consequences:
 

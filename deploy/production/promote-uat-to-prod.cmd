@@ -40,6 +40,10 @@ for %%m in (%*) do (
   if not exist "%SRC%\%%~m" ( echo ERROR: migration not found: %%~m & pause & exit /b 1 )
   echo %%~nm | findstr /i "_Rollback _UAT_ONLY" >nul && ( echo ERROR: %%~nxm must not run on production. & pause & exit /b 1 )
 )
+REM 16 Nov 2026: production was deployed directly with all kits (deploy\production\README.md,
+REM "16 Nov 2026"). Refuse to copy an OLDER UAT API over it, which would undo that release.
+powershell -NoProfile -Command "if ((Get-Item '%SRC%\api\Regalis.Infrastructure.dll').LastWriteTimeUtc -lt (Get-Item '%PROD%\api\Regalis.Infrastructure.dll').LastWriteTimeUtc) { exit 1 }"
+if errorlevel 1 ( echo ERROR: UAT's API is older than production's. Promoting would roll production back. Update UAT first - see deploy\production\README.md. & pause & exit /b 1 )
 echo OK. Promoting UAT to production. Migrations: %*
 choice /m "Continue"
 if errorlevel 2 exit /b 1

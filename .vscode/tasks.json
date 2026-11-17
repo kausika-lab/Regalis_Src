@@ -9,6 +9,11 @@
             // be D:\Regalis\local-dev\start-local.cmd, a path only one machine ever had.
             // Machine-specific values (SQL instance, ports) go in local-dev\local.env.cmd.
             //
+            // On the server (AMSTAGSERVER) those ports belong to the IIS sites regalis-api
+            // and regalis-ui, which are always up. The script finds both ports served,
+            // names the process holding each, starts nothing, and still reports /health
+            // before exiting 0 - so the one task is right in both places.
+            //
             // "process" rather than "shell": the .cmd is handed straight to cmd.exe, so the
             // integrated PowerShell never gets a chance to requote the path.
             "label": "Start Regalis local stack",

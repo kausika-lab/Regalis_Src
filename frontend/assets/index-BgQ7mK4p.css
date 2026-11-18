@@ -652,32 +652,24 @@ body{font-weight:450}
 .hero__image[src$="regalis-cabin-corridor.jpg"]{object-position:center 44%}
 .hero__image[src$="regalis-private-cabin.jpg"]{object-position:center 54%}
 
-/* --- Sidebar: the rail wears the photograph's colour ----------------------
-   sidebar-photo-4, 17 Nov 2026. A warm photo meeting a cream rail was always
-   going to read as two materials. So the rail itself now ends in the colour the
-   photograph starts with: #a38438, measured off the tinted image (its top rows
-   average that, the body #76591f). The foot gradient is anchored to the bottom
-   and shares --rg-foot with the photo, so the picture begins exactly where the
-   colour has finished arriving and the two are one surface. The nav keeps the
-   cream it had: the warm only climbs into the last 150px above the photo. */
-.portal__sidebar{--rg-foot:clamp(110px,20vh,230px);background:linear-gradient(to top,#8d6c25 0,#a38438 var(--rg-foot),rgb(163 132 56 / 0) calc(var(--rg-foot) + 150px)),radial-gradient(480px 260px at 20% -5%,rgb(var(--accent-rgb) / 8%),transparent),linear-gradient(180deg,var(--sidebar-bg-raised),var(--sidebar-bg) 240px)}
+/* --- Sidebar: one colour, edge to edge ------------------------------------
+   sidebar-solid-1, 17 Nov 2026. The rail used to fade from cream into the
+   photograph's colour, which left it looking like two materials stacked. It is
+   one deep espresso now, top to bottom, the way the reference carries a single
+   dark panel - and because the ink changes with it, every token the nav reads
+   is re-stated here rather than overridden rule by rule: text, muted text,
+   border, and the accent the active pill and the brand mark use, which has to
+   lift off a dark ground instead of sitting on cream. */
+.portal__sidebar{--sidebar-text:#f6efe0;--sidebar-text-muted:#cbb98f;--sidebar-border:rgb(255 255 255 / 10%);--accent-strong:#e9c66a;--surface-hover:rgb(255 255 255 / 7%);background:#3f2f12;border-right-color:rgb(255 255 255 / 8%)}
 
-/* The photograph, full width, down to the bottom edge. Its top dissolves
-   through a mask into the colour above, which is now its own. */
-.portal__sidebar::after{content:"";flex:none;height:var(--rg-foot);margin:0;border:0;border-radius:0;box-shadow:none;background-image:linear-gradient(180deg,rgb(var(--accent-rgb) / 70%),rgb(170 130 46 / 78%) 60%,rgb(126 94 34 / 85%)),url("/samples/regalis-lobby-card.jpg");background-color:#a38438;background-blend-mode:color,normal;background-size:cover;background-position:center 55%;filter:contrast(1.04) brightness(1.02) saturate(.92);-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 34%);mask-image:linear-gradient(180deg,transparent 0,#000 34%)}
+/* The photograph still closes the rail, dimmed to the panel's own depth and
+   dissolving into it, so the foot reads as the same surface catching light. */
+.portal__nav{flex:0 1 auto;min-height:0}
+.portal__sidebar::after{content:"";flex:1 1 auto;min-height:90px;height:auto;margin:0;border:0;border-radius:0;box-shadow:none;background-image:linear-gradient(180deg,rgb(var(--accent-rgb) / 52%),rgb(170 130 46 / 60%) 60%,rgb(126 94 34 / 68%)),url("/samples/regalis-lobby-card.jpg");background-color:#3f2f12;background-blend-mode:color,normal;background-size:cover;background-position:center 55%;filter:contrast(1.04) brightness(.95) saturate(.95);-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 28%);mask-image:linear-gradient(180deg,transparent 0,#000 28%)}
 
-/* The rail is 76px wide: the same photo, shorter, a narrower slice of it. */
-.portal--collapsed .portal__sidebar{--rg-foot:clamp(90px,15vh,150px)}
-
-/* On the dark panel the same gold glares, so both the foot and the photo are
-   dimmed to the same deeper bronze. */
-[data-theme=dark] .portal__sidebar{background:linear-gradient(to top,#3f3012 0,#6b5626 var(--rg-foot),rgb(107 86 38 / 0) calc(var(--rg-foot) + 150px)),radial-gradient(480px 260px at 20% -5%,rgb(var(--accent-rgb) / 8%),transparent),linear-gradient(180deg,var(--sidebar-bg-raised),var(--sidebar-bg) 240px)}
-[data-theme=dark] .portal__sidebar::after{background-color:#6b5626;filter:contrast(1.02) brightness(.82) saturate(.88)}
-
-/* A short window needs every pixel for the nav itself. */
 /* Only a genuinely short window - a split screen, a netbook - gives the nav
    every pixel. A laptop at 100% keeps its photograph. */
-@media (max-height:520px){.portal__sidebar{--rg-foot:0px}.portal__sidebar::after{display:none}}
+@media (max-height:520px){.portal__sidebar::after{display:none}}
 
 /* --- Page headers that lost their subtitle ---------------------------------
    header-space-1, 17 Nov 2026. The header has no bottom margin of its own: the
@@ -730,7 +722,6 @@ html{font-size:87.5%}
 .portal__content:has(.home__quick) .hero__body{padding:var(--space-4) var(--space-5)}
 .portal__content:has(.home__quick) .hero__subtitle{margin-top:var(--space-2)}
 .portal__content:has(.home__quick) .home__empty-icon{width:28px;height:28px;margin-bottom:0}
-.portal__content:has(.home__quick) .home__greeting p{margin-top:2px}
 
 /* --- Sign in: one screen, no scroll ---------------------------------------
    auth-fit-1, 17 Nov 2026. The auth pages were drawn at fixed pixel sizes, so
@@ -751,3 +742,50 @@ html{font-size:87.5%}
 .auth__google{margin-top:var(--space-3);min-height:40px}
 .auth__footer{margin-top:16px}
 .auth__seg{margin-top:18px}
+
+/* --- Hero: the greeting lives in the picture -------------------------------
+   hero-greet-1, 17 Nov 2026. The greeting used to sit above the banner in its
+   own strip; it is inside it now, fixed, while the slides turn underneath. The
+   scrim that carried it flipped with it: a near-black wash reads as a bar
+   stuck on the photo, so it is a warm white that the lit interiors in these
+   pictures run into, and the type goes dark to match. With no call to action
+   and no greeting strip above, the banner takes that height back. */
+.portal__content:has(.home__quick) .hero{min-height:clamp(180px,31vh,310px);color:#241d10}
+.hero__figure:before{background:linear-gradient(90deg,rgb(253 250 243 / 95%) 0%,rgb(253 250 243 / 88%) 26%,rgb(253 250 243 / 52%) 42%,rgb(253 250 243 / 12%) 58%,rgb(253 250 243 / 0%) 68%)}
+
+/* The greeting leads, the slide's own words follow a step smaller. */
+.hero__greet{margin:0 0 2px;font-family:var(--font-display);font-size:clamp(1.45rem,2.3vw,1.95rem);font-weight:800;letter-spacing:-.02em;line-height:1.15;color:#241d10}
+.hero__title{font-size:clamp(1.05rem,1.5vw,1.2rem);font-weight:700;color:#3b3020;-webkit-line-clamp:1}
+.hero__subtitle{margin-top:3px;color:#60523a;max-width:46ch}
+.hero__price{color:var(--accent-strong)}
+
+@media(max-width:900px){
+  /* Narrow: the copy sits over the top of the photo, so the wash runs down. */
+  .hero__figure:before{background:linear-gradient(180deg,rgb(253 250 243 / 93%) 0%,rgb(253 250 243 / 80%) 52%,rgb(253 250 243 / 62%) 100%),linear-gradient(90deg,rgb(253 250 243 / 60%) 0%,rgb(253 250 243 / 0%) 88%)}
+}
+
+/* --- The foot of the dashboard fills what is left --------------------------
+   wallet-fill-1, 17 Nov 2026. The two cards sat at their natural heights with
+   dead cream under the shorter one. The row stretches them instead, so the
+   wallet card runs to the bottom of the page like the bookings card beside it. */
+.portal__content:has(.home__quick) .home__columns{align-items:stretch}
+.portal__content:has(.home__quick) .home__aside{height:100%}
+.portal__content:has(.home__quick) .home__aside>.card{flex:1 1 auto}
+
+/* The collapsed rail's fly-out is a child of the sidebar, so it inherits the
+   rail's cream ink - on the light card it ships with, that is invisible. It
+   takes the panel's colour instead. */
+.portal--collapsed .portal__subnav{background:#4a3817;border-color:rgb(255 255 255 / 14%);box-shadow:0 18px 38px -20px rgb(0 0 0 / 70%)}
+
+/* ws-menu-1 (18 Nov 2026): "My Workspace" is a chooser, not a page. The rail row
+   opens a small floating menu beside it and picking an entry goes to that list
+   page - the lists themselves stay where they already live. Fixed positioning
+   (the coordinates come from the row's own rect) so the menu is never clipped by
+   the sidebar, including when the rail is collapsed to icons. */
+.portal__ws{position:relative}
+.portal__ws-trigger{width:100%;background:none;font-family:inherit;text-align:left;cursor:pointer}
+.portal__ws-menu{position:fixed;z-index:60;min-width:204px;padding:6px;display:grid;gap:2px;border-radius:14px;background:#4a3817;border:1px solid rgb(255 255 255 / 14%);box-shadow:0 18px 38px -20px rgb(0 0 0 / 70%)}
+.portal__ws-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;color:var(--sidebar-text,#f6efe0);font-size:var(--font-size-sm);font-weight:600}
+.portal__ws-item>svg{flex:none;opacity:.85}
+.portal__ws-item:hover,.portal__ws-item:focus-visible{background:rgb(255 255 255 / 10%);color:#fff;text-decoration:none}
+.portal__ws-item.active{color:var(--accent-strong);background:rgb(var(--accent-rgb) / 16%)}

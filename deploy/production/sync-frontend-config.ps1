@@ -38,7 +38,8 @@ $block.InnerXml = @'
 # origins of OAuth client 429301379606-liseccp78bpo396jdrv7u1dc7unbprmg in Google Cloud
 # Console. Until then the button is hidden. After adding it, set this to $true and run
 # this script (elevated) to show the button.
-$googleOriginApproved = $false
+# 18 Nov 2026: https://myregalis.com and https://www.myregalis.com added as origins.
+$googleOriginApproved = $true
 
 # The SPA hides the online options when this is false (deploy/offline-payments).
 $envJs = @'

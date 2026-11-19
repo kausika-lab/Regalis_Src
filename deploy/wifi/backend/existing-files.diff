@@ -1,0 +1,17 @@
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs (as decompiled from api/, with the crm kit's lines)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs
+@@ -120,6 +120,14 @@
+ 		services.AddScoped<Regalis.Application.Crm.ICrmPublicService, Regalis.Infrastructure.Services.Crm.CrmPublicService>();
+ 		services.AddScoped<CrmJobs>();
+ 		services.AddHostedService<CrmWorker>();
++		// Wi-Fi Access (wifi kit, 19 Nov 2026).
++		services.AddSingleton<Regalis.Infrastructure.Services.Wifi.WifiSecrets>();
++		services.AddSingleton<Regalis.Infrastructure.Services.Wifi.WifiControllerFactory>();
++		services.AddScoped<Regalis.Infrastructure.Services.Wifi.WifiEngine>();
++		services.AddScoped<Regalis.Application.Wifi.IWifiService, Regalis.Infrastructure.Services.Wifi.WifiService>();
++		services.AddScoped<Regalis.Application.Wifi.IWifiPortalService, Regalis.Infrastructure.Services.Wifi.WifiPortalService>();
++		services.AddScoped<WifiJobs>();
++		services.AddHostedService<WifiWorker>();
+ 		services.AddScoped<IHousekeepingService, HousekeepingService>();
+ 		services.AddScoped<IMaintenanceService, MaintenanceService>();
+ 		services.AddHostedService<MaintenanceOverdueSweeper>();

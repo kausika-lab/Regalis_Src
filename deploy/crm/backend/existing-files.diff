@@ -1,0 +1,15 @@
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs (as decompiled from api/)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs
+@@ -114,6 +114,12 @@
+ 		services.AddScoped<Regalis.Application.Waitlist.IWaitlistService, WaitlistService>();
+ 		services.AddScoped<SeatWaitlistJobs>();
+ 		services.AddHostedService<SeatWaitlistWorker>();
++		// CRM - Leads and Web Enquiries (crm kit, 19 Nov 2026).
++		services.AddScoped<Regalis.Infrastructure.Services.Crm.CrmEngine>();
++		services.AddScoped<Regalis.Application.Crm.ICrmService, Regalis.Infrastructure.Services.Crm.CrmService>();
++		services.AddScoped<Regalis.Application.Crm.ICrmPublicService, Regalis.Infrastructure.Services.Crm.CrmPublicService>();
++		services.AddScoped<CrmJobs>();
++		services.AddHostedService<CrmWorker>();
+ 		services.AddScoped<IHousekeepingService, HousekeepingService>();
+ 		services.AddScoped<IMaintenanceService, MaintenanceService>();
+ 		services.AddHostedService<MaintenanceOverdueSweeper>();

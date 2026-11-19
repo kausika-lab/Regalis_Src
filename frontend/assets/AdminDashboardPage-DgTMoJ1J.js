@@ -153,7 +153,7 @@ function _(){
   return e.jsxs(e.Fragment,{children:[
     e.jsxs(o,{className:"dash-hello",children:[
       e.jsxs("h2",{style:{fontSize:"var(--font-size-xl)",fontWeight:800},children:[labelFor(j()),", ",l?.fullName??"Administrator"," ",e.jsx("span",{"aria-hidden":!0,children:"👋"})]}),
-      e.jsxs("p",{style:{color:"var(--text-secondary)",marginTop:"var(--space-2)"},children:["Here's what's happening at Regalis WorkSpace today. Signed in as ",c.join(", ")||"no role assigned","."]})
+      e.jsxs("p",{style:{color:"var(--text-secondary)",marginTop:"var(--space-2)"},children:["Here's what's happening at Regalis WorkSpace today. Signed in as ",c.join(", ")||"no role assigned","."]}),UP("CRM.LEAD.CREATE")&&e.jsx(RGAddLead,{})
     ]}),
 
     cards&&e.jsx("div",{className:"stat-grid",children:cards.map(s=>e.jsx(Stat,{card:s},s.key))}),
@@ -175,4 +175,7 @@ function _(){
     ]})
   ]})
 }
+
+/* crm kit: the front desk adds a lead from here without navigating two levels (CRM.LEAD.CREATE). */
+function RGAddLead(){const[D,setD]=t.useState(null);return e.jsxs("div",{style:{marginTop:"var(--space-3)"},children:[e.jsx("button",{type:"button",className:"btn btn--primary btn--sm",onClick:()=>import("./CrmPages-CRM1.js").then(m=>setD(()=>m.AddLeadDialog)),children:"+ Add lead"}),D&&e.jsx(D,{onClose:()=>setD(null)})]})}
 export{_ as AdminDashboardPage};

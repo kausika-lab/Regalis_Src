@@ -1343,6 +1343,26 @@ function AdminQuotationFormPage() {
             advanceValue: String(formOptions.defaultAdvanceMonths),
           }));
           setLines([{ ...emptyLine(), taxPercent: String(formOptions.defaultGstPercent) }]);
+          /* crm kit: "Send quotation" on a CRM lead opens this form as ?lead=<id>. The lead number goes in as
+             the enquiry reference, which is how CRM links the quotation back to the lead. */
+          const crmLeadId = new URLSearchParams(window.location.search).get("lead");
+          if (crmLeadId) {
+            try {
+              const crm = (await unwrap(api.get(`/crm/leads/${Number(crmLeadId)}`))).row;
+              const last10 = (s) => String(s || "").replace(/\D/g, "").slice(-10);
+              const match = customerPage.items.find((c) => last10(c.mobileNumber) && last10(c.mobileNumber) === last10(crm.mobile));
+              setHeader((h) => ({
+                ...h,
+                customerId: match ? String(match.userId) : "",
+                customerName: match ? match.fullName : crm.company || crm.name,
+                referenceNumber: crm.leadNumber,
+                subject: crm.lookingFor ? `${crm.lookingFor} at Regalis WorkSpace` : h.subject,
+                internalNote: `From CRM lead ${crm.leadNumber}: ${crm.name}, ${crm.mobile}${crm.email ? ", " + crm.email : ""}.`,
+              }));
+            } catch {
+              /* no CRM access, or the lead is not visible: an empty form, as before */
+            }
+          }
         }
 
       } catch (error) {

@@ -78,6 +78,22 @@ on a restored copy of the production database.
   `RegalisWorkSpace_PROD_20261116_1308_all_kits.bak` (SQLEXPRESS Backup folder). To roll back,
   run the eight `_Rollback.sql` scripts newest first, then restore both folders.
 
+## 20 Nov 2026: CRM and Wi-Fi kits deployed straight to production (UAT skipped)
+
+- **API**: `C:\RegalisBuild` commit `kit: crm + wifi` (the two kits' `backend/src` plus their
+  DI lines), published to `C:\RegalisBuild\publish_crm_wifi` and copied to `Regalis_Prod\api`.
+- **Database**: `20261119120000_Crm.sql`, then `20261119180000_Wifi.sql`.
+- **Config**: production API web.config now has `Wifi__EncryptionKey` (new random key). Keep a
+  copy of that value somewhere safe: without it the stored Wi-Fi passwords cannot be read.
+- **Frontend**: repo `frontend/` (CRM + Wi-Fi pages, `crm-track.js`), then `sync-frontend-config.ps1`.
+- **Wi-Fi runs on the simulated controller** (no hardware yet). Paying customers are issued
+  access and emailed from now on (only payments after the migration, `issue.sinceUtc`).
+- **Tests** (on `RegalisWorkSpace_PRODTEST`, a fresh copy of production): `testrun\smoke.mjs`
+  36/36, `testrun\crm-wifi.mjs` 21/21; a desk-paid day pass was issued Wi-Fi within seconds.
+- **Backups**: `C:\inetpub\wwwroot\Regalis_Prod_backup_20261120_1041_crm_wifi` and
+  `RegalisWorkSpace_PROD_20261120_1041_crm_wifi.bak`. To roll back: run `20261119180000_Wifi_Rollback.sql`
+  then `20261119120000_Crm_Rollback.sql`, and restore both folders.
+
 **Until UAT is brought up to the same build, `promote-uat-to-prod.cmd` refuses to run**
 (UAT's API is older). To bring UAT level: give an admin a login on the default instance,
 apply the same 8 migrations to `RegalisWorkSpace_UAT`, then copy `C:\RegalisBuild\publish`

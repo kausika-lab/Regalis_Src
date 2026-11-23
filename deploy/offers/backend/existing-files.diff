@@ -1,0 +1,160 @@
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs (as decompiled from api/, with the earlier kits' lines)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs
+@@ -128,6 +128,10 @@
+ 		services.AddScoped<Regalis.Application.Wifi.IWifiPortalService, Regalis.Infrastructure.Services.Wifi.WifiPortalService>();
+ 		services.AddScoped<WifiJobs>();
+ 		services.AddHostedService<WifiWorker>();
++		// Offers (offers kit, 23 Nov 2026).
++		services.AddScoped<Regalis.Infrastructure.Services.Offers.OfferEngine>();
++		services.AddScoped<Regalis.Application.Offers.IOfferAdminService, Regalis.Infrastructure.Services.Offers.OfferAdminService>();
++		services.AddScoped<Regalis.Application.Offers.IOfferPortalService, Regalis.Infrastructure.Services.Offers.OfferPortalService>();
+ 		services.AddScoped<IHousekeepingService, HousekeepingService>();
+ 		services.AddScoped<IMaintenanceService, MaintenanceService>();
+ 		services.AddHostedService<MaintenanceOverdueSweeper>();
+--- a/src/Regalis.Application/Regalis.Application.Finance/PassOrderRequest.cs (as decompiled from api/, with the earlier kits' lines)
++++ b/src/Regalis.Application/Regalis.Application.Finance/PassOrderRequest.cs
+@@ -1,3 +1,4 @@
+ namespace Regalis.Application.Finance;
+ 
+-public record PassOrderRequest(int PassPlanId);
++/// <summary>OfferIds (offers kit): offers the customer chose; priced into the order and kept for the purchase.</summary>
++public record PassOrderRequest(int PassPlanId, System.Collections.Generic.IReadOnlyList<int>? OfferIds = null);
+--- a/src/Regalis.Application/Regalis.Application.Finance/PurchasePassRequest.cs (as decompiled from api/, with the earlier kits' lines)
++++ b/src/Regalis.Application/Regalis.Application.Finance/PurchasePassRequest.cs
+@@ -2,4 +2,4 @@
+ 
+ namespace Regalis.Application.Finance;
+ 
+-public record PurchasePassRequest(int PassPlanId, DateOnly ValidFrom, string PaymentMethod, string? GatewayOrderId, string? GatewayPaymentId, string? GatewaySignature);
++public record PurchasePassRequest(int PassPlanId, DateOnly ValidFrom, string PaymentMethod, string? GatewayOrderId, string? GatewayPaymentId, string? GatewaySignature, System.Collections.Generic.IReadOnlyList<int>? OfferIds = null);
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/PassService.cs (as decompiled from api/, with the earlier kits' lines)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/PassService.cs
+@@ -139,6 +139,14 @@
+ 			throw new BusinessRuleException(passQuote.Reason);
+ 		}
+ 		decimal total = passQuote.Total;
++		// offers kit: the customer's chosen offers come off the price before GST (validated here,
++		// before any money moves) and are kept on the order for the purchase call.
++		Regalis.Infrastructure.Services.Offers.OfferEngine offerEngine = new Regalis.Infrastructure.Services.Offers.OfferEngine(db, settings, clock);
++		Regalis.Infrastructure.Services.Offers.OfferPassPrice? offerPrice = await offerEngine.PriceForPassAsync(currentUser.UserId, plan, passQuote.Taxable, (currentUser.UserType == UserType.Customer) ? request.OfferIds : null, ct);
++		if (offerPrice != null)
++		{
++			total = offerPrice.Total;
++		}
+ 		GatewayOrder order = await paymentGateway.CreateOrderAsync(total, "INR", "PASS-" + plan.PlanCode, ct);
+ 		Payment payment = new Payment();
+ 		Payment payment2 = payment;
+@@ -152,6 +160,11 @@
+ 		Payment payment3 = payment;
+ 		db.Payments.Add(payment3);
+ 		await db.SaveChangesAsync(ct);
++		if (offerPrice != null)
++		{
++			offerEngine.ReserveForOrder(offerPrice, currentUser.UserId, payment3.PaymentId);
++			await db.SaveChangesAsync(ct);
++		}
+ 		return new PaymentOrderResponse(payment3.PaymentId, payment3.PaymentNumber, order.OrderId, order.KeyId, total, "INR", paymentGateway.ProviderName);
+ 	}
+ 
+@@ -192,6 +205,22 @@
+ 		decimal total2 = total;
+ 		decimal sgst2 = sgst;
+ 		decimal cgst2 = cgst;
++		// offers kit: wallet / pay later / cash price the chosen offers now; an online payment uses the
++		// offers priced into its order (the money was taken at that price).
++		Regalis.Infrastructure.Services.Offers.OfferEngine offerEngine = new Regalis.Infrastructure.Services.Offers.OfferEngine(db, settings, clock);
++		Regalis.Infrastructure.Services.Offers.OfferPassPrice? offerPrice = (currentUser.UserType != UserType.Customer) ? null
++			: (request.PaymentMethod is "wallet" or "paylater" or "cash")
++				? await offerEngine.PriceForPassAsync(customerId, plan, taxable, request.OfferIds, ct)
++				: await offerEngine.ReservedForOrderAsync(customerId, plan, taxable, request.GatewayOrderId, ct);
++		decimal offerDiscount = 0m;
++		if (offerPrice != null)
++		{
++			offerDiscount = offerPrice.Discount;
++			taxable = offerPrice.Taxable;
++			cgst2 = offerPrice.Cgst;
++			sgst2 = offerPrice.Sgst;
++			total2 = offerPrice.Total;
++		}
+ 		bool isPayLater = request.PaymentMethod == "paylater";
+ 		if (isPayLater)
+ 		{
+@@ -315,6 +344,10 @@
+ 				CustomerPass pass = customerPass2;
+ 				db.CustomerPasses.Add(pass);
+ 				await db.SaveChangesAsync(ct);
++				if (offerPrice != null)
++				{
++					await offerEngine.RecordPassAsync(offerPrice, customerId, pass.CustomerPassId, payment2?.PaymentId, ct);
++				}
+ 				if (payment2 != null)
+ 				{
+ 					payment2.CustomerPassId = pass.CustomerPassId;
+@@ -328,7 +361,8 @@
+ 				invoice.LocationId = locationId;
+ 				invoice.InvoiceDate = invoiceDate;
+ 				invoice.DueDate = invoiceDate;
+-				invoice.SubTotal = taxable;
++				invoice.SubTotal = taxable + offerDiscount;
++				invoice.DiscountAmount = offerDiscount;
+ 				invoice.TaxableAmount = taxable;
+ 				invoice.CgstPercent = cgstPercent;
+ 				invoice.SgstPercent = sgstPercent;
+@@ -355,10 +389,10 @@
+ 				invoice6.Lines.Add(new InvoiceLine
+ 				{
+ 					LineNumber = 1,
+-					Description = $"{plan.PlanName} ({pass.PassNumber}) — valid {pass.ValidFrom:dd MMM yyyy} to {pass.ValidTo:dd MMM yyyy}" + ((quote.IsUpgrade && existing != null) ? $"; upgrade from {existing.PassNumber}: {plan.Price:0.00} less {quote.Credit:0.00} for its {quote.RemainingDays} unused day(s)" : ""),
++					Description = $"{plan.PlanName} ({pass.PassNumber}) — valid {pass.ValidFrom:dd MMM yyyy} to {pass.ValidTo:dd MMM yyyy}" + ((quote.IsUpgrade && existing != null) ? $"; upgrade from {existing.PassNumber}: {plan.Price:0.00} less {quote.Credit:0.00} for its {quote.RemainingDays} unused day(s)" : "") + ((offerPrice != null) ? ("; offer " + string.Join(", ", offerPrice.Calc.Lines.Select((Regalis.Infrastructure.Services.Offers.OfferLine l) => Regalis.Infrastructure.Services.Offers.OfferEngine.Label(l.Offer)))) : ""),
+ 					Quantity = 1m,
+-					UnitPrice = taxable,
+-					LineAmount = taxable,
++					UnitPrice = taxable + offerDiscount,
++					LineAmount = taxable + offerDiscount,
+ 					TaxPercent = cgstPercent + sgstPercent,
+ 					TaxAmount = cgst2 + sgst2,
+ 					TotalAmount = total2
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingService.cs (as decompiled from api/, with the earlier kits' lines)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingService.cs
+@@ -243,6 +243,11 @@
+ 						throw new BusinessRuleException(text, "PAY_LATER_NOT_ALLOWED");
+ 					}
+ 				}
++				if (!viaGateway)
++				{
++					// offers kit: an offer that ended after it was applied is not charged at the old price.
++					await Regalis.Infrastructure.Services.Offers.OfferEngine.EnsureBookingOffersValidAsync(db, clock.UtcNow, booking.BookingId, ct);
++				}
+ 				ConfirmBookingResponse result = await SettleAndFinalizeAsync(booking, request, ct);
+ 				await transaction.CommitAsync(ct);
+ 				result2 = result;
+@@ -584,7 +589,8 @@
+ 	{
+ 		decimal cgstPercent = await settings.GetDecimalAsync("Tax.CgstPercent", 9m, ct);
+ 		decimal sgstPercent = await settings.GetDecimalAsync("Tax.SgstPercent", 9m, ct);
+-		decimal cgstAmount = Math.Round(booking.BaseAmount * cgstPercent / 100m, 2, MidpointRounding.AwayFromZero);
++		// offers kit: GST is on the price after the discount (DiscountAmount is 0 without an offer).
++		decimal cgstAmount = Math.Round((booking.BaseAmount - booking.DiscountAmount) * cgstPercent / 100m, 2, MidpointRounding.AwayFromZero);
+ 		if (cgstAmount > booking.TaxAmount)
+ 		{
+ 			cgstAmount = booking.TaxAmount;
+@@ -644,7 +650,7 @@
+ 		{
+ 			description = $"Workspace booking {booking.BookingNumber} — {booking.Workspace.WorkspaceName} ({booking.Workspace.WorkspaceCode}), {startIst:dd MMM yyyy HH:mm}–{endIst:HH:mm} IST";
+ 		}
+-		invoiceLine.Description = description;
++		invoiceLine.Description = description + await Regalis.Infrastructure.Services.Offers.OfferEngine.InvoiceNoteAsync(db, booking.BookingId, ct);
+ 		invoiceLine.Quantity = ((decimal?)booking.BillingMonths) ?? Math.Round((decimal)booking.DurationMinutes / 60m, 3);
+ 		billingMonths = booking.BillingMonths;
+ 		decimal unitPrice;
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/PaymentService.cs (as decompiled from api/, with the earlier kits' lines)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/PaymentService.cs
+@@ -83,6 +83,8 @@
+ 		{
+ 			throw new BusinessRuleException("This booking is not awaiting payment.");
+ 		}
++		// offers kit: re-check the booking's offers on the server before the order is created.
++		await Regalis.Infrastructure.Services.Offers.OfferEngine.EnsureBookingOffersValidAsync(db, clock.UtcNow, booking.BookingId, ct);
+ 		GatewayOrder order = await paymentGateway.CreateOrderAsync(booking.TotalAmount, "INR", booking.BookingNumber, ct);
+ 		Payment payment = await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+ 		{

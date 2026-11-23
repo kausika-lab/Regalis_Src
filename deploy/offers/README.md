@@ -22,7 +22,7 @@ Product-owner decisions taken before building:
 | 1 | Offers Management module in the admin portal: create, edit, activate / deactivate, delete when safe, dates, discount, modules, minimum, maximum, code, description, terms | **Sales → Offers** (`/admin/offers`). The editor has every field in the brief. *Delete* is refused once a customer has used the offer ("Deactivate it instead"). |
 | 1 | Fields | Name (internal), title, description, banner picture, code, percentage / fixed, value, maximum discount, minimum purchase, modules, start and end dates, active, terms, display priority. Added: *Show on the customer portal* (off = the offer works only when its code is typed), *Can be combined*, *Uses per customer*, *Total uses*. |
 | 2 | Module targeting with checkboxes; several offers per module | One tick per module: My Bookings, Passes, Membership. Inside a module the admin can narrow the offer to specific **workspace types** (bookings) or **plans** (passes, memberships). With none ticked, it applies to all. |
-| 3 | My Bookings: offer cards; apply at booking / payment; original, discount and final amount; validate before confirming | Offer cards at the top of **My Bookings**, with a *Book a workspace* button. At **Book a Workspace → Review & pay** an offer picker covers hourly, multi-day and monthly bookings. The chosen offers are put on the held booking before paying. The server prices them, and the payment then charges the discounted total. |
+| 3 | My Bookings: offer cards; apply at booking / payment; original, discount and final amount; validate before confirming | No offer box on **My Bookings** (removed at the user's request, 23 Nov 2026). At **Book a Workspace → Review & pay** an offer picker covers hourly, multi-day and monthly bookings. The chosen offers are put on the held booking before paying. The server prices them, and the payment then charges the discounted total. |
 | 4 | Passes: the same; excluded passes refused | Cards on **Book Pass**, and a picker under the price. The offer ids go on the existing `/passes/order` and `/passes/purchase` calls. A plan outside the offer's list is refused on the server. |
 | 5 | Membership: the same | Cards on **Membership**, and a picker at *3 · Payment*. The order summary shows the offer row and the new total. A Virtual Office bought from *Book a Workspace* is a membership plan, so it gets the Membership picker. |
 | 6 | Cards / badges, discount prominent, validity, terms, code with Copy, design system, responsive, no clutter | The cards use the app's tokens and components: a black-and-gold deal badge, validity, rules, a code chip with *Copy*, and expandable terms. They scroll sideways on a phone. If no offer is live in a module, nothing is shown. The picker sits above the pay buttons, and *Have an offer code?* is a single link until it is opened. |
@@ -111,7 +111,7 @@ Customer (`api/offers`, signed in; preview and apply are for customers only):
   - `PaymentService.CreateOrderAsync`: re-check before an online order.
 - **Frontend:** `frontend/apply.mjs`. It is idempotent and expects the wifi kit's patches, which are in the repo. It has already been run on the repo `frontend/`.
   - Copies `assets/OffersKit-OF1.js` (cards, picker, apply call) and `assets/OffersAdminPage-OF1.js`.
-  - Patches `index-DI5X4c9f.js` (route, icon) and `MyBookingsPage`, `BookWorkspacePage`, `PassesPage`, `MembershipPage` (cards, picker, totals, offer ids).
+  - Patches `index-DI5X4c9f.js` (route, icon) and `BookWorkspacePage`, `PassesPage`, `MembershipPage` (cards, picker, totals, offer ids).
   - Patches `sw.js` (revision `offers-1`).
 - **Tests:** `tests/e2e_offers.py`, `tests/ui_offers.py`.
 
@@ -150,7 +150,7 @@ Results:
   - Delete refused when used and allowed when unused; code reuse after delete.
   - The picture: upload, anonymous download, a renamed file refused.
   - Purchases **without** offers unchanged (booking 236.00, pass 944.00, invoices with discount 0), and existing endpoints still answer.
-- `tests/ui_offers.py` (headless Chrome, 1366 px and 390 px): **44/44**. It covers:
+- `tests/ui_offers.py` (headless Chrome, 1366 px and 390 px): **40/40**. It covers:
   - Admin: create an offer through the editor (field messages, picture), deactivate / activate, the Uses dialog, card filters, the phone layout.
   - Customer: cards on My Bookings / Passes / Membership (picture, code, terms).
   - A Meeting Room booked through the wizard with the offer: ₹944.00 → ₹849.60, paid from the wallet, checked in SQL.

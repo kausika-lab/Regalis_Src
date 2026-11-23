@@ -7,7 +7,6 @@
 //
 // Existing behaviour is untouched when no offer is chosen; every edit only ADDS:
 //   index-DI5X4c9f.js            admin route /admin/offers (OFFER.VIEW) and the BadgePercent sidebar icon
-//   MyBookingsPage-Jm2rP9kD.js   offer cards for My Bookings under the page header
 //   BookWorkspacePage-MB2.js     offer picker at "Review & pay" (bookings, and Virtual Office as a
 //                                membership); the chosen offers go on the held booking(s) before paying
 //   PassesPage-CxAkHUg-.js       offer cards + picker; offer ids on /passes/order and /passes/purchase
@@ -19,7 +18,7 @@ import { fileURLToPath } from "url";
 
 const front = process.argv[2];
 if (!front) throw new Error("usage: node apply.mjs <frontend dir>");
-const REV = "offers-3";
+const REV = "offers-4";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const A = (f) => path.join(front, "assets", f);
 const changed = new Set();
@@ -69,13 +68,6 @@ patch("index-DI5X4c9f.js", [
   ["admin route /admin/offers", WIFI_ROUTE, WIFI_ROUTE + 'g.jsx(P,{element:g.jsx(Ne,{permission:"OFFER.VIEW"}),children:g.jsx(P,{path:"/admin/offers",element:g.jsx(RGoffersAdmin,{})})}),'],
   ["BadgePercent icon", 'RGwifi=Oe("wifi",RG_wifi);', 'RGwifi=Oe("wifi",RG_wifi);' + ICON],
   ["BadgePercent icon name", "Wifi:RGwifi}", "Wifi:RGwifi,BadgePercent:RGbadgePct}"]
-]);
-
-// ---- My Bookings: offer cards -----------------------------------------------------------------
-const MB_HEAD = 'e.jsx($,{title:"My Bookings",description:"Cancellations before the 24-hour cutoff refund fully to your wallet."}),';
-patch("MyBookingsPage-Jm2rP9kD.js", [
-  ["import", 'import{b as I}from"./bookings-DrKATIWm.js";', 'import{b as I}from"./bookings-DrKATIWm.js";import{OfferStrip as RGofferStrip}from"./OffersKit-OF1.js";'],
-  ["offer cards", MB_HEAD, MB_HEAD + 'e.jsx(RGofferStrip,{module:"booking",heading:"Booking offers",ctaLabel:"Book a workspace",ctaTo:"/book"}),']
 ]);
 
 // ---- Book a workspace (bookings + Virtual Office) ------------------------------------------------
@@ -219,7 +211,7 @@ patch("MembershipPage-Bk9mQr2v.js", [
 // ---- sw.js -------------------------------------------------------------------------------------
 const swf = path.join(front, "sw.js");
 let sw = fs.readFileSync(swf, "utf8");
-const KIT = [...NEW_FILES, "index-DI5X4c9f.js", "MyBookingsPage-Jm2rP9kD.js", "BookWorkspacePage-MB2.js", "PassesPage-CxAkHUg-.js", "MembershipPage-Bk9mQr2v.js"];
+const KIT = [...NEW_FILES, "index-DI5X4c9f.js", "BookWorkspacePage-MB2.js", "PassesPage-CxAkHUg-.js", "MembershipPage-Bk9mQr2v.js"];
 for (const f of new Set([...changed, ...KIT])) {
   const url = `assets/${f}`;
   const re = new RegExp(`\\{url:"${url.replace(/[.\-]/g, (c) => "\\" + c)}",revision:(null|"[^"]*")\\}`);

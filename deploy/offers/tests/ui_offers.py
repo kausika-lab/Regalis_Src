@@ -223,15 +223,7 @@ js("(() => {" + SET + f"setv(document.querySelector('input[type=email]'),{json.d
 drain(5)
 n2 = len(events)
 go("/bookings", 5)
-t = text()
-check("My Bookings: offer cards with title, deal, code, validity", "Booking offers" in t and "25% off this week" in t and "25% OFF" in t and f"UITEN{RUN}" in t and "Valid till" in t, t[:700])
-check("offer card shows the picture (served to the browser as an image)", js("(async () => { const i=[...document.querySelectorAll('.of-card img')].find(i=>i.src.includes('/api/offers/%s/image')); if(!i) return false; const r=await fetch(i.src); if(!(r.ok && (r.headers.get('content-type')||'').startsWith('image/'))) return false; i.scrollIntoView(); await i.decode(); return i.naturalWidth === 480 })()" % OID))
-check("code has a Copy button; terms expand", js("!!document.querySelector('.of-code button')") and js("!!document.querySelector('.of-terms summary')"))
-check("hidden code-only offer is not listed", "Members: Rs 300 off" not in t)
-shot("my_bookings_offers_desktop")
-viewport(390); go("/bookings", 4)
-check("phone: My Bookings with offers fits", no_hscroll())
-shot("my_bookings_offers_phone")
+check("My Bookings: no offer box (offers apply at checkout instead)", not js("!!document.querySelector('[data-rg=offer-strip]')") and "Booking offers" not in text(), text()[:400])
 viewport(1366)
 
 # hourly desk booking through the wizard

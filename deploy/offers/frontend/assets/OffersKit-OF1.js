@@ -48,6 +48,8 @@ const CSS = `
 .of-opt:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .of-opt--on{border-color:var(--accent);background:rgb(var(--accent-rgb) / 12%)}
 .of-opt--off{cursor:not-allowed;opacity:.62}
+.of-opt--static{cursor:default}
+.of-pick--quiet{border:0;background:none;padding:0}
 .of-opt__tick{flex:none;width:18px;height:18px;border-radius:50%;border:2px solid var(--border-strong);margin-top:2px;display:grid;place-items:center;font-size:11px;font-weight:900;color:var(--regalis-black)}
 .of-opt--on .of-opt__tick{background:var(--accent);border-color:var(--accent)}
 .of-opt__main{flex:1;min-width:0}
@@ -296,85 +298,62 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
       setBusy(false);
     }
   };
-  const toggle = (row) => {
-    if (disabled || busy || !row.eligible) return;
-    const id = row.offer.offerId;
-    if (sel.includes(id)) return choose(sel.filter((x) => x !== id));
-    /* An offer that cannot be combined replaces the current choice; combinable ones add up. */
-    const current = (data?.offers || []).filter((r) => sel.includes(r.offer.offerId));
-    const keep = row.offer.canCombine && current.every((r) => r.offer.canCombine) ? sel : [];
-    return choose([...keep, id]);
-  };
   const applyCode = async () => {
     const c = code.trim();
     if (!c) return;
-    if (await choose(sel, c)) {
+    if (await choose([], c)) {
       setCode("");
       setShowCode(false);
     }
   };
 
   if (!ready || !data) return null;
-  const rows = data.offers || [];
   const applied = data.applied || [];
-  const anyListed = rows.length > 0;
+  const byId = Object.fromEntries((data.offers || []).map((r) => [r.offer.offerId, r.offer]));
+  const codeForm = showCode
+    ? el(
+        "div",
+        { className: "of-codeform" },
+        el(Input, {
+          label: "Offer code",
+          value: code,
+          maxLength: 30,
+          placeholder: "Enter code",
+          autoComplete: "off",
+          onChange: (e) => setCode(e.target.value.toUpperCase()),
+          onKeyDown: (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              applyCode();
+            }
+          }
+        }),
+        el(Button, { variant: "outline", disabled: disabled || busy || !code.trim(), loading: busy && !!code.trim(), onClick: applyCode }, "Apply")
+      )
+    : el("button", { type: "button", className: "of-link", style: { marginTop: "var(--space-2)" }, onClick: () => setShowCode(true) }, "Have an offer code?");
+  /* No offer for this purchase: only the small code link, nothing to choose. */
+  if (applied.length === 0)
+    return el("div", { className: "of-pick of-pick--quiet", "data-rg": "offer-picker" }, codeForm, msg ? el("div", { className: "of-msg", role: "alert" }, msg) : null);
+  /* Applied automatically by the server (the best saving); shown, not chosen. */
   return el(
     "div",
     { className: "of-pick", "data-rg": "offer-picker", "aria-busy": busy ? "true" : "false" },
+    el("div", { className: "of-pick__h" }, el("span", null, applied.length > 1 ? "Offers applied" : "Offer applied")),
     el(
       "div",
-      { className: "of-pick__h" },
-      el("span", null, applied.length ? (touched.current ? "Offer applied" : "Best offer applied for you") : anyListed ? "Offers" : "Offer code"),
-      applied.length ? el("button", { type: "button", className: "of-link", disabled: disabled || busy, onClick: () => choose([]) }, applied.length > 1 ? "Remove offers" : "Remove offer") : null
+      { className: "of-pick__list" },
+      applied.map((a) => {
+        const o = byId[a.offerId] || { title: a.title, code: a.code };
+        const sub = [o.code ? `Code ${o.code}` : null, o.endDate ? `Valid till ${day(o.endDate)}` : null].filter(Boolean).join(" · ");
+        return el(
+          "div",
+          { key: a.offerId, className: "of-opt of-opt--on of-opt--static", "data-offer": a.offerId, "data-applied": "true" },
+          el("span", { className: "of-opt__main" }, el("div", { className: "of-opt__title" }, o.title || a.title), sub ? el("div", { className: "of-opt__sub" }, sub) : null),
+          el("span", { className: "of-opt__deal" }, o.discountType ? dealText(o) : "− " + money(a.discountAmount))
+        );
+      })
     ),
-    anyListed
-      ? el(
-          "div",
-          { className: "of-pick__list", role: "group", "aria-label": "Available offers" },
-          rows.map((r) => {
-            const on = sel.includes(r.offer.offerId);
-            const o = r.offer;
-            const sub = r.eligible ? [o.code ? `Code ${o.code}` : null, ruleText(o) || null, `Valid till ${day(o.endDate)}`].filter(Boolean).join(" · ") : r.reason;
-            return el(
-              "button",
-              {
-                key: o.offerId,
-                type: "button",
-                className: `of-opt${on ? " of-opt--on" : ""}${r.eligible ? "" : " of-opt--off"}`,
-                "aria-pressed": on ? "true" : "false",
-                "aria-disabled": r.eligible ? "false" : "true",
-                "data-offer": o.offerId,
-                disabled: disabled || busy,
-                onClick: () => toggle(r)
-              },
-              el("span", { className: "of-opt__tick", "aria-hidden": "true" }, on ? "✓" : ""),
-              el("span", { className: "of-opt__main" }, el("div", { className: "of-opt__title" }, o.title), el("div", { className: "of-opt__sub" }, sub)),
-              el("span", { className: "of-opt__deal" }, dealText(o))
-            );
-          })
-        )
-      : null,
-    showCode || !anyListed
-      ? el(
-          "div",
-          { className: "of-codeform" },
-          el(Input, {
-            label: "Offer code",
-            value: code,
-            maxLength: 30,
-            placeholder: "Enter code",
-            autoComplete: "off",
-            onChange: (e) => setCode(e.target.value.toUpperCase()),
-            onKeyDown: (e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                applyCode();
-              }
-            }
-          }),
-          el(Button, { variant: "outline", disabled: disabled || busy || !code.trim(), loading: busy && !!code.trim(), onClick: applyCode }, "Apply")
-        )
-      : el("button", { type: "button", className: "of-link", style: { marginTop: "var(--space-2)" }, onClick: () => setShowCode(true) }, "Have an offer code?"),
+    codeForm,
     msg ? el("div", { className: "of-msg", role: "alert" }, msg) : null,
     applied.length
       ? el(

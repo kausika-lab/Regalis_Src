@@ -33,6 +33,7 @@ Product-owner decisions taken before building:
 
 ## Rules
 
+- **Applied automatically** (user request, 23 Nov 2026). At *Review & pay* the server picks the eligible listed offer that saves the customer the most. If several combinable offers together save more, it picks those instead (`POST /api/offers/preview` with `auto: true`). The customer does not have to tap anything. *Remove offer* takes it off, and it stays off for that purchase. Another offer can still be picked, or a code typed. Code-only offers are never applied automatically.
 - **Shown** only when the offer is active and today (IST) is inside its start and end dates, inclusive. It must be ticked for the module and have *Show on the customer portal* on. A code-only offer is applied by typing its code.
 - **Discount**:
   - A percentage is rounded to the paisa and capped at the maximum.
@@ -133,7 +134,7 @@ How it was installed:
 
 Results:
 
-- `tests/e2e_offers.py` (API + SQL): **107/107**. It covers:
+- `tests/e2e_offers.py` (API + SQL): **110/110**. It covers:
   - Permissions and menus (Sales can view but not change; customers kept apart; staff cannot apply customer offers).
   - Validation, including a duplicate code in any case.
   - Overview counts, search, filters, sort and pages.
@@ -149,7 +150,7 @@ Results:
   - Delete refused when used and allowed when unused; code reuse after delete.
   - The picture: upload, anonymous download, a renamed file refused.
   - Purchases **without** offers unchanged (booking 236.00, pass 944.00, invoices with discount 0), and existing endpoints still answer.
-- `tests/ui_offers.py` (headless Chrome, 1366 px and 390 px): **42/42**. It covers:
+- `tests/ui_offers.py` (headless Chrome, 1366 px and 390 px): **45/45**. It covers:
   - Admin: create an offer through the editor (field messages, picture), deactivate / activate, the Uses dialog, card filters, the phone layout.
   - Customer: cards on My Bookings / Passes / Membership (picture, code, terms).
   - A Meeting Room booked through the wizard with the offer: ₹944.00 → ₹849.60, paid from the wallet, checked in SQL.

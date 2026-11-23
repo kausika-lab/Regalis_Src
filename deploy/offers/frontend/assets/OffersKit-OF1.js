@@ -95,7 +95,8 @@ export function ruleText(o) {
   const parts = [];
   if (o.discountType === 1 && o.maxDiscountAmount) parts.push(`Up to ${short(o.maxDiscountAmount)} off`);
   if (o.minAmount) parts.push(`On ${short(o.minAmount)} or more (before GST)`);
-  if (o.appliesTo && o.appliesTo.length) parts.push(`For ${o.appliesTo.join(", ")}`);
+  if (o.appliesTo && o.appliesTo.length)
+    parts.push(o.appliesTo.length <= 3 ? `For ${o.appliesTo.join(", ")}` : `For ${o.appliesTo.slice(0, 2).join(", ")} and ${o.appliesTo.length - 2} more`);
   if (o.usesLeft !== null && o.usesLeft !== void 0) parts.push(o.usesLeft === 0 ? "Already used" : `${o.usesLeft} use${o.usesLeft === 1 ? "" : "s"} left for you`);
   return parts.join(" · ");
 }
@@ -206,6 +207,9 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
   const [msg, setMsg] = React.useState("");
   const [code, setCode] = React.useState("");
   const [showCode, setShowCode] = React.useState(false);
+  /* Offers apply by themselves (the best one for this purchase); once the customer removes or
+     changes them, their choice is kept. */
+  const touched = React.useRef(false);
   const cb = React.useRef(onChange);
   cb.current = onChange;
   const ready = module === "booking" ? Array.isArray(baseAmounts) && baseAmounts.length > 0 : !!passPlanId;
@@ -219,12 +223,13 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
           : null
       );
   };
-  const preview = (ids, typed) =>
+  const preview = (ids, typed, auto = false) =>
     unwrap(
       http.post("/offers/preview", {
         module,
         offerIds: ids,
         code: typed || null,
+        auto,
         passPlanId,
         workspaceId,
         baseAmounts: module === "booking" ? baseAmounts : null
@@ -243,16 +248,15 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
     publish(null); /* nothing is charged at an old discount while the new purchase is priced */
     (async () => {
       try {
-        let d = await preview(sel, null);
+        const auto = !touched.current;
+        let d = await preview(auto ? [] : sel, null, auto);
         if (d.error && sel.length) {
           const why = d.error;
           d = await preview([], null);
-          if (!dead) {
-            setSel([]);
-            setMsg(`Offer removed: ${why}`);
-          }
+          if (!dead) setMsg(`Offer removed: ${why}`);
         }
         if (!dead) {
+          setSel((d.applied || []).map((a) => a.offerId));
           setData(d);
           publish(d);
         }
@@ -271,6 +275,7 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
   }, [ctx]);
 
   const choose = async (ids, typed) => {
+    touched.current = true;
     setBusy(true);
     setMsg("");
     try {
@@ -319,8 +324,8 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
     el(
       "div",
       { className: "of-pick__h" },
-      el("span", null, anyListed ? "Offers" : "Offer code"),
-      applied.length ? el("button", { type: "button", className: "of-link", disabled: disabled || busy, onClick: () => choose([]) }, "Remove offer") : null
+      el("span", null, applied.length ? (touched.current ? "Offer applied" : "Best offer applied for you") : anyListed ? "Offers" : "Offer code"),
+      applied.length ? el("button", { type: "button", className: "of-link", disabled: disabled || busy, onClick: () => choose([]) }, applied.length > 1 ? "Remove offers" : "Remove offer") : null
     ),
     anyListed
       ? el(

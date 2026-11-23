@@ -108,6 +108,10 @@ public class OfferPortalService(RegalisDbContext db, OfferEngine engine, ISettin
 
 		(decimal cg, decimal sg) = await engine.TaxPercentsAsync(ct);
 		OfferCalculation none = OfferEngine.NoOffer(bases, cg, sg);
+		if (request.Auto && selected.Count == 0 && code.Length == 0)
+		{
+			selected = BestSet(listed.Where(o => o.ShowInPortal && reasons[o.OfferId] == null).ToList(), bases, cg, sg);
+		}
 		OfferCalculation calc = none;
 		if (error == null && selected.Count > 0)
 		{
@@ -126,6 +130,27 @@ public class OfferPortalService(RegalisDbContext db, OfferEngine engine, ISettin
 			calc.Base, calc.Discount, calc.Taxable, cg, calc.Cgst, sg, calc.Sgst, calc.Total, none.Total,
 			calc.Items.Select(i => new OfferPriceItemDto(i.Base, i.Discount, i.Taxable, i.Cgst, i.Sgst, i.Total)).ToList(),
 			codeOfferId, error);
+	}
+
+	/// <summary>The eligible offers that save the customer the most on this purchase: the best single
+	/// offer, or all the combinable ones together when that saves more. Ties go to display priority.</summary>
+	private static List<int> BestSet(List<Offer> eligible, List<decimal> bases, decimal cg, decimal sg)
+	{
+		if (eligible.Count == 0)
+		{
+			return new List<int>();
+		}
+		var candidates = eligible.Select(o => new List<Offer> { o }).ToList();
+		List<Offer> combinable = eligible.Where(o => o.CanCombine).ToList();
+		if (combinable.Count > 1)
+		{
+			candidates.Add(combinable);
+		}
+		List<Offer> best = candidates
+			.Select((set, i) => (set, i, saving: OfferEngine.Price(set, bases, cg, sg).Discount))
+			.OrderByDescending(x => x.saving).ThenBy(x => x.i)
+			.First().set;
+		return best.Select(o => o.OfferId).ToList();
 	}
 
 	/// <summary>What is being bought: the plan / workspace type it is narrowed by, and the price

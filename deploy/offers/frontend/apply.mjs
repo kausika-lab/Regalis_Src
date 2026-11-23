@@ -19,7 +19,7 @@ import { fileURLToPath } from "url";
 
 const front = process.argv[2];
 if (!front) throw new Error("usage: node apply.mjs <frontend dir>");
-const REV = "offers-1";
+const REV = "offers-2";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const A = (f) => path.join(front, "assets", f);
 const changed = new Set();

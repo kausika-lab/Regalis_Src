@@ -45,8 +45,10 @@ public record PortalOfferDto(int OfferId, string Title, string? Description, str
 
 /// <summary>Module: "booking" | "pass" | "membership". For a booking give WorkspaceId and the price
 /// before GST of each booking (one per day of a multi-day range); for a pass or membership give
-/// PassPlanId (the server prices the plan). Code: a typed code, added to OfferIds when valid.</summary>
-public record OfferPreviewRequest(string? Module, IReadOnlyList<int>? OfferIds, string? Code, int? PassPlanId, int? WorkspaceId, IReadOnlyList<decimal>? BaseAmounts);
+/// PassPlanId (the server prices the plan). Code: a typed code, added to OfferIds when valid.
+/// Auto: with no OfferIds and no Code, the server picks the best eligible listed offer (or the best
+/// set of combinable ones) for this purchase, so offers apply without the customer choosing.</summary>
+public record OfferPreviewRequest(string? Module, IReadOnlyList<int>? OfferIds, string? Code, int? PassPlanId, int? WorkspaceId, IReadOnlyList<decimal>? BaseAmounts, bool Auto = false);
 
 public record OfferAppliedDto(int OfferId, string Title, string? Code, decimal DiscountAmount);
 

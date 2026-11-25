@@ -22,6 +22,22 @@ import {
   Z as PASS,
 } from "./index-DI5X4c9f.js";
 import { a as ae, i as Ne, b as k, p as se } from "./bookings-DrKATIWm.js";
+import { OfferPicker as RGofferPicker, applyBookingOffers as RGapplyOffers } from "./OffersKit-OF1.js";
+/* offers kit: put the chosen offers on the held booking(s) before paying. If the server refuses
+   (the offer ended or no longer applies) the holds are released, so the slot is free to book again. */
+const RGwithOffers = async (ids, offer) => {
+  if (!offer || !offer.offerIds || offer.offerIds.length === 0) return;
+  try {
+    await RGapplyOffers(ids, offer.offerIds);
+  } catch (err) {
+    for (const id of ids) {
+      try {
+        await Be.cancel(id, "The offer could not be applied");
+      } catch (e2) {}
+    }
+    throw err;
+  }
+};
 import { C } from "./Card-CNXipofE.js";
 import { E } from "./EmptyState-B4UbbVj4.js";
 import { P as Ie } from "./PageHeader-Y96MMVry.js";
@@ -213,6 +229,7 @@ function Ee() {
   const [voPlans, setVoPlans] = a.useState(null);
   const [voPlan, setVoPlan] = a.useState(null);
   const [voDone, setVoDone] = a.useState(null);
+  const [RGoffer, RGsetOffer] = a.useState(null);
   /* PAY_LATER: may this customer pay at the front desk (deploy/pay-later). */
   const [payLater, setPayLater] = a.useState(null);
   a.useEffect(() => {
@@ -718,6 +735,7 @@ function Ee() {
     N(method);
     try {
       const t = await k.hold(d.workspaceId, i, m);
+      await RGwithOffers([t.bookingId], RGoffer);
       F(await settle(t.bookingId, method));
       r("done");
     } catch (t) {
@@ -739,6 +757,7 @@ function Ee() {
           months: mMonths,
         }),
       );
+      await RGwithOffers([t.bookingId], RGoffer);
       F(await settle(t.bookingId, method));
       r("done");
     } catch (t) {
@@ -792,6 +811,13 @@ function Ee() {
       N(null);
       return;
     }
+    try {
+      await RGwithOffers(holds.map((held) => held.bookingId), RGoffer);
+    } catch (t) {
+      (await V(t)) || o.error(t instanceof y ? t.message : "The offer could not be applied. Nothing was charged.");
+      N(null);
+      return;
+    }
     const done = [];
     try {
       for (const held of holds) done.push(await settle(held.bookingId, method));
@@ -828,9 +854,10 @@ function Ee() {
           passPlanId: voPlan.passPlanId,
           validFrom: b,
           paymentMethod: method,
+          offerIds: RGoffer ? RGoffer.offerIds : null,
         });
       else {
-        const ord = await PASS.order(voPlan.passPlanId);
+        const ord = await fe(je.post("/passes/order", { passPlanId: voPlan.passPlanId, offerIds: RGoffer ? RGoffer.offerIds : null }));
         const paid = await se.sandboxComplete(ord.gatewayOrderId);
         res = await PASS.purchase({
           passPlanId: voPlan.passPlanId,
@@ -868,7 +895,9 @@ function Ee() {
         { key: "done", label: "4 · Confirmed" },
       ];
   const Z = isCustom && cDone ? 1 : X.findIndex((t) => t.key === f);
-  const payTotal = isVO
+  const payTotal = RGoffer
+    ? RGoffer.total
+    : isVO
     ? (voPlan?.totalAmount ?? null)
     : (n?.totalAmount ?? null);
   const U = a.useMemo(
@@ -1366,11 +1395,12 @@ function Ee() {
                     className: "summary-total",
                     children: [
                       e.jsx("span", { children: "Total" }),
-                      e.jsx("span", { children: PR(voPlan.totalAmount) }),
+                      RGoffer ? e.jsxs("span", { children: [e.jsx("span", { className: "of-strike", children: PR(voPlan.totalAmount) }), PR(RGoffer.total)] }) : e.jsx("span", { children: PR(voPlan.totalAmount) }),
                     ],
                   }),
                 ],
               }),
+              e.jsx(RGofferPicker, { module: "membership", passPlanId: voPlan.passPlanId, disabled: S !== null, onChange: RGsetOffer }),
               e.jsxs("div", {
                 className: "pay-options",
                 children: [
@@ -1580,7 +1610,7 @@ function Ee() {
                     className: "summary-total",
                     children: [
                       e.jsx("span", { children: "Total" }),
-                      e.jsx("span", { children: PR(n.totalAmount) }),
+                      RGoffer ? e.jsxs("span", { children: [e.jsx("span", { className: "of-strike", children: PR(n.totalAmount) }), PR(RGoffer.total)] }) : e.jsx("span", { children: PR(n.totalAmount) }),
                     ],
                   }),
                 ],
@@ -1609,6 +1639,7 @@ function Ee() {
                     ),
                   ),
                 }),
+              e.jsx(RGofferPicker, { module: "booking", workspaceId: d ? d.workspaceId : null, baseAmounts: n ? (n.multi ? n.quotes.map((qq) => qq.baseAmount) : [n.baseAmount]) : null, disabled: S !== null, onChange: RGsetOffer }),
               e.jsxs("div", {
                 className: "pay-options",
                 children: [

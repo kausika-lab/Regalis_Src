@@ -9,6 +9,7 @@
  * hard-coded here. Hand-maintained chunk, imported by the patched page chunks (see apply.mjs).
  */
 import { r as React, j as X, p as Button, I as Input, D as unwrap, E as http, A as ApiError, u as useNavigate } from "./index-DI5X4c9f.js";
+import { previewCoupon as RGpreviewCoupon, CouponChips as RGcouponChips, couponDeal as RGcouponDeal } from "./CouponsKit-CP1.js";
 
 function el(type, props, ...kids) {
   const p = props ? { ...props } : {};
@@ -212,6 +213,9 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
   /* Offers apply by themselves (the best one for this purchase); once the customer removes or
      changes them, their choice is kept. */
   const touched = React.useRef(false);
+  /* coupons kit: the coupon in use (it replaces the automatic offer), and why a typed code is unknown. */
+  const couponRef = React.useRef(null);
+  const notFound = React.useRef(null);
   const cb = React.useRef(onChange);
   cb.current = onChange;
   const ready = module === "booking" ? Array.isArray(baseAmounts) && baseAmounts.length > 0 : !!passPlanId;
@@ -221,7 +225,7 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
     cb.current &&
       cb.current(
         applied.length
-          ? { offerIds: applied.map((a) => a.offerId), discount: d.discountAmount, total: d.totalAmount, original: d.originalTotal, applied }
+          ? { offerIds: d.coupon ? [] : applied.map((a) => a.offerId), couponCode: d.coupon ? d.coupon.code : null, discount: d.discountAmount, total: d.totalAmount, original: d.originalTotal, applied }
           : null
       );
   };
@@ -237,6 +241,7 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
         baseAmounts: module === "booking" ? baseAmounts : null
       })
     );
+  const couponBody = (c) => ({ module, code: c, passPlanId, workspaceId, baseAmounts: module === "booking" ? baseAmounts : null });
 
   /* New purchase context: keep the choice if it still applies there, otherwise drop it. */
   React.useEffect(() => {
@@ -250,6 +255,20 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
     publish(null); /* nothing is charged at an old discount while the new purchase is priced */
     (async () => {
       try {
+        if (couponRef.current) {
+          const cp = await RGpreviewCoupon(couponBody(couponRef.current));
+          if (cp.valid) {
+            if (!dead) {
+              setSel([]);
+              setData(cp);
+              publish(cp);
+            }
+            return;
+          }
+          couponRef.current = null;
+          touched.current = false;
+          if (!dead) setMsg(`Coupon removed: ${cp.error}`);
+        }
         const auto = !touched.current;
         let d = await preview(auto ? [] : sel, null, auto);
         if (d.error && sel.length) {
@@ -276,16 +295,17 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
     };
   }, [ctx]);
 
-  const choose = async (ids, typed) => {
+  const choose = async (ids, typed, unknown) => {
     touched.current = true;
     setBusy(true);
     setMsg("");
     try {
       const d = await preview(ids, typed);
       if (d.error) {
-        setMsg(d.error);
+        setMsg(unknown && /^No offer matches/.test(d.error) ? unknown : d.error);
         return false;
       }
+      couponRef.current = null;
       const applied = d.applied.map((a) => a.offerId);
       setSel(applied);
       setData(d);
@@ -298,10 +318,60 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
       setBusy(false);
     }
   };
+  /* coupons kit: true when the code is a coupon (applied, or refused with the reason); false when no
+     coupon has it, so it is tried as an offer code as before. */
+  const tryCoupon = async (c) => {
+    setBusy(true);
+    setMsg("");
+    try {
+      const cp = await RGpreviewCoupon(couponBody(c));
+      if (!cp.found) {
+        notFound.current = cp.error;
+        return false;
+      }
+      if (!cp.valid) {
+        setMsg(cp.error);
+        return true;
+      }
+      couponRef.current = cp.coupon.code;
+      setSel([]);
+      setData(cp);
+      publish(cp);
+      setCode("");
+      setShowCode(false);
+      return true;
+    } catch (e) {
+      setMsg(errMsg(e, "Could not check the coupon. Try again."));
+      return true;
+    } finally {
+      setBusy(false);
+    }
+  };
+  const removeCoupon = async () => {
+    couponRef.current = null;
+    touched.current = false;
+    setMsg("");
+    setBusy(true);
+    try {
+      const d = await preview([], null, true);
+      setSel((d.applied || []).map((a) => a.offerId));
+      setData(d);
+      publish(d);
+    } catch (e) {
+      setData(null);
+      publish(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const pickCoupon = async (c) => {
+    if (!(await tryCoupon(c))) setMsg(notFound.current || "This coupon is not available any more.");
+  };
   const applyCode = async () => {
     const c = code.trim();
     if (!c) return;
-    if (await choose([], c)) {
+    if (await tryCoupon(c)) return;
+    if (await choose([], c, notFound.current)) {
       setCode("");
       setShowCode(false);
     }
@@ -315,7 +385,7 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
         "div",
         { className: "of-codeform" },
         el(Input, {
-          label: "Offer code",
+          label: "Coupon or offer code",
           value: code,
           maxLength: 30,
           placeholder: "Enter code",
@@ -330,15 +400,15 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
         }),
         el(Button, { variant: "outline", disabled: disabled || busy || !code.trim(), loading: busy && !!code.trim(), onClick: applyCode }, "Apply")
       )
-    : el("button", { type: "button", className: "of-link", style: { marginTop: "var(--space-2)" }, onClick: () => setShowCode(true) }, "Have an offer code?");
+    : el("button", { type: "button", className: "of-link", style: { marginTop: "var(--space-2)" }, onClick: () => setShowCode(true) }, "Have a coupon or offer code?");
   /* No offer for this purchase: only the small code link, nothing to choose. */
   if (applied.length === 0)
-    return el("div", { className: "of-pick of-pick--quiet", "data-rg": "offer-picker" }, codeForm, msg ? el("div", { className: "of-msg", role: "alert" }, msg) : null);
+    return el("div", { className: "of-pick of-pick--quiet", "data-rg": "offer-picker" }, codeForm, el(RGcouponChips, { module, disabled: disabled || busy, onPick: pickCoupon }), msg ? el("div", { className: "of-msg", role: "alert" }, msg) : null);
   /* Applied automatically by the server (the best saving); shown, not chosen. */
   return el(
     "div",
     { className: "of-pick", "data-rg": "offer-picker", "aria-busy": busy ? "true" : "false" },
-    el("div", { className: "of-pick__h" }, el("span", null, applied.length > 1 ? "Offers applied" : "Offer applied")),
+    el("div", { className: "of-pick__h" }, el("span", null, data.coupon ? "Coupon applied" : applied.length > 1 ? "Offers applied" : "Offer applied")),
     el(
       "div",
       { className: "of-pick__list" },
@@ -349,11 +419,15 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
           "div",
           { key: a.offerId, className: "of-opt of-opt--on of-opt--static", "data-offer": a.offerId, "data-applied": "true" },
           el("span", { className: "of-opt__main" }, el("div", { className: "of-opt__title" }, o.title || a.title), sub ? el("div", { className: "of-opt__sub" }, sub) : null),
-          el("span", { className: "of-opt__deal" }, o.discountType ? dealText(o) : "− " + money(a.discountAmount))
+          el("span", { className: "of-opt__deal" }, data.coupon && a.offerId === 0 ? RGcouponDeal(data.coupon) : o.discountType ? dealText(o) : "− " + money(a.discountAmount))
         );
       })
     ),
+    data.coupon
+      ? el("button", { type: "button", className: "of-link", "data-rg": "coupon-remove", disabled: disabled || busy, style: { marginTop: "var(--space-2)", marginRight: "var(--space-3)" }, onClick: removeCoupon }, "Remove coupon")
+      : null,
     codeForm,
+    el(RGcouponChips, { module, disabled: disabled || busy, current: data.coupon ? data.coupon.code : null, onPick: pickCoupon }),
     msg ? el("div", { className: "of-msg", role: "alert" }, msg) : null,
     applied.length
       ? el(

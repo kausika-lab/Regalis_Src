@@ -23,12 +23,14 @@ import {
 } from "./index-DI5X4c9f.js";
 import { a as ae, i as Ne, b as k, p as se } from "./bookings-DrKATIWm.js";
 import { OfferPicker as RGofferPicker, applyBookingOffers as RGapplyOffers } from "./OffersKit-OF1.js";
+import { applyBookingCoupon as RGapplyCoupon } from "./CouponsKit-CP1.js";
 /* offers kit: put the chosen offers on the held booking(s) before paying. If the server refuses
    (the offer ended or no longer applies) the holds are released, so the slot is free to book again. */
 const RGwithOffers = async (ids, offer) => {
-  if (!offer || !offer.offerIds || offer.offerIds.length === 0) return;
+  if (!offer || ((!offer.offerIds || offer.offerIds.length === 0) && !offer.couponCode)) return;
   try {
-    await RGapplyOffers(ids, offer.offerIds);
+    if (offer.couponCode) await RGapplyCoupon(ids, offer.couponCode);
+    else await RGapplyOffers(ids, offer.offerIds);
   } catch (err) {
     for (const id of ids) {
       try {
@@ -854,10 +856,10 @@ function Ee() {
           passPlanId: voPlan.passPlanId,
           validFrom: b,
           paymentMethod: method,
-          offerIds: RGoffer ? RGoffer.offerIds : null,
+          offerIds: RGoffer ? RGoffer.offerIds : null, couponCode: RGoffer ? RGoffer.couponCode : null,
         });
       else {
-        const ord = await fe(je.post("/passes/order", { passPlanId: voPlan.passPlanId, offerIds: RGoffer ? RGoffer.offerIds : null }));
+        const ord = await fe(je.post("/passes/order", { passPlanId: voPlan.passPlanId, offerIds: RGoffer ? RGoffer.offerIds : null, couponCode: RGoffer ? RGoffer.couponCode : null }));
         const paid = await se.sandboxComplete(ord.gatewayOrderId);
         res = await PASS.purchase({
           passPlanId: voPlan.passPlanId,

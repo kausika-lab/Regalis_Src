@@ -2,7 +2,7 @@
 
 Built from the brief "Admin-Controlled Offers & Customer Portal Integration" (23 Nov 2026). Before this kit the app had no offers. Bookings and invoices already had a `DiscountAmount` column, but nothing ever filled it.
 
-Installed on the **local Dev stack only**. Not on UAT or production.
+Installed on the local Dev stack (23 Nov 2026) and on **production** (25 Nov 2026, see `deploy/production/README.md`). Not on UAT.
 
 Product-owner decisions taken before building:
 

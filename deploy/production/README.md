@@ -78,8 +78,46 @@ on a restored copy of the production database.
   `RegalisWorkSpace_PROD_20261116_1308_all_kits.bak` (SQLEXPRESS Backup folder). To roll back,
   run the eight `_Rollback.sql` scripts newest first, then restore both folders.
 
+## 20 Nov 2026: CRM and Wi-Fi kits deployed straight to production (UAT skipped)
+
+- **API**: `C:\RegalisBuild` commit `kit: crm + wifi` (the two kits' `backend/src` plus their
+  DI lines), published to `C:\RegalisBuild\publish_crm_wifi` and copied to `Regalis_Prod\api`.
+- **Database**: `20261119120000_Crm.sql`, then `20261119180000_Wifi.sql`.
+- **Config**: production API web.config now has `Wifi__EncryptionKey` (new random key). Keep a
+  copy of that value somewhere safe: without it the stored Wi-Fi passwords cannot be read.
+- **Frontend**: repo `frontend/` (CRM + Wi-Fi pages, `crm-track.js`), then `sync-frontend-config.ps1`.
+- **Wi-Fi runs on the simulated controller** (no hardware yet). Paying customers are issued
+  access and emailed from now on (only payments after the migration, `issue.sinceUtc`).
+- **Tests** (on `RegalisWorkSpace_PRODTEST`, a fresh copy of production): `testrun\smoke.mjs`
+  36/36, `testrun\crm-wifi.mjs` 21/21; a desk-paid day pass was issued Wi-Fi within seconds.
+- **Backups**: `C:\inetpub\wwwroot\Regalis_Prod_backup_20261120_1041_crm_wifi` and
+  `RegalisWorkSpace_PROD_20261120_1041_crm_wifi.bak`. To roll back: run `20261119180000_Wifi_Rollback.sql`
+  then `20261119120000_Crm_Rollback.sql`, and restore both folders.
+
 **Until UAT is brought up to the same build, `promote-uat-to-prod.cmd` refuses to run**
 (UAT's API is older). To bring UAT level: give an admin a login on the default instance,
 apply the same 8 migrations to `RegalisWorkSpace_UAT`, then copy `C:\RegalisBuild\publish`
 (without web.config) to `Regalis_Src\api` and the production frontend files to
 `Regalis_Src\frontend`.
+
+## 25 Nov 2026: Offers kit deployed straight to production (UAT skipped)
+
+- **API**: `C:\RegalisBuild` commit `kit: offers` (the kit's `backend/src` plus the edits in
+  `deploy\offers\backend\existing-files.diff`, applied by hand to the real source), published to
+  `C:\RegalisBuild\publish_offers`; the `Regalis.*` files were copied to `Regalis_Prod\api`.
+- **Database**: `20261123120000_Offers.sql`.
+- **Frontend**: the two new chunks (`OffersKit-OF1.js`, `OffersAdminPage-OF1.js`), the four patched
+  ones (`index`, `BookWorkspacePage-MB2`, `PassesPage`, `MembershipPage`) and `sw.js` (`offers-4`).
+  `env.js` and `web.config` were not touched.
+- **Nothing changes for customers until an admin creates and activates an offer** (Sales > Offers).
+  Production takes no online payments, so offers apply to wallet and pay-later purchases.
+- **Tests** (on `RegalisWorkSpace_PRODTEST` with the migration, new build on port 5099):
+  `testrun\offers.mjs` 26/26 (admin CRUD, permissions, portal lists, preview arithmetic, a pay-later
+  day pass with an offer, delete refused once used), `testrun\offers-booking.mjs` (a booking with a
+  20% offer: 200.00 - 40.00, GST on 160.00, total 188.80, invoice names the offer; a plain booking
+  still 236.00; the use is given back on cancel), `smoke.mjs` 35/36 (the one miss was "open cash
+  register": a session was already open from an earlier run that day), `crm-wifi.mjs` 21/21, and
+  the headless Chrome tour of 13 customer and 70 admin pages with no errors.
+- **Backups**: `C:\inetpub\wwwroot\Regalis_Prod_backup_20261125_1204_offers` and
+  `RegalisWorkSpace_PROD_20261125_1204_offers.bak`. To roll back: restore both folders, then run
+  `20261123120000_Offers_Rollback.sql` (it drops the offer tables).

@@ -121,3 +121,10 @@ apply the same 8 migrations to `RegalisWorkSpace_UAT`, then copy `C:\RegalisBuil
 - **Backups**: `C:\inetpub\wwwroot\Regalis_Prod_backup_20261125_1204_offers` and
   `RegalisWorkSpace_PROD_20261125_1204_offers.bak`. To roll back: restore both folders, then run
   `20261123120000_Offers_Rollback.sql` (it drops the offer tables).
+
+## 25 Nov 2026: past dates in the customer portal (frontend only)
+
+`deploy/past-dates`: customers can pick past dates in Book a Workspace and Passes and see that day,
+but cannot book or buy on it (view only; server rules unchanged). Files: `BookWorkspacePage-MB2.js`,
+`PassesPage-CxAkHUg-.js`, `sw.js` (`past-dates-1`). Backup:
+`C:\inetpub\wwwroot\Regalis_Prod_backup_20261125_2341_past_dates_frontend`.

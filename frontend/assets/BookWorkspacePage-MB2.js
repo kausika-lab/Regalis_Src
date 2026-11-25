@@ -251,10 +251,16 @@ function Ee() {
     return () => clearInterval(id);
   }, []);
   const minDay = firstOpenDay(K);
+  /* past-dates kit (25 Nov 2026): a customer may pick a past date to look at it. A past date
+     the customer chose is left alone; the default dates are still moved on. Nothing can be
+     booked on a past date (pastStart keeps the continue button off; the server refuses too). */
+  const pastPick = a.useRef(!1);
+  const todayIst = istNow().date;
+  const pastStart = !!b && b < todayIst;
   a.useEffect(() => {
     if (!K) return;
-    if (b < minDay) ie(minDay);
-    if (A < minDay) q(minDay);
+    if (b < minDay && !(pastPick.current && b < todayIst)) ie(minDay);
+    if (A < minDay && !(pastPick.current && A < todayIst)) q(minDay);
   }, [K?.locationId, openTick, minDay]);
 
   /* A Virtual Office is a business address, not a room: no slots, no workspace to
@@ -906,11 +912,11 @@ function Ee() {
   );
   const dayRateOf = (t) =>
     plan && plan.length > 0 ? (t.pricePerHour * plan[0].minutes) / 60 : null;
-  const canContinue = isVO
+  const canContinue = !pastStart && (isVO
     ? !!voPlan && !!b
     : isM
       ? !!mMonths && !!b
-      : !!v && A >= b && nDays > 0 && (W ? !!i : !0);
+      : !!v && A >= b && nDays > 0 && (W ? !!i : !0));
   const reset = () => {
     F(null);
     setMulti(null);
@@ -997,9 +1003,9 @@ function Ee() {
                     label: isVO || isM ? "Starts on" : "From date",
                     type: "date",
                     value: b,
-                    min: minDay,
                     onChange: (t) => {
                       const s = t.target.value;
+                      pastPick.current = !0;
                       ie(s);
                       s > A && q(s);
                     },
@@ -1010,8 +1016,11 @@ function Ee() {
                       label: "To date",
                       type: "date",
                       value: A,
-                      min: b || minDay,
-                      onChange: (t) => q(t.target.value),
+                      min: b,
+                      onChange: (t) => {
+                        pastPick.current = !0;
+                        q(t.target.value);
+                      },
                     }),
                   !isVO &&
                     !isM &&
@@ -1030,6 +1039,15 @@ function Ee() {
                       onChange: (t) => ce(Number(t.target.value)),
                     }),
                 ],
+              }),
+              !!v &&
+              !isCustom &&
+              pastStart &&
+              e.jsx("p", {
+                className: "choice-card__meta",
+                "data-past-date": "1",
+                style: { margin: 0, color: "var(--color-danger)" },
+                children: "This date has passed. You can look at it, but a booking can only start today or later. Pick today or a later date to book.",
               }),
               !!v &&
               e.jsx("p", {

@@ -99,3 +99,25 @@ on a restored copy of the production database.
 apply the same 8 migrations to `RegalisWorkSpace_UAT`, then copy `C:\RegalisBuild\publish`
 (without web.config) to `Regalis_Src\api` and the production frontend files to
 `Regalis_Src\frontend`.
+
+## 25 Nov 2026: Offers kit deployed straight to production (UAT skipped)
+
+- **API**: `C:\RegalisBuild` commit `kit: offers` (the kit's `backend/src` plus the edits in
+  `deploy\offers\backend\existing-files.diff`, applied by hand to the real source), published to
+  `C:\RegalisBuild\publish_offers`; the `Regalis.*` files were copied to `Regalis_Prod\api`.
+- **Database**: `20261123120000_Offers.sql`.
+- **Frontend**: the two new chunks (`OffersKit-OF1.js`, `OffersAdminPage-OF1.js`), the four patched
+  ones (`index`, `BookWorkspacePage-MB2`, `PassesPage`, `MembershipPage`) and `sw.js` (`offers-4`).
+  `env.js` and `web.config` were not touched.
+- **Nothing changes for customers until an admin creates and activates an offer** (Sales > Offers).
+  Production takes no online payments, so offers apply to wallet and pay-later purchases.
+- **Tests** (on `RegalisWorkSpace_PRODTEST` with the migration, new build on port 5099):
+  `testrun\offers.mjs` 26/26 (admin CRUD, permissions, portal lists, preview arithmetic, a pay-later
+  day pass with an offer, delete refused once used), `testrun\offers-booking.mjs` (a booking with a
+  20% offer: 200.00 - 40.00, GST on 160.00, total 188.80, invoice names the offer; a plain booking
+  still 236.00; the use is given back on cancel), `smoke.mjs` 35/36 (the one miss was "open cash
+  register": a session was already open from an earlier run that day), `crm-wifi.mjs` 21/21, and
+  the headless Chrome tour of 13 customer and 70 admin pages with no errors.
+- **Backups**: `C:\inetpub\wwwroot\Regalis_Prod_backup_20261125_1204_offers` and
+  `RegalisWorkSpace_PROD_20261125_1204_offers.bak`. To roll back: restore both folders, then run
+  `20261123120000_Offers_Rollback.sql` (it drops the offer tables).

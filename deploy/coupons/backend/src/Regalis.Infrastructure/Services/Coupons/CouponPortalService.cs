@@ -37,23 +37,6 @@ public class CouponPortalService(RegalisDbContext db, CouponEngine engine, Offer
 	private static OfferModule Module(string? value) =>
 		OfferEngine.ParseModule(value) ?? throw new BusinessRuleException("Choose the module: booking, pass or membership.");
 
-	public async Task<List<PortalCouponDto>> ListAsync(string? module, CancellationToken ct = default)
-	{
-		OfferModule m = Module(module);
-		List<Coupon> coupons = await engine.Live(m).Where(c => c.ShowInPortal).AsNoTracking().OrderBy(c => c.ValidUntil).ThenBy(c => c.CouponId).ToListAsync(ct);
-		int[] ids = coupons.Select(c => c.CouponId).ToArray();
-		Dictionary<int, HashSet<OfferModule>> mods = await engine.ModulesAsync(ids, ct);
-		Dictionary<int, int> mine = currentUser.UserType == UserType.Customer ? await engine.UsesAsync(ids, currentUser.UserId, null, ct) : new Dictionary<int, int>();
-		Dictionary<int, int> all = await engine.UsesAsync(coupons.Where(c => c.TotalUses > 0).Select(c => c.CouponId).ToArray(), null, null, ct);
-		return coupons
-			// A coupon nobody can use any more is not advertised.
-			.Where(c => !(c.TotalUses is int t && t > 0 && all.GetValueOrDefault(c.CouponId) >= t))
-			.Select(c => new PortalCouponDto(c.CouponId, c.Code, c.Description, (byte)c.DiscountType, c.DiscountValue, c.MaxDiscountAmount, c.MinAmount, c.ValidFrom, c.ValidUntil,
-				mods.TryGetValue(c.CouponId, out var ms) ? ms.Select(x => (byte)x).OrderBy(x => x).ToList() : new List<byte>(),
-				c.UsesPerCustomer is int per && per > 0 ? Math.Max(0, per - mine.GetValueOrDefault(c.CouponId)) : null))
-			.ToList();
-	}
-
 	public async Task<CouponPreviewDto> PreviewAsync(CouponPreviewRequest request, CancellationToken ct = default)
 	{
 		RequireCustomer();

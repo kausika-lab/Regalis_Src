@@ -9,7 +9,7 @@
  * hard-coded here. Hand-maintained chunk, imported by the patched page chunks (see apply.mjs).
  */
 import { r as React, j as X, p as Button, I as Input, D as unwrap, E as http, A as ApiError, u as useNavigate } from "./index-DI5X4c9f.js";
-import { previewCoupon as RGpreviewCoupon, CouponChips as RGcouponChips, couponDeal as RGcouponDeal } from "./CouponsKit-CP1.js";
+import { previewCoupon as RGpreviewCoupon, couponDeal as RGcouponDeal } from "./CouponsKit-CP1.js";
 
 function el(type, props, ...kids) {
   const p = props ? { ...props } : {};
@@ -364,9 +364,6 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
       setBusy(false);
     }
   };
-  const pickCoupon = async (c) => {
-    if (!(await tryCoupon(c))) setMsg(notFound.current || "This coupon is not available any more.");
-  };
   const applyCode = async () => {
     const c = code.trim();
     if (!c) return;
@@ -403,7 +400,7 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
     : el("button", { type: "button", className: "of-link", style: { marginTop: "var(--space-2)" }, onClick: () => setShowCode(true) }, "Have a coupon or offer code?");
   /* No offer for this purchase: only the small code link, nothing to choose. */
   if (applied.length === 0)
-    return el("div", { className: "of-pick of-pick--quiet", "data-rg": "offer-picker" }, codeForm, el(RGcouponChips, { module, disabled: disabled || busy, onPick: pickCoupon }), msg ? el("div", { className: "of-msg", role: "alert" }, msg) : null);
+    return el("div", { className: "of-pick of-pick--quiet", "data-rg": "offer-picker" }, codeForm, msg ? el("div", { className: "of-msg", role: "alert" }, msg) : null);
   /* Applied automatically by the server (the best saving); shown, not chosen. */
   return el(
     "div",
@@ -427,7 +424,6 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
       ? el("button", { type: "button", className: "of-link", "data-rg": "coupon-remove", disabled: disabled || busy, style: { marginTop: "var(--space-2)", marginRight: "var(--space-3)" }, onClick: removeCoupon }, "Remove coupon")
       : null,
     codeForm,
-    el(RGcouponChips, { module, disabled: disabled || busy, current: data.coupon ? data.coupon.code : null, onPick: pickCoupon }),
     msg ? el("div", { className: "of-msg", role: "alert" }, msg) : null,
     applied.length
       ? el(

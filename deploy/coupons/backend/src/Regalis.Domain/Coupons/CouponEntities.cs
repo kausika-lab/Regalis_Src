@@ -9,7 +9,8 @@ namespace Regalis.Domain.Entities.Coupons;
 // redemptions. The modules (OfferModule) and discount types (OfferDiscountType) are the offers kit's,
 // so a coupon is priced by exactly the same arithmetic. No navigation properties: the services join by id.
 
-/// <summary>MST_Coupon — a code the customer types at checkout. IsActive (from AuditableEntity) is the
+/// <summary>MST_Coupon — a code the customer types at checkout. Coupons are never listed to customers:
+/// only a customer who types a matching code gets the discount. IsActive (from AuditableEntity) is the
 /// Active / Inactive switch; "Expired" and "Scheduled" are worked out from the dates when read.
 /// Audited and soft-deleted like every master table.</summary>
 public class Coupon : AuditableEntity
@@ -44,9 +45,6 @@ public class Coupon : AuditableEntity
 
 	/// <summary>Optional: how many purchases one customer may use it on.</summary>
 	public int? UsesPerCustomer { get; set; }
-
-	/// <summary>True = listed in the customer portal; false = works only for customers who know the code.</summary>
-	public bool ShowInPortal { get; set; } = true;
 }
 
 /// <summary>MST_CouponModule — where a coupon can be used: My Bookings, Passes, Membership.</summary>

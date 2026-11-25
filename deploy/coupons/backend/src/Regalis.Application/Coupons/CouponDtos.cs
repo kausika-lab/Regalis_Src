@@ -22,21 +22,18 @@ public record CouponSummaryDto(int Total, int Active, int Inactive, int Expired,
 
 /// <summary>OfferClash: an offer uses the same code (an offer saved after the coupon). The coupon is
 /// the one customers get when they type it.</summary>
-public record CouponRowDto(int CouponId, string Code, string? Description, byte DiscountType, decimal DiscountValue, decimal? MaxDiscountAmount, decimal? MinAmount, IReadOnlyList<byte> Modules, DateOnly ValidFrom, DateOnly ValidUntil, int? TotalUses, int? UsesPerCustomer, bool ShowInPortal, bool IsActive, string Status, DateTime CreatedDate, int Uses, decimal DiscountGiven, bool OfferClash);
+public record CouponRowDto(int CouponId, string Code, string? Description, byte DiscountType, decimal DiscountValue, decimal? MaxDiscountAmount, decimal? MinAmount, IReadOnlyList<byte> Modules, DateOnly ValidFrom, DateOnly ValidUntil, int? TotalUses, int? UsesPerCustomer, bool IsActive, string Status, DateTime CreatedDate, int Uses, decimal DiscountGiven, bool OfferClash);
 
 public record CouponListDto(CouponSummaryDto Summary, PagedResult<CouponRowDto> Page);
 
-public record CouponDetailDto(int CouponId, string Code, string? Description, byte DiscountType, decimal DiscountValue, decimal? MaxDiscountAmount, decimal? MinAmount, IReadOnlyList<byte> Modules, DateOnly ValidFrom, DateOnly ValidUntil, int? TotalUses, int? UsesPerCustomer, bool ShowInPortal, bool IsActive, string Status, DateTime CreatedDate, DateTime? ModifiedDate, int Uses, decimal DiscountGiven, bool CanDelete, bool OfferClash);
+public record CouponDetailDto(int CouponId, string Code, string? Description, byte DiscountType, decimal DiscountValue, decimal? MaxDiscountAmount, decimal? MinAmount, IReadOnlyList<byte> Modules, DateOnly ValidFrom, DateOnly ValidUntil, int? TotalUses, int? UsesPerCustomer, bool IsActive, string Status, DateTime CreatedDate, DateTime? ModifiedDate, int Uses, decimal DiscountGiven, bool CanDelete, bool OfferClash);
 
-public record SaveCouponRequest(string? Code, string? Description, byte DiscountType, decimal DiscountValue, decimal? MaxDiscountAmount, decimal? MinAmount, IReadOnlyList<byte>? Modules, DateOnly? ValidFrom, DateOnly? ValidUntil, int? TotalUses, int? UsesPerCustomer, bool ShowInPortal, bool IsActive);
+public record SaveCouponRequest(string? Code, string? Description, byte DiscountType, decimal DiscountValue, decimal? MaxDiscountAmount, decimal? MinAmount, IReadOnlyList<byte>? Modules, DateOnly? ValidFrom, DateOnly? ValidUntil, int? TotalUses, int? UsesPerCustomer, bool IsActive);
 
 /// <summary>Same states as an offer's uses: Used, Held (awaiting payment), Released (given back).</summary>
 public record CouponRedemptionRowDto(long RedemptionId, DateTime CreatedUtc, long CustomerId, string CustomerName, byte Module, string Reference, decimal BaseAmount, decimal DiscountAmount, string State);
 
 // ---- customer portal -----------------------------------------------------------------------------
-
-/// <summary>A listed coupon as the customer sees it. UsesLeft is for this customer (null = no limit).</summary>
-public record PortalCouponDto(int CouponId, string Code, string? Description, byte DiscountType, decimal DiscountValue, decimal? MaxDiscountAmount, decimal? MinAmount, DateOnly ValidFrom, DateOnly ValidUntil, IReadOnlyList<byte> Modules, int? UsesLeft);
 
 /// <summary>Module: "booking" | "pass" | "membership". For a booking give WorkspaceId and the price
 /// before GST of each booking (one per day of a multi-day range); for a pass or membership give

@@ -23,13 +23,12 @@ public interface ICouponAdminService
 	Task<List<CouponRedemptionRowDto>> RedemptionsAsync(int couponId, CancellationToken ct = default);
 }
 
-/// <summary>Customer portal: the listed coupons of a module, checking a typed code against a purchase,
-/// and putting a coupon on the customer's own held bookings. Passes and memberships take the code on
+/// <summary>Customer portal: checking a typed code against a purchase, and putting a coupon on the
+/// customer's own held bookings. Coupons are never listed to customers (product-owner decision,
+/// 25 Nov 2026): a code works only when the customer types it. Passes and memberships take the code on
 /// the existing /passes/order and /passes/purchase calls instead.</summary>
 public interface ICouponPortalService
 {
-	Task<List<PortalCouponDto>> ListAsync(string? module, CancellationToken ct = default);
-
 	Task<CouponPreviewDto> PreviewAsync(CouponPreviewRequest request, CancellationToken ct = default);
 
 	Task<ApplyBookingOffersResultDto> ApplyToBookingsAsync(ApplyBookingCouponRequest request, CancellationToken ct = default);

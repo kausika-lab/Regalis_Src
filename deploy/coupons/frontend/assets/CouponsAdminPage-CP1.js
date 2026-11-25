@@ -239,7 +239,6 @@ export function CouponsTab({ tabs = null }) {
                         { "data-l": "Coupon code" },
                         el("div", { className: "oa-name oa-mono" }, c.code),
                         c.description ? el("div", { className: "oa-muted" }, c.description) : null,
-                        c.showInPortal ? null : el("div", { className: "oa-muted" }, "Not listed in the portal"),
                         c.offerClash ? el("div", { className: "oa-err" }, "An offer also uses this code; customers get the coupon.") : null
                       ),
                       el(
@@ -312,7 +311,6 @@ const BLANK = () => ({
   validUntil: "",
   totalUses: "",
   usesPerCustomer: "1",
-  showInPortal: true,
   isActive: true
 });
 
@@ -342,7 +340,6 @@ function CouponEditor({ id, onClose, onSaved }) {
           validUntil: String(d.validUntil).slice(0, 10),
           totalUses: d.totalUses != null ? String(d.totalUses) : "",
           usesPerCustomer: d.usesPerCustomer != null ? String(d.usesPerCustomer) : "",
-          showInPortal: d.showInPortal,
           isActive: d.isActive
         });
       })
@@ -393,7 +390,6 @@ function CouponEditor({ id, onClose, onSaved }) {
       validUntil: v.validUntil || null,
       totalUses: num(v.totalUses),
       usesPerCustomer: num(v.usesPerCustomer),
-      showInPortal: v.showInPortal,
       isActive: v.isActive
     };
     try {
@@ -486,14 +482,14 @@ function CouponEditor({ id, onClose, onSaved }) {
       el(
         "section",
         null,
-        el("h3", null, "Usage limit and display"),
+        el("h3", null, "Usage limit"),
         el(
           "div",
           { className: "oa-grid2" },
           el(Input, { label: "Usage limit (total)", type: "number", min: 1, value: v.totalUses, error: errs.totalUses, hint: "Purchases by everyone together. Empty = no limit.", onChange: (e) => set({ totalUses: e.target.value }) }),
           el(Input, { label: "Uses per customer", type: "number", min: 1, value: v.usesPerCustomer, error: errs.usesPerCustomer, hint: "Empty = no limit.", onChange: (e) => set({ usesPerCustomer: e.target.value }) })
         ),
-        el(Checkbox, { label: "List it on the customer portal (untick to keep it for customers who are given the code)", checked: v.showInPortal, onChange: (e) => set({ showInPortal: e.target.checked }) })
+        el("div", { className: "oa-muted" }, "Coupon codes are never shown to customers. Share the code yourself; it works only when a customer types it at payment.")
       ),
       detail && detail.uses > 0 ? el("div", { className: "oa-muted" }, `Used ${detail.uses} time${detail.uses === 1 ? "" : "s"} so far; the code can no longer change.`) : null
     )

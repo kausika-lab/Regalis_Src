@@ -223,8 +223,8 @@ s, _ = call("GET", "/admin/coupons", cust1)
 check("customer: admin coupons refused (403)", s == 403, s)
 s, _ = call("POST", "/coupons/preview", admin, {"module": "pass", "passPlanId": 1, "code": "X"})
 check("staff cannot preview customer coupons (403)", s == 403, s)
-s, _ = call("GET", "/coupons", None, params={"module": "pass"})
-check("anonymous: coupon list needs sign-in (401)", s == 401, s)
+s, _ = call("GET", "/coupons", cust1, params={"module": "pass"})
+check("customers get no coupon list: GET /api/coupons does not exist (404/405)", s in (404, 405), s)
 s, b = call("GET", "/admin/coupons", admin)
 base_summary = b["data"]["summary"]
 
@@ -234,7 +234,7 @@ def coupon(code, **kw):
     body = {"code": code, "description": kw.pop("description", "coupons e2e"), "discountType": kw.pop("type", 1), "discountValue": kw.pop("value"),
             "maxDiscountAmount": kw.pop("max", None), "minAmount": kw.pop("min", None), "modules": kw.pop("modules"),
             "validFrom": kw.pop("start", today.isoformat()), "validUntil": kw.pop("end", (today + dt.timedelta(days=60)).isoformat()),
-            "totalUses": kw.pop("total", None), "usesPerCustomer": kw.pop("per", None), "showInPortal": kw.pop("show", True), "isActive": kw.pop("active", True)}
+            "totalUses": kw.pop("total", None), "usesPerCustomer": kw.pop("per", None), "isActive": kw.pop("active", True)}
     assert not kw, kw
     return call("POST", "/admin/coupons", admin, body)
 
@@ -269,14 +269,14 @@ CB = b["data"]["couponId"]
 s, b = coupon(K["C"], value=10, modules=[2])
 CC = b["data"]["couponId"]
 sql(f"UPDATE MST_Coupon SET ValidFrom='{(today - dt.timedelta(days=10)).isoformat()}', ValidUntil='{(today - dt.timedelta(days=1)).isoformat()}' WHERE CouponId={CC}")
-# D: inactive.  E: scheduled.  F: hidden membership 500 off.  G: one use in total (passes).
+# D: inactive.  E: scheduled.  F: membership 500 off.  G: one use in total (passes).
 s, b = coupon(K["D"], value=10, modules=[2], active=False)
 CD = b["data"]["couponId"]
 check("inactive coupon saved as Inactive", b["data"]["status"] == "Inactive", b)
 s, b = coupon(K["E"], value=10, modules=[2], start=(today + dt.timedelta(days=3)).isoformat())
 CE = b["data"]["couponId"]
 check("future coupon saved as Scheduled", b["data"]["status"] == "Scheduled", b)
-s, b = coupon(K["F"], type=2, value=500, modules=[3], show=False)
+s, b = coupon(K["F"], type=2, value=500, modules=[3])
 CF = b["data"]["couponId"]
 s, b = coupon(K["G"], type=2, value=100, modules=[2], total=1)
 CG = b["data"]["couponId"]
@@ -309,14 +309,14 @@ check("filter expired + search finds only C", s == 200 and [r["code"] for r in b
 s, b = call("GET", "/admin/coupons", admin, params={"module": 3, "search": f"CPE{RUN}"})
 check("filter by service Membership finds only F", [r["code"] for r in b["data"]["page"]["items"]] == [K["F"]], b)
 
-# ---- 3. portal list ----------------------------------------------------------------------------------
-s, b = call("GET", "/coupons", cust1, params={"module": "pass"})
-codes = {c["code"] for c in b["data"]}
-check("pass list: A, B, G, J listed", {K["A"], K["B"], K["G"], K["J"]} <= codes, codes)
-check("pass list: expired, inactive, scheduled, membership-only and booking-only not listed", not ({K["C"], K["D"], K["E"], K["F"], K["H"]} & codes), codes)
-check("pass list: A shows 1 use left for this customer", next(c for c in b["data"] if c["code"] == K["A"])["usesLeft"] == 1, b)
-s, b = call("GET", "/coupons", cust1, params={"module": "membership"})
-check("hidden membership coupon F is not listed", K["F"] not in {c["code"] for c in b["data"]}, b)
+# ---- 3. codes are never shown to customers ---------------------------------------------------------------
+for path in ["/coupons", "/coupons/list", "/coupons/available"]:
+    s, b = call("GET", path, cust1, params={"module": "pass"})
+    check(f"customer GET {path}: no coupon list (404/405)", s in (404, 405) and K["A"] not in json.dumps(b), (s, b))
+s, b = call("GET", "/offers", cust1, params={"module": "pass"})
+check("the offers list does not carry coupon codes", s == 200 and not any(k in json.dumps(b) for k in K.values()), b)
+s, b = call("POST", "/coupons/preview", cust1, {"module": "pass", "passPlanId": 1, "code": "NOPE" + RUN})
+check("a wrong code reveals no other code", not any(k in json.dumps(b) for k in K.values()), b)
 
 
 # ---- 4. preview: every error message --------------------------------------------------------------------
@@ -363,8 +363,6 @@ s, b = preview(cust1, module="pass", passPlanId=1, code=K["A"])
 check("same customer again: COUPON_ALREADY_USED 'already used'", b["data"]["errorCode"] == "COUPON_ALREADY_USED" and "already used" in b["data"]["error"], b)
 s, b = call("POST", "/passes/purchase", cust1, {"passPlanId": 1, "validFrom": DAY2.isoformat(), "paymentMethod": "wallet", "couponCode": K["A"]})
 check("server refuses the used coupon on purchase (422 COUPON_ALREADY_USED)", s == 422 and "COUPON_ALREADY_USED" in json.dumps(b), (s, b))
-s, b = call("GET", "/coupons", cust1, params={"module": "pass"})
-check("portal list: A now shows 0 uses left for this customer", next(c for c in b["data"] if c["code"] == K["A"])["usesLeft"] == 0, b)
 
 # ---- 6. a coupon replaces the offers ---------------------------------------------------------------------
 tB, gB, totB = priced(800, 150)
@@ -393,8 +391,6 @@ s, b = preview(cust2, module="pass", passPlanId=1, code=K["G"])
 check("customer 2: COUPON_LIMIT_REACHED 'reached its usage limit'", b["data"]["errorCode"] == "COUPON_LIMIT_REACHED" and "usage limit" in b["data"]["error"], b)
 s, b = call("POST", "/passes/purchase", cust2, {"passPlanId": 1, "validFrom": DAY2.isoformat(), "paymentMethod": "wallet", "couponCode": K["G"]})
 check("server refuses the used-up coupon (422 COUPON_LIMIT_REACHED)", s == 422 and "COUPON_LIMIT_REACHED" in json.dumps(b), (s, b))
-s, b = call("GET", "/coupons", cust3, params={"module": "pass"})
-check("a used-up coupon is no longer listed", K["G"] not in {c["code"] for c in b["data"]}, b)
 
 # Two customers race for the last use of J: exactly one gets it.
 race = {}
@@ -476,10 +472,10 @@ check("deactivated meanwhile: online order refused too", s == 422 and "COUPON_NO
 call("POST", f"/admin/coupons/{CH}/activate", admin)
 s, b = call("POST", f"/bookings/{h3['bookingId']}/cancel", cust3, {"reason": "coupons e2e"})
 
-# ---- 12. membership, hidden coupon by code, pay later -------------------------------------------------------------
+# ---- 12. membership coupon by code, pay later -------------------------------------------------------------
 tF, gF, totF = priced(2500, 500)
 s, b = preview(cust1, module="membership", passPlanId=21, code=K["F"])
-check(f"hidden membership coupon works by code: 2500 - 500 -> {totF}", b["data"]["valid"] and dec(b["data"]["totalAmount"]) == totF, b)
+check(f"membership coupon works by code: 2500 - 500 -> {totF}", b["data"]["valid"] and dec(b["data"]["totalAmount"]) == totF, b)
 s, b = call("POST", "/passes/purchase", cust1, {"passPlanId": 21, "validFrom": today.isoformat(), "paymentMethod": "paylater", "couponCode": K["F"]})
 check(f"Virtual Office, pay later, with coupon F: {totF} awaiting payment", s == 200 and dec(b["data"]["pass"]["totalAmount"]) == totF and b["data"]["pass"]["status"] == 5, (s, b))
 s, b = call("POST", "/passes/purchase", cust1, {"passPlanId": 1, "validFrom": DAY2.isoformat(), "paymentMethod": "wallet", "couponCode": K["F"]})

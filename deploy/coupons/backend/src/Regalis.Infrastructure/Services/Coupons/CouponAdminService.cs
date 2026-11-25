@@ -69,7 +69,7 @@ public class CouponAdminService(RegalisDbContext db, CouponEngine engine, IDateT
 		Dictionary<int, decimal> given = await GivenAsync(ids, ct);
 		HashSet<string> clashes = await ClashesAsync(page.Select(c => c.Code).ToArray(), ct);
 		List<CouponRowDto> rows = page.Select(c => new CouponRowDto(c.CouponId, c.Code, c.Description, (byte)c.DiscountType, c.DiscountValue, c.MaxDiscountAmount, c.MinAmount,
-			Mods(mods, c.CouponId), c.ValidFrom, c.ValidUntil, c.TotalUses, c.UsesPerCustomer, c.ShowInPortal, c.IsActive, CouponEngine.StatusOf(c, today), c.CreatedDate,
+			Mods(mods, c.CouponId), c.ValidFrom, c.ValidUntil, c.TotalUses, c.UsesPerCustomer, c.IsActive, CouponEngine.StatusOf(c, today), c.CreatedDate,
 			uses.GetValueOrDefault(c.CouponId), given.GetValueOrDefault(c.CouponId), clashes.Contains(c.Code))).ToList();
 		return new CouponListDto(summary, PagedResult<CouponRowDto>.Create(rows, request.Page, request.PageSize, count));
 	}
@@ -101,7 +101,7 @@ public class CouponAdminService(RegalisDbContext db, CouponEngine engine, IDateT
 		Dictionary<int, decimal> given = await GivenAsync(new[] { c.CouponId }, ct);
 		bool clash = (await ClashesAsync(new[] { c.Code }, ct)).Count > 0;
 		return new CouponDetailDto(c.CouponId, c.Code, c.Description, (byte)c.DiscountType, c.DiscountValue, c.MaxDiscountAmount, c.MinAmount, Mods(mods, c.CouponId),
-			c.ValidFrom, c.ValidUntil, c.TotalUses, c.UsesPerCustomer, c.ShowInPortal, c.IsActive, CouponEngine.StatusOf(c, engine.Today), c.CreatedDate, c.ModifiedDate,
+			c.ValidFrom, c.ValidUntil, c.TotalUses, c.UsesPerCustomer, c.IsActive, CouponEngine.StatusOf(c, engine.Today), c.CreatedDate, c.ModifiedDate,
 			uses.GetValueOrDefault(c.CouponId), given.GetValueOrDefault(c.CouponId), !await InUseAsync(c.CouponId, ct), clash);
 	}
 
@@ -177,7 +177,7 @@ public class CouponAdminService(RegalisDbContext db, CouponEngine engine, IDateT
 		logger.LogInformation("Coupon {CouponId} {Code} deleted", c.CouponId, c.Code);
 	}
 
-	private sealed record Clean(string Code, string? Description, OfferDiscountType Type, decimal Value, decimal? Max, decimal? Min, List<OfferModule> Modules, DateOnly From, DateOnly Until, int? Total, int? PerCustomer, bool ShowInPortal, bool Active);
+	private sealed record Clean(string Code, string? Description, OfferDiscountType Type, decimal Value, decimal? Max, decimal? Min, List<OfferModule> Modules, DateOnly From, DateOnly Until, int? Total, int? PerCustomer, bool Active);
 
 	private static void Apply(Coupon c, Clean v)
 	{
@@ -191,7 +191,6 @@ public class CouponAdminService(RegalisDbContext db, CouponEngine engine, IDateT
 		c.ValidUntil = v.Until;
 		c.TotalUses = v.Total;
 		c.UsesPerCustomer = v.PerCustomer;
-		c.ShowInPortal = v.ShowInPortal;
 		c.IsActive = v.Active;
 	}
 
@@ -265,7 +264,7 @@ public class CouponAdminService(RegalisDbContext db, CouponEngine engine, IDateT
 		{
 			throw new AppValidationException(errors);
 		}
-		return new Clean(code!, description, type, r.DiscountValue, max, min, modules, r.ValidFrom!.Value, r.ValidUntil!.Value, r.TotalUses, r.UsesPerCustomer, r.ShowInPortal,
+		return new Clean(code!, description, type, r.DiscountValue, max, min, modules, r.ValidFrom!.Value, r.ValidUntil!.Value, r.TotalUses, r.UsesPerCustomer,
 			r.IsActive && r.ValidUntil!.Value >= today);
 	}
 

@@ -53,17 +53,12 @@ public class CouponsAdminController(ICouponAdminService coupons) : ApiController
 	}
 }
 
-/// <summary>Coupons in the customer portal. Signed-in users; preview and apply are for customers only
+/// <summary>Coupons in the customer portal. There is no list: a code works only when typed. Signed-in users; preview and apply are for customers only
 /// and act on the caller's own bookings. Passes and memberships take the code on the existing
 /// /api/passes/order and /api/passes/purchase calls (couponCode).</summary>
 [Route("api/coupons")]
 public class CouponsPortalController(ICouponPortalService coupons) : ApiControllerBase
 {
-	/// <summary>Listed coupons for a module: booking | pass | membership.</summary>
-	[HttpGet]
-	[Authorize]
-	public async Task<IActionResult> List([FromQuery] string? module, CancellationToken ct) => OkEnvelope(await coupons.ListAsync(module, ct));
-
 	/// <summary>Checks a typed code against a purchase and prices it. Always 200: Valid / Error say
 	/// whether it can be used.</summary>
 	[HttpPost("preview")]

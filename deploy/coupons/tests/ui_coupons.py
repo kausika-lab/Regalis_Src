@@ -8,12 +8,12 @@ status card filter, sort, the New coupon editor and its browser-side messages, a
 refused by the server, deactivate / activate, delete of an unused coupon, the Uses dialog, phone
 layout; the Offers tab still works; a Sales user (OFFER.VIEW only) sees no change buttons. After the
 customer part: Uses lists the purchase, a used coupon cannot be deleted or have its code changed.
-Customer: coupon cards on Book Pass and Membership; at a day-pass checkout an unknown, an expired,
+Customer: no coupon code is shown anywhere (no cards, no chips); at a day-pass checkout an unknown, an expired,
 an inactive, a not-yet-started, a wrong-service and a below-minimum code are refused with the reason;
 a valid code is priced (checked against our own arithmetic) and paid from the wallet (redemption and
 invoice checked in SQL); the same code again is "already used"; on a 10-Day Pack a coupon replaces a
-test offer and "Remove coupon" brings it back; membership chip; a meeting-room booking with a chip
-paid from the wallet (booking, redemption and invoice checked in SQL).
+test offer and "Remove coupon" brings it back; membership by typed code; a meeting-room booking with a
+typed code paid from the wallet (booking, redemption and invoice checked in SQL).
 
 Creates: coupons CPUI<run>..., one offer "CPUI-OFR <run>" (10-Day Pack only, deleted straight after
 use), a customer cpui-c<run>@example.test and a Sales user cpui-s<run>@example.test.
@@ -188,7 +188,7 @@ def coupon(code, **kw):
     body = {"code": code, "description": kw.get("desc"), "discountType": kw.get("type", 1), "discountValue": kw.get("value", 10),
             "maxDiscountAmount": kw.get("cap"), "minAmount": kw.get("min"), "modules": kw.get("modules", [1, 2, 3]),
             "validFrom": kw.get("start", today).isoformat(), "validUntil": kw.get("end", today + dt.timedelta(days=20)).isoformat(),
-            "totalUses": kw.get("total"), "usesPerCustomer": kw.get("per"), "showInPortal": kw.get("show", True), "isActive": kw.get("active", True)}
+            "totalUses": kw.get("total"), "usesPerCustomer": kw.get("per"), "isActive": kw.get("active", True)}
     s, b = api("POST", "/admin/coupons", ADMIN, body)
     if s not in (200, 201): raise SystemExit(f"create coupon {code}: {s} {b}")
     return b["data"]["couponId"]
@@ -202,23 +202,23 @@ try:
     CUST = session("cust", cust_email, cust_pw, "customer")
     def wallet(): return D(str(api("GET", "/wallet/me", CUST)[1]["data"]["balance"]))
 
-    OK = f"CPUIOK{RUN}"        # typed, hidden: 20% capped at ₹61.50, Passes only, 1 use per customer
-    LIST = f"CPUILIST{RUN}"    # listed on the portal: 12.34%, every service, 1 use per customer
+    OK = f"CPUIOK{RUN}"        # typed: 20% capped at ₹61.50, Passes only, 1 use per customer
+    LIST = f"CPUILIST{RUN}"    # 12.34%, every service, 1 use per customer
     EXP = f"CPUIEXP{RUN}"      # expired yesterday (dates moved back with SQL; the API refuses past dates)
     OFF = f"CPUIOFF{RUN}"      # inactive
     MIN = f"CPUIMIN{RUN}"      # minimum ₹1,000 before GST
     SOON = f"CPUISOON{RUN}"    # starts tomorrow
     BKONLY = f"CPUIBK{RUN}"    # My Bookings only
     DEL = f"CPUIDEL{RUN}"      # unused, deleted through the screen
-    OK_ID = coupon(OK, value=20, cap=61.50, modules=[2], per=1, show=False, desc="UI test: typed")
-    LIST_ID = coupon(LIST, value=12.34, modules=[1, 2, 3], per=1, desc="UI test: listed coupon")
-    EXP_ID = coupon(EXP, value=10, modules=[2], show=True)
+    OK_ID = coupon(OK, value=20, cap=61.50, modules=[2], per=1, desc="UI test: typed")
+    LIST_ID = coupon(LIST, value=12.34, modules=[1, 2, 3], per=1, desc="UI test: second coupon")
+    EXP_ID = coupon(EXP, value=10, modules=[2])
     sql(f"UPDATE MST_Coupon SET ValidFrom='{(today - dt.timedelta(days=10)).isoformat()}', ValidUntil='{(today - dt.timedelta(days=1)).isoformat()}' WHERE CouponId={EXP_ID}")
-    OFF_ID = coupon(OFF, value=10, modules=[2], active=False, show=True)
-    MIN_ID = coupon(MIN, type=2, value=100, min=1000, modules=[2], show=False)
-    SOON_ID = coupon(SOON, value=10, modules=[2], start=today + dt.timedelta(days=1), show=True)
-    BK_ID = coupon(BKONLY, value=10, modules=[1], show=False)
-    DEL_ID = coupon(DEL, type=2, value=50, modules=[3], show=False)
+    OFF_ID = coupon(OFF, value=10, modules=[2], active=False)
+    MIN_ID = coupon(MIN, type=2, value=100, min=1000, modules=[2])
+    SOON_ID = coupon(SOON, value=10, modules=[2], start=today + dt.timedelta(days=1))
+    BK_ID = coupon(BKONLY, value=10, modules=[1])
+    DEL_ID = coupon(DEL, type=2, value=50, modules=[3])
 
     # ---- browser -------------------------------------------------------------------------------------
     proc = subprocess.Popen([CHROME, "--headless=new", "--remote-debugging-port=9376", f"--user-data-dir={os.environ.get('TEMP', '.')}\\rg-coupons-prof-{RUN}",
@@ -312,7 +312,7 @@ try:
     check("expired coupon: no Activate / Deactivate button", not row_btn(EXP, "Activate") and not js("[...(document.querySelector('tr[data-coupon=\"%s\"]')?.querySelectorAll('button')||[])].some(b=>b.textContent.trim()==='Deactivate')" % EXP))
     check("row: 12.34% OFF, three services, 1 per customer", all(x in row_text(LIST) for x in ["12.34% OFF", "My Bookings", "Passes", "Membership", "1 per customer"]), row_text(LIST))
     check("row: min booking ₹1,000.00 shown for the minimum coupon", "min booking ₹1,000.00" in row_text(MIN), row_text(MIN))
-    check("hidden coupon marked 'Not listed in the portal'", "Not listed in the portal" in row_text(OK), row_text(OK))
+    check("no 'list on the portal' setting: coupons are never shown to customers", "Not listed in the portal" not in text() and one("SELECT COL_LENGTH('dbo.MST_Coupon','ShowInPortal')") == "NULL", text()[-300:])
 
     # search / filter / sort
     fill("Search", f"CPUIOFF{RUN}", "document"); drain(2)
@@ -333,7 +333,7 @@ try:
 
     # editor: browser validation
     click("button", "New coupon"); drain(2)
-    check("New coupon editor opens with every section", all(x in text() for x in ["Coupon code", "Discount", "Services it applies to", "Validity and status", "Usage limit and display"]), text()[-800:])
+    check("New coupon editor opens with every section", all(x in text() for x in ["Coupon code", "Discount", "Services it applies to", "Validity and status", "Usage limit"]), text()[-800:])
     n_before = one("SELECT COUNT(*) FROM MST_Coupon")
     fill("Coupon code", "a!"); fill("Discount value", "10")
     fill("Valid from", (today + dt.timedelta(days=5)).isoformat()); drain(0.3); fill("Valid until", (today + dt.timedelta(days=2)).isoformat())
@@ -361,14 +361,15 @@ try:
     tick("Passes (day passes)"); tick("Membership (")
     fill("Valid from", today.isoformat()); drain(0.3); fill("Valid until", (today + dt.timedelta(days=30)).isoformat())
     fill("Usage limit (total)", "3"); fill("Uses per customer", "3"); drain(0.5)
+    check("editor says codes are never shown to customers", "Coupon codes are never shown to customers" in text() and "List it on the customer portal" not in text())
     click(".modal button", "Create coupon"); drain(4)
-    row = sql(f"SELECT CouponId, DiscountType, DiscountValue, ISNULL(CAST(MaxDiscountAmount AS varchar),'-'), ISNULL(CAST(MinAmount AS varchar),'-'), ValidFrom, ValidUntil, TotalUses, UsesPerCustomer, ShowInPortal, IsActive, Description,"
+    row = sql(f"SELECT CouponId, DiscountType, DiscountValue, ISNULL(CAST(MaxDiscountAmount AS varchar),'-'), ISNULL(CAST(MinAmount AS varchar),'-'), ValidFrom, ValidUntil, TotalUses, UsesPerCustomer, IsActive, Description,"
               f" (SELECT STRING_AGG(CAST(Module AS varchar),',') WITHIN GROUP (ORDER BY Module) FROM MST_CouponModule m WHERE m.CouponId=c.CouponId) FROM MST_Coupon c WHERE Code='{ADM}' AND IsDeleted=0")
     check("coupon created from the editor (typed lower case -> stored upper case)", len(row) == 1, (row, text()[-600:]))
     if row:
         ADM_ID = row[0][0]
-        check("saved exactly: 10%, max 200, min 500, Passes+Membership, dates, 3 total / 3 per customer, listed, active",
-              row[0][1:] == ["1", "10.00", "200.00", "500.00", today.isoformat(), (today + dt.timedelta(days=30)).isoformat(), "3", "3", "1", "1", "UI created coupon", "2,3"], row[0])
+        check("saved exactly: 10%, max 200, min 500, Passes+Membership, dates, 3 total / 3 per customer, active",
+              row[0][1:] == ["1", "10.00", "200.00", "500.00", today.isoformat(), (today + dt.timedelta(days=30)).isoformat(), "3", "3", "1", "UI created coupon", "2,3"], row[0])
     else:
         ADM_ID = None
     check("new coupon listed as Active, '0 of 3 used'", "Active" in row_text(ADM) and "0 of 3 used" in row_text(ADM), row_text(ADM))
@@ -424,20 +425,15 @@ try:
     login(cust_email, cust_pw, "/login")
     n2 = len(events)
     go("/passes", 5)
-    strip = js("[...document.querySelectorAll('[data-rg=coupon-strip] .cp-card')].map(c=>c.dataset.coupon)") or []
-    check("Book Pass: coupon cards show the listed coupon", LIST in strip and "Coupon codes" in text(), strip)
-    check("Book Pass: hidden, expired, inactive, not-started and bookings-only coupons not shown", not ({OK, EXP, OFF, SOON, BKONLY, MIN} & set(strip)), strip)
-    card = (js("document.querySelector('.cp-card[data-coupon=\"%s\"]')?.innerText || ''" % LIST) or "").replace("\u00a0", " ")
-    check("coupon card: deal, description, '1 use left for you', valid till", all(x in card for x in ["12.34% OFF", "UI test: listed coupon", "1 use left for you", "Valid till"]), card)
-    shot("customer_pass_coupon_cards")
+    check("Book Pass: no coupon code or coupon card shown", not any(c in text() for c in [OK, LIST, EXP, OFF, MIN, SOON, BKONLY, DEL]) and not js("!!document.querySelector('[data-rg=coupon-strip],[data-rg=coupon-chips],.cp-card,.cp-chip')"), text()[:400])
+    shot("customer_pass_no_coupons")
 
     click(".choice-card", "Single Day"); drain(1.5)
     fill("First visit date", DAY.isoformat(), "document"); drain(4)
     check("day pass checkout shows the picker", wait_for("!!document.querySelector('[data-rg=offer-picker]')"), text()[-600:])
     drain(2)
     check("picker link reads 'Have a coupon or offer code?'", "Have a coupon or offer code?" in picker(), picker())
-    chips = js("[...document.querySelectorAll('[data-rg=coupon-chips] .cp-chip')].map(c=>c.dataset.coupon)") or []
-    check("Available coupons chips at checkout: listed coupon only", LIST in chips and not ({OK, EXP, OFF, SOON, BKONLY} & set(chips)), chips)
+    check("checkout: no coupon chips and no coupon codes shown", not any(c in text() for c in [OK, LIST, EXP, OFF, MIN, SOON, BKONLY, DEL]) and not js("!!document.querySelector('[data-rg=coupon-strip],[data-rg=coupon-chips],.cp-card,.cp-chip')"), text()[:400])
     type_code(f"NOPE{RUN}")
     check("unknown code: 'is not valid'", f"The coupon code NOPE{RUN} is not valid" in alert(), alert())
     type_code(EXP)
@@ -506,17 +502,15 @@ try:
         wait_for("!!document.querySelector('[data-rg=offer-picker] [data-applied]')"); drain(2)
         po = price(6800, pct=20); pc = price(6800, pct="12.34")
         check(f"10-Day Pack: the test offer applies by itself ({rs(po['total'])})", js("!!document.querySelector('[data-applied][data-offer=\"%s\"]')" % OFR_ID) and rs(po["total"]) in picker(), picker())
-        clicked = js("(() => { const c=document.querySelector('[data-rg=coupon-chips] .cp-chip[data-coupon=\"%s\"]'); if(!c) return false; c.click(); return true })()" % LIST); drain(3)
+        type_code(LIST.lower()); clicked = True
         t = picker()
-        check(f"chip applies the listed coupon and replaces the offer ({rs(pc['disc'])} off, You pay {rs(pc['total'])})",
+        check(f"typed coupon replaces the offer ({rs(pc['disc'])} off, You pay {rs(pc['total'])})",
               clicked and "Coupon applied" in t and not js("!!document.querySelector('[data-applied][data-offer=\"%s\"]')" % OFR_ID) and "− " + rs(pc["disc"]) in t and rs(pc["total"]) in t
               and rs(pc["cgst"] + pc["sgst"]) in t, (clicked, t, pc))
-        check("chip of the applied coupon is no longer offered", not js("!!document.querySelector('.cp-chip[data-coupon=\"%s\"]')" % LIST))
         shot("customer_coupon_replaces_offer")
         js("document.querySelector('[data-rg=coupon-remove]').click()"); drain(3)
         t = picker()
         check("Remove coupon brings the automatic offer back", js("!!document.querySelector('[data-applied][data-offer=\"%s\"]')" % OFR_ID) and "Offer applied" in t and rs(po["total"]) in t and "Coupon applied" not in t, t)
-        check("after removing, the coupon chip is offered again", js("!!document.querySelector('.cp-chip[data-coupon=\"%s\"]')" % LIST))
         shot("customer_remove_coupon_offer_back")
     finally:
         if OFR_ID:
@@ -525,19 +519,17 @@ try:
             DELETE FROM TRN_OfferRedemption WHERE OfferId IN (SELECT id FROM @o); DELETE FROM MST_OfferScope WHERE OfferId IN (SELECT id FROM @o);
             DELETE FROM MST_OfferModule WHERE OfferId IN (SELECT id FROM @o); DELETE FROM MST_Offer WHERE OfferId IN (SELECT id FROM @o);""")
 
-    # Membership: cards and a chip
+    # Membership: nothing shown, a typed code
     go("/membership", 5)
-    strip = js("[...document.querySelectorAll('[data-rg=coupon-strip] .cp-card')].map(c=>c.dataset.coupon)") or []
-    check("Membership: coupon cards show the listed coupons", LIST in strip and ADM in strip, strip)
-    check("Membership: passes-only / hidden / expired / inactive coupons not shown", not ({OK, EXP, OFF, SOON, BKONLY, MIN} & set(strip)), strip)
-    shot("customer_membership_coupon_cards")
+    check("Membership: no coupon code or coupon card shown", not any(c in text() for c in [OK, LIST, EXP, OFF, MIN, SOON, BKONLY, DEL] + [ADM]) and not js("!!document.querySelector('[data-rg=coupon-strip],[data-rg=coupon-chips],.cp-card,.cp-chip')"), text()[:400])
+    shot("customer_membership_no_coupons")
     js("[...document.querySelectorAll('.choice-card')][0]?.click()"); drain(1.5)
     js("[...document.querySelectorAll('.choice-card')][0]?.click()"); drain(1)
     click("button", "Continue to payment"); drain(3)
     wait_for("!!document.querySelector('[data-rg=offer-picker]')"); drain(2)
-    clicked = js("(() => { const c=document.querySelector('[data-rg=coupon-chips] .cp-chip[data-coupon=\"%s\"]'); if(!c) return false; c.click(); return true })()" % LIST); drain(3)
+    type_code(LIST.lower()); clicked = True
     t = picker()
-    check("membership checkout: chip applies the coupon", clicked and "Coupon applied" in t and f"{LIST} discount (before GST)" in t, (clicked, t))
+    check("membership checkout: the typed coupon applies", clicked and "Coupon applied" in t and f"{LIST} discount (before GST)" in t, (clicked, t))
     m = js("(() => { const p=document.querySelector('[data-rg=offer-summary]'); if(!p) return null; return [...p.children].map(r=>r.innerText) })()") or []
     try:
         orig = D([x for x in m if x.startswith("Original")][0].split("₹")[-1].replace(",", ""))
@@ -549,7 +541,7 @@ try:
     check("membership: 'Total payable' follows the coupon", js("!!document.querySelector('.mem-pay__due .of-strike')"), js("document.querySelector('.mem-pay__due')?.innerText"))
     shot("customer_membership_coupon_applied")
 
-    # Meeting-room booking with a chip, paid from the wallet
+    # Meeting-room booking with a typed code, paid from the wallet
     go("/book", 5)
     ok = js("(() => { const c=[...document.querySelectorAll('.choice-card')].find(e=>e.querySelector('.choice-card__title')?.textContent.trim()==='Meeting Room'); if(!c) return false; c.click(); return true })()"); drain(1.5)
     fill("From date", DAY.isoformat(), "document"); drain(0.5); fill("To date", DAY.isoformat(), "document"); drain(3)
@@ -561,9 +553,9 @@ try:
     drain(2)
     pb = price(800, pct="12.34")
     check("original price shown is ₹944.00 (800/h + GST)", rs(D("944")) in text(), picker())
-    clicked = js("(() => { const c=document.querySelector('[data-rg=coupon-chips] .cp-chip[data-coupon=\"%s\"]'); if(!c) return false; c.click(); return true })()" % LIST); drain(3)
+    type_code(LIST.lower()); clicked = True
     t = picker()
-    check(f"booking: chip applies the coupon, You pay {rs(pb['total'])} ({rs(pb['disc'])} off, GST {rs(pb['cgst'] + pb['sgst'])})",
+    check(f"booking: the typed coupon applies, You pay {rs(pb['total'])} ({rs(pb['disc'])} off, GST {rs(pb['cgst'] + pb['sgst'])})",
           clicked and "Coupon applied" in t and all(x in t for x in ["− " + rs(pb["disc"]), rs(pb["taxable"]), rs(pb["cgst"] + pb["sgst"]), rs(pb["total"])]), (clicked, t, pb))
     shot("customer_booking_coupon_applied")
     bal1 = wallet()
@@ -583,12 +575,11 @@ try:
         check(f"wallet debited exactly {pb['total']} for the booking", wallet() == bal1 - pb["total"], (bal1, wallet()))
         check("booking invoice matches the coupon price", len(inv) == 1 and [D(x) for x in inv[0]] == [pb["disc"], pb["taxable"], pb["cgst"], pb["sgst"], pb["total"]], inv)
     go("/passes", 5)
-    card = (js("document.querySelector('.cp-card[data-coupon=\"%s\"]')?.innerText || ''" % LIST) or "").replace("\u00a0", " ")
-    check("after using it, the coupon card says 'Already used'", "Already used" in card, card)
     click(".choice-card", "Single Day"); drain(1.5)
     fill("First visit date", DAY.isoformat(), "document"); drain(4)
     wait_for("!!document.querySelector('[data-rg=offer-picker]')"); drain(2)
-    check("used-up coupon not offered as a chip", not js("!!document.querySelector('.cp-chip[data-coupon=\"%s\"]')" % LIST))
+    type_code(LIST)
+    check("after using it, typing the coupon again says 'already used'", f"You have already used the coupon {LIST}." in alert(), alert())
     check("no JS errors in the customer flows", not exceptions(n2), exceptions(n2))
 
     # ---- admin after use ----------------------------------------------------------------------------

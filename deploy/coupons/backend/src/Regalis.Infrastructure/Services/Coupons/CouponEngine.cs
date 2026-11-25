@@ -51,14 +51,6 @@ public sealed class CouponEngine(RegalisDbContext db, OfferEngine offers, IDateT
 	public static string StatusOf(Coupon c, DateOnly today) =>
 		c.ValidUntil < today ? "Expired" : !c.IsActive ? "Inactive" : c.ValidFrom > today ? "Scheduled" : "Active";
 
-	/// <summary>Active, inside its dates today, and switched on for the module.</summary>
-	public IQueryable<Coupon> Live(OfferModule module)
-	{
-		DateOnly today = Today;
-		return db.Set<Coupon>().Where(c => c.IsActive && c.ValidFrom <= today && c.ValidUntil >= today
-			&& db.Set<CouponModuleLink>().Any(l => l.CouponId == c.CouponId && l.Module == module));
-	}
-
 	public async Task<Dictionary<int, HashSet<OfferModule>>> ModulesAsync(IReadOnlyCollection<int> couponIds, CancellationToken ct)
 	{
 		int[] ids = couponIds.ToArray();

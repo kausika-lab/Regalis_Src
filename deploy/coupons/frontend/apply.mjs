@@ -8,13 +8,14 @@
 // Existing behaviour is untouched when no coupon is used; every edit only ADDS:
 //   OffersAdminPage-OF1.js       tabs "Offers | Coupon codes" (?tab=coupons); the offers tab is unchanged
 //   OffersKit-OF1.js             checkout picker: a typed code is tried as a coupon first, then as an
-//                                offer code (as before); "Available coupons" chips; "Remove coupon"
-//                                brings the automatic offer back; the selection carries couponCode
+//                                offer code (as before); "Remove coupon" brings the automatic offer
+//                                back; the selection carries couponCode. Coupons are never listed to
+//                                customers: only a typed code that matches is applied.
 //   BookWorkspacePage-MB2.js     a coupon goes on the held booking(s) before paying; Virtual Office
 //                                sends couponCode on /passes/order and /passes/purchase
-//   PassesPage-CxAkHUg-.js       coupon cards; couponCode on /passes/order and /passes/purchase; the order
+//   PassesPage-CxAkHUg-.js       couponCode on /passes/order and /passes/purchase; the order
 //                                summary gets a discount row and shows the GST charged (offer or coupon)
-//   MembershipPage-Bk9mQr2v.js   coupon cards; couponCode on /passes/order and /passes/purchase
+//   MembershipPage-Bk9mQr2v.js   couponCode on /passes/order and /passes/purchase
 //   sw.js                        revisions for the changed and new files
 import fs from "fs";
 import path from "path";
@@ -103,7 +104,7 @@ patch("OffersKit-OF1.js", [
   [
     "import",
     'import { r as React, j as X, p as Button, I as Input, D as unwrap, E as http, A as ApiError, u as useNavigate } from "./index-DI5X4c9f.js";',
-    'import { r as React, j as X, p as Button, I as Input, D as unwrap, E as http, A as ApiError, u as useNavigate } from "./index-DI5X4c9f.js";\nimport { previewCoupon as RGpreviewCoupon, CouponChips as RGcouponChips, couponDeal as RGcouponDeal } from "./CouponsKit-CP1.js";'
+    'import { r as React, j as X, p as Button, I as Input, D as unwrap, E as http, A as ApiError, u as useNavigate } from "./index-DI5X4c9f.js";\nimport { previewCoupon as RGpreviewCoupon, couponDeal as RGcouponDeal } from "./CouponsKit-CP1.js";'
   ],
   ["coupon state", "  const touched = React.useRef(false);\n", "  const touched = React.useRef(false);\n  /* coupons kit: the coupon in use (it replaces the automatic offer), and why a typed code is unknown. */\n  const couponRef = React.useRef(null);\n  const notFound = React.useRef(null);\n"],
   [
@@ -200,29 +201,20 @@ patch("OffersKit-OF1.js", [
       setBusy(false);
     }
   };
-  const pickCoupon = async (c) => {
-    if (!(await tryCoupon(c))) setMsg(notFound.current || "This coupon is not available any more.");
-  };
   const applyCode = async () => {`
   ],
   ["code field label", 'label: "Offer code",', 'label: "Coupon or offer code",'],
   ["code link label", '"Have an offer code?"', '"Have a coupon or offer code?"'],
-  [
-    "available coupons (no offer)",
-    'return el("div", { className: "of-pick of-pick--quiet", "data-rg": "offer-picker" }, codeForm, msg',
-    'return el("div", { className: "of-pick of-pick--quiet", "data-rg": "offer-picker" }, codeForm, el(RGcouponChips, { module, disabled: disabled || busy, onPick: pickCoupon }), msg'
-  ],
   ["heading", 'el("span", null, applied.length > 1 ? "Offers applied" : "Offer applied")', 'el("span", null, data.coupon ? "Coupon applied" : applied.length > 1 ? "Offers applied" : "Offer applied")'],
   ["coupon deal", 'el("span", { className: "of-opt__deal" }, o.discountType ? dealText(o)', 'el("span", { className: "of-opt__deal" }, data.coupon && a.offerId === 0 ? RGcouponDeal(data.coupon) : o.discountType ? dealText(o)'],
   [
-    "remove coupon + available coupons",
+    "remove coupon",
     "\n    codeForm,\n",
     `
     data.coupon
       ? el("button", { type: "button", className: "of-link", "data-rg": "coupon-remove", disabled: disabled || busy, style: { marginTop: "var(--space-2)", marginRight: "var(--space-3)" }, onClick: removeCoupon }, "Remove coupon")
       : null,
     codeForm,
-    el(RGcouponChips, { module, disabled: disabled || busy, current: data.coupon ? data.coupon.code : null, onPick: pickCoupon }),
 `
   ]
 ]);
@@ -244,9 +236,7 @@ patch("BookWorkspacePage-MB2.js", [
 
 // ---- Passes ---------------------------------------------------------------------------------------
 patch("PassesPage-CxAkHUg-.js", [
-  ["import", 'import{OfferStrip as RGofferStrip,OfferPicker as RGofferPicker}from"./OffersKit-OF1.js";', 'import{OfferStrip as RGofferStrip,OfferPicker as RGofferPicker}from"./OffersKit-OF1.js";import{CouponStrip as RGcouponStrip}from"./CouponsKit-CP1.js";'],
   ["coupon code on purchase and order", "offerIds:RGoffer?RGoffer.offerIds:null", "offerIds:RGoffer?RGoffer.offerIds:null,couponCode:RGoffer?RGoffer.couponCode:null", 3],
-  ["coupon cards", 's.jsx(RGofferStrip,{module:d===1?"pass":"membership",heading:"Pass offers"}),', 's.jsx(RGofferStrip,{module:d===1?"pass":"membership",heading:"Pass offers"}),s.jsx(RGcouponStrip,{module:d===1?"pass":"membership",heading:"Coupon codes"}),'],
   /* The order summary showed the price and the GST without the discount (also with an offer), so its
      lines did not add up to the discounted total. Add the discount row and show the GST charged. */
   [
@@ -258,9 +248,7 @@ patch("PassesPage-CxAkHUg-.js", [
 
 // ---- Membership -----------------------------------------------------------------------------------
 patch("MembershipPage-Bk9mQr2v.js", [
-  ["import", 'import{OfferStrip as RGofferStrip,OfferPicker as RGofferPicker}from"./OffersKit-OF1.js";', 'import{OfferStrip as RGofferStrip,OfferPicker as RGofferPicker}from"./OffersKit-OF1.js";import{CouponStrip as RGcouponStrip}from"./CouponsKit-CP1.js";'],
   ["coupon code on purchase and order", "offerIds:RGoffer?RGoffer.offerIds:null", "offerIds:RGoffer?RGoffer.offerIds:null,couponCode:RGoffer?RGoffer.couponCode:null", 3],
-  ["coupon cards", 'e.jsx(RGofferStrip,{module:"membership",heading:"Membership offers"}),', 'e.jsx(RGofferStrip,{module:"membership",heading:"Membership offers"}),e.jsx(RGcouponStrip,{module:"membership",heading:"Coupon codes"}),'],
   ["order summary names a coupon", 'label:"Offer discount (before GST)"', 'label:(RGo.couponCode?"Coupon":"Offer")+" discount (before GST)"']
 ]);
 

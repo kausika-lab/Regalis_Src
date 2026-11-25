@@ -13,6 +13,7 @@ Product-owner decisions taken before building:
 | How coupons are stored | **Separate coupon tables**, not offers with a code. Coupons have their own tables, admin tab, rules service and redemptions. |
 | A coupon and the automatic offer | **The coupon replaces the offer.** They are never combined on one purchase. *Remove coupon* brings the automatic offer back. |
 | Usage limit | **Both**: a total limit (everyone together) and a limit per customer. Both are optional. |
+| Showing coupons to customers | **Never** (user request, 25 Nov 2026, after the first build). No cards, no chips, no list endpoint. A coupon applies only when the customer types a code that matches one. |
 | Install | Local Dev, plus a commit on the new branch `DHK/Coupons`. No push, and no UAT or production deploy. |
 
 **Existing behaviour is unchanged when no coupon is used.** A booking, pass or membership bought
@@ -26,9 +27,9 @@ edits to existing files are listed under **Files**.
 |---|---|
 | Create and manage coupon codes in the Offers screen | **Sales → Offers** now has two tabs: *Offers* (unchanged) and *Coupon codes* (`/admin/offers?tab=coupons`). |
 | Create, edit, activate, deactivate, delete | *New coupon*, *Edit*, *Activate* / *Deactivate* and *Delete* on each row. Delete is refused once a customer has used the coupon ("Deactivate it instead"). The code of a used coupon cannot change; its other fields can. |
-| Fields: code, discount type, value, valid from / until, usage limit, minimum booking amount | All of them. Added: *Description* (shown to customers), *Maximum discount* (for a percentage), *Uses per customer*, *List it on the customer portal* (off = only customers who are given the code can use it). |
+| Fields: code, discount type, value, valid from / until, usage limit, minimum booking amount | All of them. Added: *Description* (shown after the code is applied), *Maximum discount* (for a percentage), *Uses per customer*. |
 | Which services it applies to | Tick boxes for **My Bookings**, **Passes** and **Membership** (Virtual Office included). |
-| Show available coupons in the Customer Portal | *Coupon codes* cards with a *Copy* button on **Book Pass** and **Membership**. *Available coupons* chips at payment in all three services; tapping one applies it. A coupon that is used up, or already used by this customer, is not offered. |
+| Show available coupons in the Customer Portal | **Changed at the user's request: coupons are never shown.** The first build had coupon cards and *Available coupons* chips; both were removed, with the customer list API. The admin shares codes outside the app. |
 | Enter a coupon code at checkout | The existing *Have an offer code?* link is now *Have a coupon or offer code?*. A typed code is tried as a coupon first, then as an offer code (as before). |
 | Validate before applying | The server checks every coupon twice: when it is previewed or applied, and again before money moves. See **Rules**. |
 | Calculate and show the discount and final amount | The panel shows the original amount, the coupon discount (before GST), the price after the discount, CGST + SGST on it, and *You pay* with the old total struck through. The page's own total and pay buttons use the new amount. |
@@ -72,6 +73,7 @@ edits to existing files are listed under **Files**.
   is refused at wallet / pay-later confirmation and at online-order creation, with
   `COUPON_NOT_AVAILABLE` ("Please start the booking again"). Once an online payment has been
   taken, the price the order was made at is honoured.
+- **Never listed.** There is no customer API that lists coupons (`GET /api/coupons` does not exist), the offers list carries no coupon codes, and a wrong code reveals no other code. The tests check all three.
 - **Customers only.** Staff cannot preview or apply coupons. Admin "book for a customer" and
   front-desk pass sales ignore the coupon code, as they ignore offers.
 
@@ -124,7 +126,6 @@ Admin (`api/admin/coupons`; reading needs `OFFER.VIEW`, changes need `OFFER.MANA
 
 Customer (`api/coupons`, signed in; preview and apply are for customers only):
 
-- `GET ?module=booking|pass|membership`: the listed coupons that can still be used.
 - `POST preview`: checks a code against the purchase and prices it exactly as checkout will.
 - `POST bookings/apply`: puts a coupon on the customer's own held bookings (or, with an empty code,
   takes it off). It replaces any offer on them.
@@ -151,9 +152,9 @@ Customer (`api/coupons`, signed in; preview and apply are for customers only):
   `OfferEngine` and the frontend script patches the offers chunks.
 - **Frontend:** `frontend/apply.mjs`. It is idempotent, refuses to run without the offers kit's
   frontend, and has already been run on the repo `frontend/`.
-  - Copies `assets/CouponsKit-CP1.js` (cards, chips, preview and apply calls) and `assets/CouponsAdminPage-CP1.js` (the admin tab).
+  - Copies `assets/CouponsKit-CP1.js` (preview and apply calls) and `assets/CouponsAdminPage-CP1.js` (the admin tab).
   - Patches `OffersAdminPage-OF1.js` (tabs) and `OffersKit-OF1.js` (the payment panel).
-  - Patches `BookWorkspacePage-MB2.js`, `PassesPage-CxAkHUg-.js` and `MembershipPage-Bk9mQr2v.js` (coupon code on the purchase calls, coupon cards).
+  - Patches `BookWorkspacePage-MB2.js`, `PassesPage-CxAkHUg-.js` and `MembershipPage-Bk9mQr2v.js` (coupon code on the purchase calls).
   - Patches `sw.js` (revision `coupons-1`).
 - **A display fix that also affects offers.** On **Book Pass**, the order summary card showed the
   price and the GST before any discount, next to the discounted total. Its lines did not add up
@@ -167,8 +168,8 @@ Customer (`api/coupons`, signed in; preview and apply are for customers only):
 
 | Script | Result |
 |---|---|
-| `tests/e2e_coupons.py`: API, money and database | **97 / 97**, twice |
-| `tests/ui_coupons.py`: headless Chrome, 1366 px and 390 px | **98 / 98** |
+| `tests/e2e_coupons.py`: API, money and database | **96 / 96** |
+| `tests/ui_coupons.py`: headless Chrome, 1366 px and 390 px | **93 / 93** |
 | `node --test frontend/tests/` | 24 / 24 |
 | Regression `deploy/offers/tests/e2e_offers.py` | 110 / 110 |
 | Regression `deploy/wifi/tests/e2e_wifi.py` | 135 / 135 |

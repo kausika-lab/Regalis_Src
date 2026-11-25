@@ -1,4 +1,5 @@
 -- Coupon codes (Coupon Code brief, 25 Nov 2026; kit deploy/coupons).
+-- Coupons are never listed to customers: a code works only when the customer types it.
 -- Tables for coupons, the services (modules) they apply to, and their redemptions. Coupons live in
 -- the Offers screen (Sales > Offers, tab "Coupon codes") and use the offers permissions OFFER.VIEW /
 -- OFFER.MANAGE, so no permission or menu row is added.
@@ -36,7 +37,6 @@ IF OBJECT_ID(N'dbo.MST_Coupon', N'U') IS NULL
         ValidUntil           date           NOT NULL,             -- IST, inclusive
         TotalUses            int            NULL,                 -- usage limit, everyone together
         UsesPerCustomer      int            NULL,                 -- usage limit, each customer
-        ShowInPortal         bit            NOT NULL CONSTRAINT DF_MST_Coupon_ShowInPortal DEFAULT (1),
         CreatedBy            bigint         NULL,
         CreatedDate          datetime2(3)   NOT NULL,
         ModifiedBy           bigint         NULL,

@@ -26,6 +26,7 @@ import { P as PageHeader } from "./PageHeader-Y96MMVry.js";
 import { C as Checkbox } from "./Checkbox-CO1-Cn20.js";
 import { E as EmptyState } from "./EmptyState-B4UbbVj4.js";
 import { dealText } from "./OffersKit-OF1.js";
+import { CouponsTab as RGcouponsTab } from "./CouponsAdminPage-CP1.js";
 
 function el(type, props, ...kids) {
   const p = props ? { ...props } : {};
@@ -94,6 +95,7 @@ const CSS = `
 .oa-img{display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap}
 .oa-img img{width:220px;max-width:100%;aspect-ratio:16/6;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border-subtle)}
 .oa-preview{max-width:340px}
+.oa-tabs{margin:0 0 var(--space-4)}
 `;
 function useCss() {
   React.useEffect(() => {
@@ -164,7 +166,7 @@ function Confirm({ title, children, okLabel, danger, onOk, onClose }) {
 /* page                                                                                       */
 /* ---------------------------------------------------------------------------------------- */
 
-export function OffersAdminPage() {
+function OffersTab({ tabs = null }) {
   useCss();
   const toast = useToast();
   const canManage = usePermission("OFFER.MANAGE");
@@ -230,6 +232,7 @@ export function OffersAdminPage() {
       description: "Promotions customers see and apply in My Bookings, Passes and Membership. An active offer inside its dates appears in the modules you pick; the discount comes off the price before GST and is checked again on the server before payment.",
       actions: canManage ? el(Button, { variant: "primary", onClick: () => setDialog({ kind: "edit", id: null }) }, "New offer") : null
     }),
+    tabs,
     el(
       "div",
       { className: "oa-cards", role: "group", "aria-label": "Offers overview" },
@@ -619,6 +622,24 @@ function OfferEditor({ id, onClose, onSaved }) {
 /* ---------------------------------------------------------------------------------------- */
 /* who used it                                                                                */
 /* ---------------------------------------------------------------------------------------- */
+
+/* coupons kit: the page is two tabs, Offers and Coupon codes. ?tab=coupons opens the second. */
+export function OffersAdminPage() {
+  useCss();
+  const [tab, setTab] = React.useState(() => (new URLSearchParams(window.location.search).get("tab") === "coupons" ? "coupons" : "offers"));
+  const go = (t) => {
+    setTab(t);
+    try {
+      const u = new URL(window.location.href);
+      if (t === "coupons") u.searchParams.set("tab", "coupons");
+      else u.searchParams.delete("tab");
+      window.history.replaceState(window.history.state, "", u);
+    } catch (e) {}
+  };
+  const btn = (t, label) => el("button", { type: "button", role: "tab", "aria-selected": tab === t ? "true" : "false", "aria-pressed": tab === t ? "true" : "false", "data-tab": t, onClick: () => go(t) }, label);
+  const tabs = el("div", { className: "oa-seg oa-tabs", role: "tablist", "aria-label": "Offers and coupon codes" }, btn("offers", "Offers"), btn("coupons", "Coupon codes"));
+  return tab === "coupons" ? el(RGcouponsTab, { tabs }) : el(OffersTab, { tabs });
+}
 
 function UsesDialog({ offer, onClose }) {
   const toast = useToast();

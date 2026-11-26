@@ -1,0 +1,115 @@
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs (as decompiled from api/, with the offers kit's lines)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs
+@@ -132,6 +132,10 @@
+ 		services.AddScoped<Regalis.Infrastructure.Services.Offers.OfferEngine>();
+ 		services.AddScoped<Regalis.Application.Offers.IOfferAdminService, Regalis.Infrastructure.Services.Offers.OfferAdminService>();
+ 		services.AddScoped<Regalis.Application.Offers.IOfferPortalService, Regalis.Infrastructure.Services.Offers.OfferPortalService>();
++		// Coupon codes (coupons kit, 25 Nov 2026).
++		services.AddScoped<Regalis.Infrastructure.Services.Coupons.CouponEngine>();
++		services.AddScoped<Regalis.Application.Coupons.ICouponAdminService, Regalis.Infrastructure.Services.Coupons.CouponAdminService>();
++		services.AddScoped<Regalis.Application.Coupons.ICouponPortalService, Regalis.Infrastructure.Services.Coupons.CouponPortalService>();
+ 		services.AddScoped<IHousekeepingService, HousekeepingService>();
+ 		services.AddScoped<IMaintenanceService, MaintenanceService>();
+ 		services.AddHostedService<MaintenanceOverdueSweeper>();
+--- a/src/Regalis.Application/Regalis.Application.Finance/PassOrderRequest.cs (as decompiled from api/, with the offers kit's lines)
++++ b/src/Regalis.Application/Regalis.Application.Finance/PassOrderRequest.cs
+@@ -1,4 +1,5 @@
+ namespace Regalis.Application.Finance;
+ 
+-/// <summary>OfferIds (offers kit): offers the customer chose; priced into the order and kept for the purchase.</summary>
+-public record PassOrderRequest(int PassPlanId, System.Collections.Generic.IReadOnlyList<int>? OfferIds = null);
++/// <summary>OfferIds (offers kit): offers the customer chose; priced into the order and kept for the purchase.
++/// CouponCode (coupons kit): a coupon the customer typed; it replaces any offers.</summary>
++public record PassOrderRequest(int PassPlanId, System.Collections.Generic.IReadOnlyList<int>? OfferIds = null, string? CouponCode = null);
+--- a/src/Regalis.Application/Regalis.Application.Finance/PurchasePassRequest.cs (as decompiled from api/, with the offers kit's lines)
++++ b/src/Regalis.Application/Regalis.Application.Finance/PurchasePassRequest.cs
+@@ -2,4 +2,4 @@
+ 
+ namespace Regalis.Application.Finance;
+ 
+-public record PurchasePassRequest(int PassPlanId, DateOnly ValidFrom, string PaymentMethod, string? GatewayOrderId, string? GatewayPaymentId, string? GatewaySignature, System.Collections.Generic.IReadOnlyList<int>? OfferIds = null);
++public record PurchasePassRequest(int PassPlanId, DateOnly ValidFrom, string PaymentMethod, string? GatewayOrderId, string? GatewayPaymentId, string? GatewaySignature, System.Collections.Generic.IReadOnlyList<int>? OfferIds = null, string? CouponCode = null);
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/PassService.cs (as decompiled from api/, with the offers kit's lines)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/PassService.cs
+@@ -142,7 +142,9 @@
+ 		// offers kit: the customer's chosen offers come off the price before GST (validated here,
+ 		// before any money moves) and are kept on the order for the purchase call.
+ 		Regalis.Infrastructure.Services.Offers.OfferEngine offerEngine = new Regalis.Infrastructure.Services.Offers.OfferEngine(db, settings, clock);
+-		Regalis.Infrastructure.Services.Offers.OfferPassPrice? offerPrice = await offerEngine.PriceForPassAsync(currentUser.UserId, plan, passQuote.Taxable, (currentUser.UserType == UserType.Customer) ? request.OfferIds : null, ct);
++		// coupons kit: a typed coupon replaces the offers; without one the offers are priced as before.
++		Regalis.Infrastructure.Services.Coupons.CouponEngine couponEngine = new Regalis.Infrastructure.Services.Coupons.CouponEngine(db, offerEngine, clock);
++		Regalis.Infrastructure.Services.Offers.OfferPassPrice? offerPrice = await couponEngine.PriceForPassAsync(currentUser.UserId, plan, passQuote.Taxable, (currentUser.UserType == UserType.Customer) ? request.CouponCode : null, (currentUser.UserType == UserType.Customer) ? request.OfferIds : null, ct);
+ 		if (offerPrice != null)
+ 		{
+ 			total = offerPrice.Total;
+@@ -162,7 +164,7 @@
+ 		await db.SaveChangesAsync(ct);
+ 		if (offerPrice != null)
+ 		{
+-			offerEngine.ReserveForOrder(offerPrice, currentUser.UserId, payment3.PaymentId);
++			await couponEngine.ReserveForOrderAsync(offerPrice, currentUser.UserId, payment3.PaymentId, ct);
+ 			await db.SaveChangesAsync(ct);
+ 		}
+ 		return new PaymentOrderResponse(payment3.PaymentId, payment3.PaymentNumber, order.OrderId, order.KeyId, total, "INR", paymentGateway.ProviderName);
+@@ -208,10 +210,11 @@
+ 		// offers kit: wallet / pay later / cash price the chosen offers now; an online payment uses the
+ 		// offers priced into its order (the money was taken at that price).
+ 		Regalis.Infrastructure.Services.Offers.OfferEngine offerEngine = new Regalis.Infrastructure.Services.Offers.OfferEngine(db, settings, clock);
++		Regalis.Infrastructure.Services.Coupons.CouponEngine couponEngine = new Regalis.Infrastructure.Services.Coupons.CouponEngine(db, offerEngine, clock);
+ 		Regalis.Infrastructure.Services.Offers.OfferPassPrice? offerPrice = (currentUser.UserType != UserType.Customer) ? null
+ 			: (request.PaymentMethod is "wallet" or "paylater" or "cash")
+-				? await offerEngine.PriceForPassAsync(customerId, plan, taxable, request.OfferIds, ct)
+-				: await offerEngine.ReservedForOrderAsync(customerId, plan, taxable, request.GatewayOrderId, ct);
++				? await couponEngine.PriceForPassAsync(customerId, plan, taxable, request.CouponCode, request.OfferIds, ct)
++				: await couponEngine.ReservedForOrderAsync(customerId, plan, taxable, request.GatewayOrderId, ct);
+ 		decimal offerDiscount = 0m;
+ 		if (offerPrice != null)
+ 		{
+@@ -346,7 +349,7 @@
+ 				await db.SaveChangesAsync(ct);
+ 				if (offerPrice != null)
+ 				{
+-					await offerEngine.RecordPassAsync(offerPrice, customerId, pass.CustomerPassId, payment2?.PaymentId, ct);
++					await couponEngine.RecordPassAsync(offerPrice, customerId, pass.CustomerPassId, payment2?.PaymentId, ct);
+ 				}
+ 				if (payment2 != null)
+ 				{
+@@ -389,7 +392,7 @@
+ 				invoice6.Lines.Add(new InvoiceLine
+ 				{
+ 					LineNumber = 1,
+-					Description = $"{plan.PlanName} ({pass.PassNumber}) — valid {pass.ValidFrom:dd MMM yyyy} to {pass.ValidTo:dd MMM yyyy}" + ((quote.IsUpgrade && existing != null) ? $"; upgrade from {existing.PassNumber}: {plan.Price:0.00} less {quote.Credit:0.00} for its {quote.RemainingDays} unused day(s)" : "") + ((offerPrice != null) ? ("; offer " + string.Join(", ", offerPrice.Calc.Lines.Select((Regalis.Infrastructure.Services.Offers.OfferLine l) => Regalis.Infrastructure.Services.Offers.OfferEngine.Label(l.Offer)))) : ""),
++					Description = $"{plan.PlanName} ({pass.PassNumber}) — valid {pass.ValidFrom:dd MMM yyyy} to {pass.ValidTo:dd MMM yyyy}" + ((quote.IsUpgrade && existing != null) ? $"; upgrade from {existing.PassNumber}: {plan.Price:0.00} less {quote.Credit:0.00} for its {quote.RemainingDays} unused day(s)" : "") + Regalis.Infrastructure.Services.Coupons.CouponEngine.InvoiceNote(offerPrice),
+ 					Quantity = 1m,
+ 					UnitPrice = taxable + offerDiscount,
+ 					LineAmount = taxable + offerDiscount,
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingService.cs (as decompiled from api/, with the offers kit's lines)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingService.cs
+@@ -247,6 +247,7 @@
+ 				{
+ 					// offers kit: an offer that ended after it was applied is not charged at the old price.
+ 					await Regalis.Infrastructure.Services.Offers.OfferEngine.EnsureBookingOffersValidAsync(db, clock.UtcNow, booking.BookingId, ct);
++					await Regalis.Infrastructure.Services.Coupons.CouponEngine.EnsureBookingCouponValidAsync(db, clock.UtcNow, booking.BookingId, ct);
+ 				}
+ 				ConfirmBookingResponse result = await SettleAndFinalizeAsync(booking, request, ct);
+ 				await transaction.CommitAsync(ct);
+@@ -650,7 +651,7 @@
+ 		{
+ 			description = $"Workspace booking {booking.BookingNumber} — {booking.Workspace.WorkspaceName} ({booking.Workspace.WorkspaceCode}), {startIst:dd MMM yyyy HH:mm}–{endIst:HH:mm} IST";
+ 		}
+-		invoiceLine.Description = description + await Regalis.Infrastructure.Services.Offers.OfferEngine.InvoiceNoteAsync(db, booking.BookingId, ct);
++		invoiceLine.Description = description + await Regalis.Infrastructure.Services.Offers.OfferEngine.InvoiceNoteAsync(db, booking.BookingId, ct) + await Regalis.Infrastructure.Services.Coupons.CouponEngine.InvoiceNoteAsync(db, booking.BookingId, ct);
+ 		invoiceLine.Quantity = ((decimal?)booking.BillingMonths) ?? Math.Round((decimal)booking.DurationMinutes / 60m, 3);
+ 		billingMonths = booking.BillingMonths;
+ 		decimal unitPrice;
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/PaymentService.cs (as decompiled from api/, with the offers kit's lines)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/PaymentService.cs
+@@ -85,6 +85,8 @@
+ 		}
+ 		// offers kit: re-check the booking's offers on the server before the order is created.
+ 		await Regalis.Infrastructure.Services.Offers.OfferEngine.EnsureBookingOffersValidAsync(db, clock.UtcNow, booking.BookingId, ct);
++		// coupons kit: and the coupon on it.
++		await Regalis.Infrastructure.Services.Coupons.CouponEngine.EnsureBookingCouponValidAsync(db, clock.UtcNow, booking.BookingId, ct);
+ 		GatewayOrder order = await paymentGateway.CreateOrderAsync(booking.TotalAmount, "INR", booking.BookingNumber, ct);
+ 		Payment payment = await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+ 		{

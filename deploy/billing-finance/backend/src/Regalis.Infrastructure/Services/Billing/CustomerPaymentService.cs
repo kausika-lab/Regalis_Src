@@ -167,6 +167,14 @@ public class CustomerPaymentService(
                 throw new BusinessRuleException("The payment date cannot be before the invoice date.", "DATE_BEFORE_INVOICE");
             }
             await FinanceRules.EnsurePeriodOpenAsync(db, request.PaidOn, ct, "this payment");
+            // quotation-invoice kit (B4): the same reference twice on one invoice and mode is refused while
+            // the first receipt stands (UX_InvoicePayment_ManualReference backs this up in the database).
+            if (reference != null && mode != InvoicePaymentMode.Wallet
+                && await db.Set<InvoicePayment>().AnyAsync(p => p.InvoiceId == invoiceId && p.Mode == mode && p.Reference == reference
+                                                               && p.ReversalOfId == null && !p.IsReversed, ct))
+            {
+                throw new ConflictException($"A {ModeName(mode)} payment with reference {reference} is already recorded on {invoice.InvoiceNumber}. Check the payments list; reverse that payment first if it was wrong.", "DUPLICATE_RECORD");
+            }
 
             decimal outstanding = invoice.TotalAmount - invoice.PaidAmount;
             if (outstanding <= 0m)
@@ -432,7 +440,14 @@ public class CustomerPaymentService(
             from c in cJoin.DefaultIfEmpty()
             join i in db.Invoices on p.InvoiceId equals (long?)i.InvoiceId into iJoin
             from i in iJoin.DefaultIfEmpty()
-            select new { p, ip, CustomerName = c != null ? c.FullName : "", InvoiceNumber = i != null ? i.InvoiceNumber : null };
+            join q in db.Quotations on i.QuotationId equals (long?)q.QuotationId into qJoin
+            from q in qJoin.DefaultIfEmpty()
+            // quotation-invoice kit (B3): nothing linked to a rejected / not-approved quotation.
+            where i == null || i.QuotationId == null || (q != null && q.Status == QuotationStatus.Approved)
+            select new { p, ip, CustomerName = c != null ? c.FullName : "", InvoiceNumber = i != null ? i.InvoiceNumber : null,
+                         QuotationNumber = q != null ? q.QuotationNumber : null,
+                         InvoiceTotal = i != null ? (decimal?)i.TotalAmount : null, InvoicePaid = i != null ? (decimal?)i.PaidAmount : null,
+                         InvoiceStatus = i != null ? (InvoiceStatus?)i.Status : null };
 
         string source = (request.Source ?? "all").ToLowerInvariant();
         if (source == "online")
@@ -466,6 +481,7 @@ public class CustomerPaymentService(
             string s = request.Search.Trim();
             query = query.Where(x => x.p.PaymentNumber.Contains(s) || (x.p.GatewayOrderId != null && x.p.GatewayOrderId.Contains(s))
                                      || x.CustomerName.Contains(s) || (x.InvoiceNumber != null && x.InvoiceNumber.Contains(s))
+                                     || (x.QuotationNumber != null && x.QuotationNumber.Contains(s))
                                      || (x.ip != null && (x.ip.ReceiptNumber.Contains(s) || (x.ip.Reference != null && x.ip.Reference.Contains(s)))));
         }
 
@@ -474,7 +490,7 @@ public class CustomerPaymentService(
             .Skip((request.Page - 1) * request.PageSize).Take(request.PageSize)
             .Select(x => new
             {
-                x.p, x.ip, x.CustomerName, x.InvoiceNumber,
+                x.p, x.ip, x.CustomerName, x.InvoiceNumber, x.QuotationNumber, x.InvoiceTotal, x.InvoicePaid, x.InvoiceStatus,
                 Reconciled = db.BankTransactions.Any(t => t.MatchedPaymentId == x.p.PaymentId && t.ReconciliationStatus == ReconciliationStatus.Reconciled)
                              || db.Set<BankMatchAllocation>().Any(m => m.DocType == BankMatchDocType.CustomerPayment && m.DocId == x.p.PaymentId)
                              || (x.ip != null && x.ip.BankTransactionId != null)
@@ -491,7 +507,11 @@ public class CustomerPaymentService(
                 (byte)r.p.PaymentMethod, (byte)r.p.Status, r.p.Gateway, r.p.GatewayOrderId, r.p.GatewayPaymentId, r.p.PaidUtc,
                 r.p.CreatedDate, offline, modeName, reference, r.p.InvoiceId, r.InvoiceNumber, r.ip?.InvoicePaymentId,
                 r.ip?.ReceiptNumber, r.ip?.IsReversed ?? false, r.ip?.ReverseReason,
-                canReverse && r.ip != null && !r.ip.IsReversed && !r.Reconciled && r.p.Status == PaymentStatus.Success, r.Reconciled);
+                canReverse && r.ip != null && !r.ip.IsReversed && !r.Reconciled && r.p.Status == PaymentStatus.Success, r.Reconciled,
+                r.QuotationNumber, r.InvoiceTotal, r.InvoiceTotal - r.InvoicePaid,
+                r.InvoiceStatus != null
+                    ? Regalis.Infrastructure.Services.QuotationInvoice.InvoicePaymentRules.InvoiceLabel(r.InvoiceStatus.Value, r.InvoiceTotal ?? 0m, r.InvoicePaid ?? 0m)
+                    : Regalis.Infrastructure.Services.QuotationInvoice.InvoicePaymentRules.PaymentLabel(r.p.Status));
         }).ToList();
         return PagedResult<PaymentRegisterRowDto>.Create(items, request.Page, request.PageSize, total);
     }

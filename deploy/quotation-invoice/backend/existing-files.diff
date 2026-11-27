@@ -1,0 +1,409 @@
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs (as decompiled from local-dev api, with the earlier kits)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs
+@@ -167,6 +167,10 @@
+ 		services.Configure<WhatsAppOptions>(configuration.GetSection("WhatsApp"));
+ 		services.AddHttpClient("QuotationDispatcher");
+ 		services.AddScoped<IQuotationDispatcher, QuotationDispatcher>();
++		// quotation-invoice kit (27 Nov 2026): quotation email through Graph or SMTP (B1); one invoice per approved quotation (B2).
++		services.AddScoped<QuotationDispatcher>();
++		services.AddScoped<QuotationMailDispatcher>();
++		services.AddScoped<Regalis.Application.Finance.QuotationInvoice.IQuotationInvoicing, Regalis.Infrastructure.Services.QuotationInvoice.QuotationInvoicingService>();
+ 		services.AddScoped<SandboxPaymentGateway>();
+ 		services.AddHttpClient<RazorpayPaymentGateway>();
+ 		services.AddScoped((IServiceProvider provider) => (!string.Equals(configuration["Payments:Provider"], "Razorpay", StringComparison.OrdinalIgnoreCase)) ? ((IPaymentGateway)provider.GetRequiredService<SandboxPaymentGateway>()) : ((IPaymentGateway)provider.GetRequiredService<RazorpayPaymentGateway>()));
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/QuotationService.cs (as decompiled from local-dev api, with the earlier kits)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/QuotationService.cs
+@@ -48,7 +48,7 @@
+ /// moment and their IP. Everything that happens to a quotation — including sends,
+ /// notes and downloads — is written to the append-only TRN_QuotationEvent timeline.
+ /// </summary>
+-public class QuotationService(RegalisDbContext db, ISettingService settings, INumberSequenceService numberSequence, ICurrentUser currentUser, IDateTimeProvider clock, IQuotationDispatcher dispatcher, IInvoiceService invoiceService, ILogger<QuotationService> logger, IOptions<StorageOptions> storageOptions) : IQuotationService
++public class QuotationService(RegalisDbContext db, ISettingService settings, INumberSequenceService numberSequence, ICurrentUser currentUser, IDateTimeProvider clock, IQuotationDispatcher dispatcher, IInvoiceService invoiceService, ILogger<QuotationService> logger, IOptions<StorageOptions> storageOptions, Regalis.Infrastructure.Adapters.QuotationMailDispatcher quotationMail, Regalis.Application.Finance.QuotationInvoice.IQuotationInvoicing quotationInvoicing) : IQuotationService
+ {
+ 	/// <summary>The customer's live details, used only while a quotation is a draft.</summary>
+ 	private sealed record QuotationContact(string Name, string Email, string? Mobile, string? Gstin, string? CompanyName, string? Address);
+@@ -434,7 +434,8 @@
+ 				text = text2;
+ 			}
+ 			string body = text;
+-			QuotationDeliveryResult quotationDeliveryResult = await dispatcher.SendEmailAsync(new QuotationEmailMessage(request.EmailTo.Trim(), request.EmailCc?.Trim(), request.BccMe ? currentUser.Email : null, subject, EmailHtml(body, portalLink), files), ct);
++			// quotation-invoice kit (B1): Graph, else SMTP, else a failure with the reason; never "Ok, not sent".
++			QuotationDeliveryResult quotationDeliveryResult = await quotationMail.SendEmailAsync(new QuotationEmailMessage(request.EmailTo.Trim(), request.EmailCc?.Trim(), request.BccMe ? currentUser.Email : null, subject, EmailHtml(body, portalLink), files), ct);
+ 			anySucceeded |= quotationDeliveryResult.Succeeded;
+ 			if (!quotationDeliveryResult.Succeeded)
+ 			{
+@@ -728,6 +729,16 @@
+ 	{
+ 		Quotation quotation = await LoadScopedAsync(quotationId, ct, track: true);
+ 		QuotationStatus status = quotation.Status;
++		// quotation-invoice kit (B2): approving an approved quotation again is not an error. It returns
++		// the quotation with its one invoice (raised now if it has none and has a customer account).
++		if (decision == QuotationStatus.Approved && status == QuotationStatus.Approved)
++		{
++			if (!quotation.InvoiceId.HasValue && quotation.CustomerId.HasValue)
++			{
++				await quotationInvoicing.ConvertAsync(quotationId, ct);
++			}
++			return await ToDtoAsync(quotation, ct, !onBehalf && currentUser.UserType == UserType.Customer);
++		}
+ 		if (status - 4 <= QuotationStatus.Draft)
+ 		{
+ 			throw new BusinessRuleException("This quotation was already " + quotation.Status.ToString().ToLowerInvariant() + ".");
+@@ -763,7 +774,23 @@
+ 		string text = ((decision == QuotationStatus.Approved) ? "approved" : "rejected");
+ 		AddEvent(quotation, (decision == QuotationStatus.Approved) ? QuotationEventType.Approved : QuotationEventType.Rejected, onBehalf ? QuotationActorType.Admin : QuotationActorType.Customer, onBehalf ? ($"Recorded as {text} on behalf of the customer, confirmed by {confirmedBy} ({mode})." + (string.IsNullOrWhiteSpace(reason) ? "" : (" " + reason.Trim()))) : (quotation.CustomerName + " " + text + " the quotation." + (string.IsNullOrWhiteSpace(reason) ? "" : (" Reason: " + reason.Trim()))), utcNow);
+ 		Notify(quotation, null, NotificationAudience.AllAdmins, "Quotation " + text, $"{quotation.CustomerName} {text} quotation {quotation.QuotationNumber}." + (string.IsNullOrWhiteSpace(reason) ? "" : (" Reason: " + reason.Trim())), $"/admin/billing/quotations/{quotation.QuotationId}", "Open");
+-		await db.SaveChangesAsync(ct);
++		// quotation-invoice kit (B2): an approval raises the quotation's one issued invoice in the same
++		// transaction, so the decision and the invoice commit together or not at all. A quotation typed
++		// in for someone without a customer account is approved as before, without an invoice.
++		if (decision == QuotationStatus.Approved && !quotation.CustomerId.HasValue)
++		{
++			AddEvent(quotation, QuotationEventType.NoteAdded, QuotationActorType.System, "No invoice raised: the customer has no account. Create the customer, then raise the invoice.", utcNow);
++		}
++		await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
++		{
++			await using IDbContextTransaction decisionTx = await db.Database.BeginTransactionAsync(ct);
++			await db.SaveChangesAsync(ct);
++			if (decision == QuotationStatus.Approved && quotation.CustomerId.HasValue)
++			{
++				await quotationInvoicing.ConvertAsync(quotationId, ct);
++			}
++			await decisionTx.CommitAsync(ct);
++		});
+ 		if (decision == QuotationStatus.Approved && quotation.AdvanceInvoiceEnabled)
+ 		{
+ 			try
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/InvoiceService.cs (as decompiled from local-dev api, with the earlier kits)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/InvoiceService.cs
+@@ -23,7 +23,7 @@
+ /// change one are to cancel it or to let a payment move its status. The one creation
+ /// path is an approved quotation, whose figures are carried across verbatim.
+ /// </summary>
+-public class InvoiceService(RegalisDbContext db, ISettingService settings, INumberSequenceService numberSequence, ICurrentUser currentUser, IDateTimeProvider clock) : IInvoiceService
++public class InvoiceService(RegalisDbContext db, ISettingService settings, INumberSequenceService numberSequence, ICurrentUser currentUser, IDateTimeProvider clock, Regalis.Application.Finance.QuotationInvoice.IQuotationInvoicing quotationInvoicing) : IInvoiceService
+ {
+ 	public async Task<InvoiceDto> GetInvoiceAsync(long invoiceId, CancellationToken ct = default(CancellationToken))
+ 	{
+@@ -32,7 +32,7 @@
+ 
+ 	public async Task<PagedResult<InvoiceDto>> GetMyInvoicesAsync(InvoiceListRequest request, CancellationToken ct = default(CancellationToken))
+ 	{
+-		IQueryable<Invoice> query = from i in db.Invoices.AsNoTracking()
++		IQueryable<Invoice> query = from i in Regalis.Infrastructure.Services.QuotationInvoice.InvoicePaymentRules.Billable(db.Invoices.AsNoTracking(), db)
+ 			where i.CustomerId == currentUser.UserId
+ 			select i;
+ 		string text = request.Status?.ToLowerInvariant();
+@@ -53,7 +53,8 @@
+ 
+ 	public async Task<PagedResult<InvoiceDto>> GetInvoicesAsync(AdminInvoiceListRequest request, CancellationToken ct = default(CancellationToken))
+ 	{
+-		IQueryable<Invoice> query = db.Invoices.AsNoTracking();
++		// quotation-invoice kit (B3): nothing linked to a rejected / not-approved quotation is listed.
++		IQueryable<Invoice> query = Regalis.Infrastructure.Services.QuotationInvoice.InvoicePaymentRules.Billable(db.Invoices.AsNoTracking(), db);
+ 		if (request.Status.HasValue)
+ 		{
+ 			query = query.Where((Invoice i) => (int?)(byte)i.Status == (int?)request.Status);
+@@ -106,102 +107,11 @@
+ 		return new InvoicePdfExtras(logo, placeOfSupply, await settings.GetStringAsync("Company.BankAccountName", "", ct), await settings.GetStringAsync("Company.BankAccountNumber", "", ct), await settings.GetStringAsync("Company.BankIfsc", "", ct), await settings.GetStringAsync("Company.BankBranch", "", ct), await settings.GetStringAsync("Invoice.TermsAndConditions", "", ct));
+ 	}
+ 
++	/// <summary>quotation-invoice kit (B2): raised by IQuotationInvoicing, which approval also uses.
++	/// A quotation that already has its invoice gets that invoice back instead of a 409.</summary>
+ 	public async Task<InvoiceDto> CreateFromQuotationAsync(long quotationId, CancellationToken ct = default(CancellationToken))
+ 	{
+-		Quotation quotation = (await db.Quotations.Include((Quotation q) => q.Lines.OrderBy((QuotationLine l) => l.LineNumber)).FirstOrDefaultAsync((Quotation q) => q.QuotationId == quotationId, ct)) ?? throw new NotFoundException("Quotation", quotationId);
+-		if (quotation.Status != QuotationStatus.Approved)
+-		{
+-			throw new BusinessRuleException("Only an approved quotation can be invoiced. " + quotation.QuotationNumber + " is " + quotation.Status.ToString().ToLowerInvariant() + ".");
+-		}
+-		if (quotation.InvoiceId.HasValue)
+-		{
+-			throw new ConflictException(quotation.QuotationNumber + " has already been invoiced.", "DUPLICATE_RECORD");
+-		}
+-		DateOnly invoiceDate = IstClock.IstDateOf(clock.UtcNow);
+-		int value = await settings.GetIntAsync("Invoice.DueDays", 7, ct);
+-		Invoice invoice = new Invoice
+-		{
+-			CustomerId = CustomerOf(quotation),
+-			QuotationId = quotation.QuotationId,
+-			LocationId = quotation.LocationId,
+-			InvoiceDate = invoiceDate,
+-			DueDate = invoiceDate.AddDays(value),
+-			SubTotal = quotation.SubTotal,
+-			DiscountAmount = quotation.DiscountAmount,
+-			TaxableAmount = quotation.TaxableAmount,
+-			CgstPercent = quotation.CgstPercent,
+-			SgstPercent = quotation.SgstPercent,
+-			IgstPercent = quotation.IgstPercent,
+-			CgstAmount = quotation.CgstAmount,
+-			SgstAmount = quotation.SgstAmount,
+-			IgstAmount = quotation.IgstAmount,
+-			TdsLabel = quotation.TdsLabel,
+-			TdsPercent = quotation.TdsPercent,
+-			TdsAmount = quotation.TdsAmount,
+-			AdjustmentLabel = quotation.AdjustmentLabel,
+-			AdjustmentAmount = quotation.AdjustmentAmount,
+-			RoundOffAmount = quotation.RoundOffAmount,
+-			TotalAmount = quotation.TotalAmount,
+-			PaidAmount = 0m,
+-			Status = InvoiceStatus.Pending,
+-			CustomerName = quotation.CustomerName,
+-			CustomerEmail = quotation.CustomerEmail,
+-			CustomerMobile = quotation.CustomerMobile,
+-			CustomerGstin = quotation.CustomerGstin,
+-			CustomerCompanyName = quotation.CustomerCompanyName,
+-			BillingAddress = quotation.BillingAddress,
+-			CompanyName = quotation.CompanyName,
+-			CompanyGstin = quotation.CompanyGstin,
+-			CompanyAddress = quotation.CompanyAddress,
+-			TermsAndConditions = quotation.TermsAndConditions,
+-			Notes = "Raised from quotation " + quotation.QuotationNumber + "."
+-		};
+-		foreach (QuotationLine item in quotation.Lines.OrderBy((QuotationLine l) => l.LineNumber))
+-		{
+-			string description = ((!item.DurationValue.HasValue) ? item.Description : $"{item.Description} ({item.DurationValue:0.###} {item.DurationUnit})".Trim());
+-			invoice.Lines.Add(new InvoiceLine
+-			{
+-				LineNumber = item.LineNumber,
+-				Description = description,
+-				HsnSacCode = item.HsnSacCode,
+-				Quantity = item.Quantity,
+-				UnitPrice = item.UnitPrice,
+-				LineAmount = item.LineAmount,
+-				TaxPercent = item.TaxPercent,
+-				TaxAmount = item.TaxAmount,
+-				TotalAmount = item.TotalAmount
+-			});
+-		}
+-		return await GetInvoiceAsync(await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+-		{
+-			long invoiceId;
+-			await using (IDbContextTransaction dbTransaction = await db.Database.BeginTransactionAsync(ct))
+-			{
+-				Invoice invoice2 = invoice;
+-				invoice2.InvoiceNumber = await numberSequence.NextAsync("Invoice", ct);
+-				db.Invoices.Add(invoice);
+-				await db.SaveChangesAsync(ct);
+-				(await db.Quotations.FirstAsync((Quotation q) => q.QuotationId == quotationId, ct)).InvoiceId = invoice.InvoiceId;
+-				db.Notifications.Add(new Notification
+-				{
+-					UserId = invoice.CustomerId,
+-					Audience = NotificationAudience.SingleUser,
+-					Title = "Your invoice is ready",
+-					Message = $"Invoice {invoice.InvoiceNumber} for Rs {invoice.TotalAmount:N2} is due on {invoice.DueDate:dd MMM yyyy}.",
+-					Category = NotificationCategory.Invoice,
+-					Priority = NotificationPriority.Normal,
+-					ReferenceType = "Invoice",
+-					ReferenceId = invoice.InvoiceId,
+-					ActionLabel = "View invoice",
+-					ActionRoute = "/invoices",
+-					SentUtc = clock.UtcNow
+-				});
+-				await db.SaveChangesAsync(ct);
+-				await dbTransaction.CommitAsync(ct);
+-				invoiceId = invoice.InvoiceId;
+-			}
+-			return invoiceId;
+-		}), ct);
++		return await GetInvoiceAsync((await quotationInvoicing.ConvertAsync(quotationId, ct)).InvoiceId, ct);
+ 	}
+ 
+ 	public async Task<InvoiceDto> CreateAdvanceFromQuotationAsync(long quotationId, CancellationToken ct = default(CancellationToken))
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/PaymentService.cs (as decompiled from local-dev api, with the earlier kits)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/PaymentService.cs
+@@ -29,7 +29,8 @@
+ {
+ 	public async Task<PagedResult<PaymentDto>> GetPaymentsAsync(PaymentListRequest request, CancellationToken ct = default(CancellationToken))
+ 	{
+-		IQueryable<Payment> query = db.Payments.AsNoTracking();
++		// quotation-invoice kit (B3): nothing linked to a rejected / not-approved quotation is listed.
++		IQueryable<Payment> query = Regalis.Infrastructure.Services.QuotationInvoice.InvoicePaymentRules.Billable(db.Payments.AsNoTracking(), db);
+ 		if (request.Status.HasValue)
+ 		{
+ 			query = query.Where((Payment p) => (int?)(byte)p.Status == (int?)request.Status);
+@@ -47,12 +48,39 @@
+ 			string term = request.Search.Trim();
+ 			query = query.Where((Payment p) => p.PaymentNumber.Contains(term) || (p.GatewayOrderId != null && p.GatewayOrderId.Contains(term)));
+ 		}
+-		return PagedResult<PaymentDto>.Create(totalCount: await query.CountAsync(ct), items: await (from p in query.OrderByDescending((Payment p) => p.PaymentId).Skip((request.Page - 1) * request.PageSize).Take(request.PageSize)
++		return PagedResult<PaymentDto>.Create(totalCount: await query.CountAsync(ct), items: (await (from p in query.OrderByDescending((Payment p) => p.PaymentId).Skip((request.Page - 1) * request.PageSize).Take(request.PageSize)
+ 			join u in db.Users on p.CustomerId equals u.UserId
+ 			select new { p, u.FullName } into x
+ 			select new PaymentDto(x.p.PaymentId, x.p.PaymentNumber, x.p.CustomerId, x.FullName, x.p.BookingId, x.p.InvoiceId, (from i in db.Invoices
+ 				where (long?)i.InvoiceId == x.p.InvoiceId
+-				select i.InvoiceNumber).FirstOrDefault(), db.Invoices.Where((Invoice i) => (long?)i.InvoiceId == x.p.InvoiceId).Select(((Invoice i) => (decimal?)(i.TotalAmount))).FirstOrDefault(), x.p.CustomerPassId, x.p.Amount, (byte)x.p.PaymentMethod, x.p.Gateway, x.p.GatewayOrderId, x.p.GatewayPaymentId, x.p.RefundedAmount, x.p.RefundReference, x.p.IsSignatureVerified, (byte)x.p.Status, x.p.PaidUtc, x.p.FailureReason, x.p.CreatedDate)).ToListAsync(ct), page: request.Page, pageSize: request.PageSize);
++				select i.InvoiceNumber).FirstOrDefault(), db.Invoices.Where((Invoice i) => (long?)i.InvoiceId == x.p.InvoiceId).Select(((Invoice i) => (decimal?)(i.TotalAmount))).FirstOrDefault(), x.p.CustomerPassId, x.p.Amount, (byte)x.p.PaymentMethod, x.p.Gateway, x.p.GatewayOrderId, x.p.GatewayPaymentId, x.p.RefundedAmount, x.p.RefundReference, x.p.IsSignatureVerified, (byte)x.p.Status, x.p.PaidUtc, x.p.FailureReason, x.p.CreatedDate, (from i in db.Invoices
++				join q in db.Quotations on i.QuotationId equals (long?)q.QuotationId
++				where (long?)i.InvoiceId == x.p.InvoiceId
++				select q.QuotationNumber).FirstOrDefault(), db.Invoices.Where((Invoice i) => (long?)i.InvoiceId == x.p.InvoiceId).Select(((Invoice i) => (decimal?)(i.TotalAmount - i.PaidAmount))).FirstOrDefault(), null)).ToListAsync(ct)).Select(WithPaymentStatusLabel(await InvoiceStatusesAsync(request, query, ct))).ToList(), page: request.Page, pageSize: request.PageSize);
++	}
++
++	/// <summary>quotation-invoice kit (B5): the Payment Status column. A payment against an invoice shows
++	/// the invoice's Due / Partially Paid / Paid; any other payment shows its own status. The invoice
++	/// status travels in PaymentStatus from the query as its number and is turned into the label here.</summary>
++	private static Func<PaymentDto, PaymentDto> WithPaymentStatusLabel(System.Collections.Generic.Dictionary<long, InvoiceStatus> invoiceStatuses)
++	{
++		return (PaymentDto d) =>
++		{
++			string label = Regalis.Infrastructure.Services.QuotationInvoice.InvoicePaymentRules.PaymentLabel((PaymentStatus)d.Status);
++			if (d.InvoiceId.HasValue && invoiceStatuses.TryGetValue(d.InvoiceId.Value, out InvoiceStatus invoiceStatus) && d.InvoiceAmount.HasValue && d.OutstandingAmount.HasValue)
++			{
++				label = Regalis.Infrastructure.Services.QuotationInvoice.InvoicePaymentRules.InvoiceLabel(invoiceStatus, d.InvoiceAmount.Value, d.InvoiceAmount.Value - d.OutstandingAmount.Value);
++			}
++			return d with { PaymentStatus = label };
++		};
++	}
++
++	/// <summary>The stored status of the invoices behind one page of the list.</summary>
++	private async Task<System.Collections.Generic.Dictionary<long, InvoiceStatus>> InvoiceStatusesAsync(PaymentListRequest request, IQueryable<Payment> query, CancellationToken ct)
++	{
++		System.Collections.Generic.List<long> ids = await query.OrderByDescending((Payment p) => p.PaymentId).Skip((request.Page - 1) * request.PageSize).Take(request.PageSize)
++			.Where((Payment p) => p.InvoiceId != null).Select((Payment p) => p.InvoiceId.Value).Distinct().ToListAsync(ct);
++		return await db.Invoices.AsNoTracking().Where((Invoice i) => ids.Contains(i.InvoiceId)).ToDictionaryAsync((Invoice i) => i.InvoiceId, (Invoice i) => i.Status, ct);
+ 	}
+ 
+ 	public async Task<PaymentDto> GetPaymentAsync(long paymentId, CancellationToken ct = default(CancellationToken))
+@@ -189,6 +217,14 @@
+ 			await bookingService.CompleteGatewayPaymentAsync(payment.PaymentId, gatewayPaymentId, body, ct);
+ 			return;
+ 		}
++		// quotation-invoice kit (B7): a payment raised against an invoice (Pay Now; no booking or pass on
++		// the payment) moves the invoice's paid amount and status with it, once. Wallet recharges and
++		// every other payment keep the code below unchanged.
++		if (payment.Status == PaymentStatus.Pending && payment.InvoiceId.HasValue && !payment.CustomerPassId.HasValue)
++		{
++			await Regalis.Infrastructure.Services.QuotationInvoice.InvoicePaymentRules.SettleInvoiceWebhookAsync(db, payment.PaymentId, gatewayPaymentId, body, clock, logger, ct);
++			return;
++		}
+ 		if (payment.Status == PaymentStatus.Pending)
+ 		{
+ 			payment.GatewayPaymentId = gatewayPaymentId;
+@@ -256,7 +292,16 @@
+ 			long paymentId;
+ 			await using (IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(ct))
+ 			{
++				// quotation-invoice kit (B7): the webhook takes the same lock, so the two never both apply the money.
++				await db.Database.ExecuteSqlInterpolatedAsync($"SELECT PaymentId FROM TRN_Payment WITH (UPDLOCK, HOLDLOCK) WHERE GatewayOrderId = {request.GatewayOrderId}", ct);
+ 				Payment payment = (await db.Payments.FirstOrDefaultAsync((Payment p) => p.GatewayOrderId == request.GatewayOrderId && p.CustomerId == currentUser.UserId && p.InvoiceId != (long?)null, ct)) ?? throw new BusinessRuleException("No payment order was found for this invoice.", "PAYMENT_VERIFICATION_FAILED");
++				if (payment.Status == PaymentStatus.Success && payment.IsSignatureVerified && payment.GatewayPaymentId == request.GatewayPaymentId
++					&& paymentGateway.VerifySignature(request.GatewayOrderId, request.GatewayPaymentId, request.GatewaySignature))
++				{
++					// Already settled (by the webhook, or an earlier verify of the same payment): nothing is applied again.
++					await transaction.CommitAsync(ct);
++					return payment.PaymentId;
++				}
+ 				if (payment.Status != PaymentStatus.Pending && !(payment.Status == PaymentStatus.Success && !payment.IsSignatureVerified))
+ 				{
+ 					throw new BusinessRuleException("This payment is already settled.", "PAYMENT_VERIFICATION_FAILED");
+--- a/src/Regalis.Application/Regalis.Application.Finance/PaymentDto.cs (as decompiled from local-dev api, with the earlier kits)
++++ b/src/Regalis.Application/Regalis.Application.Finance/PaymentDto.cs
+@@ -2,4 +2,4 @@
+ 
+ namespace Regalis.Application.Finance;
+ 
+-public record PaymentDto(long PaymentId, string PaymentNumber, long CustomerId, string CustomerName, long? BookingId, long? InvoiceId, string? InvoiceNumber, decimal? InvoiceAmount, long? CustomerPassId, decimal Amount, byte PaymentMethod, string? Gateway, string? GatewayOrderId, string? GatewayPaymentId, decimal? RefundedAmount, string? RefundReference, bool IsSignatureVerified, byte Status, DateTime? PaidUtc, string? FailureReason, DateTime CreatedDate);
++public record PaymentDto(long PaymentId, string PaymentNumber, long CustomerId, string CustomerName, long? BookingId, long? InvoiceId, string? InvoiceNumber, decimal? InvoiceAmount, long? CustomerPassId, decimal Amount, byte PaymentMethod, string? Gateway, string? GatewayOrderId, string? GatewayPaymentId, decimal? RefundedAmount, string? RefundReference, bool IsSignatureVerified, byte Status, DateTime? PaidUtc, string? FailureReason, DateTime CreatedDate, string? QuotationNumber = null, decimal? OutstandingAmount = null, string? PaymentStatus = null);
+--- a/src/Regalis.API/Regalis.API.Controllers/InvoicesController.cs (as decompiled from local-dev api, with the earlier kits)
++++ b/src/Regalis.API/Regalis.API.Controllers/InvoicesController.cs
+@@ -13,7 +13,7 @@
+ /// <summary>Invoices (API_PLAN §7). Manual invoices, cancel and resend arrive with
+ /// the finance screens on Day 6.</summary>
+ [Route("api/invoices")]
+-public class InvoicesController(IInvoiceService invoiceService, ISettingService settings, ISettingAdminService settingAdmin) : ApiControllerBase
++public class InvoicesController(IInvoiceService invoiceService, ISettingService settings, ISettingAdminService settingAdmin, Regalis.Application.Finance.QuotationInvoice.IQuotationInvoicing quotationInvoicing) : ApiControllerBase
+ {
+ 	/// <summary>The Terms &amp; Conditions printed at the end of every invoice PDF (one
+ 	/// text for all customers; invoices raised from a quotation print the quotation's own).
+@@ -95,7 +95,13 @@
+ 	[ProducesResponseType(typeof(ApiResponse<InvoiceDto>), 201)]
+ 	public async Task<IActionResult> CreateFromQuotation(long quotationId, CancellationToken ct)
+ 	{
+-		InvoiceDto invoiceDto = await invoiceService.CreateFromQuotationAsync(quotationId, ct);
++		// quotation-invoice kit (B2): a quotation that already has its invoice returns it (200), never a second one.
++		Regalis.Application.Finance.QuotationInvoice.QuotationInvoiceOutcome outcome = await quotationInvoicing.ConvertAsync(quotationId, ct);
++		InvoiceDto invoiceDto = await invoiceService.GetInvoiceAsync(outcome.InvoiceId, ct);
++		if (!outcome.Created)
++		{
++			return OkEnvelope(invoiceDto, $"Already invoiced as {invoiceDto.InvoiceNumber}.");
++		}
+ 		return CreatedEnvelope($"/api/invoices/{invoiceDto.InvoiceId}", invoiceDto, "Invoice raised.");
+ 	}
+ 
+--- a/src/Regalis.Application/Finance/Billing/ReceivableDtos.cs (billing-finance kit file)
++++ b/src/Regalis.Application/Finance/Billing/ReceivableDtos.cs
+@@ -44,7 +44,10 @@
+     long PaymentId, string PaymentNumber, long CustomerId, string CustomerName, decimal Amount, byte PaymentMethod, byte Status,
+     string? Gateway, string? GatewayOrderId, string? GatewayPaymentId, DateTime? PaidUtc, DateTime CreatedDate,
+     bool IsOffline, string ModeName, string? Reference, long? InvoiceId, string? InvoiceNumber, long? InvoicePaymentId,
+-    string? ReceiptNumber, bool IsReversed, string? ReverseReason, bool CanReverse, bool IsReconciled);
++    string? ReceiptNumber, bool IsReversed, string? ReverseReason, bool CanReverse, bool IsReconciled,
++    // quotation-invoice kit (B5): the invoice side of the row, and the Payment Status column
++    // (the invoice's Due / Partially Paid / Paid for an invoice payment, else the payment's own status).
++    string? QuotationNumber = null, decimal? TotalInvoiceAmount = null, decimal? OutstandingAmount = null, string? PaymentStatus = null);
+ 
+ public record CustomerTaxProfileDto(long CustomerId, string? Tan, bool DoNotChase, string? DoNotChaseReason);
+ 
+--- a/src/Regalis.Infrastructure/Services/Billing/CustomerPaymentService.cs (billing-finance kit file)
++++ b/src/Regalis.Infrastructure/Services/Billing/CustomerPaymentService.cs
+@@ -167,6 +167,14 @@
+                 throw new BusinessRuleException("The payment date cannot be before the invoice date.", "DATE_BEFORE_INVOICE");
+             }
+             await FinanceRules.EnsurePeriodOpenAsync(db, request.PaidOn, ct, "this payment");
++            // quotation-invoice kit (B4): the same reference twice on one invoice and mode is refused while
++            // the first receipt stands (UX_InvoicePayment_ManualReference backs this up in the database).
++            if (reference != null && mode != InvoicePaymentMode.Wallet
++                && await db.Set<InvoicePayment>().AnyAsync(p => p.InvoiceId == invoiceId && p.Mode == mode && p.Reference == reference
++                                                               && p.ReversalOfId == null && !p.IsReversed, ct))
++            {
++                throw new ConflictException($"A {ModeName(mode)} payment with reference {reference} is already recorded on {invoice.InvoiceNumber}. Check the payments list; reverse that payment first if it was wrong.", "DUPLICATE_RECORD");
++            }
+ 
+             decimal outstanding = invoice.TotalAmount - invoice.PaidAmount;
+             if (outstanding <= 0m)
+@@ -432,7 +440,14 @@
+             from c in cJoin.DefaultIfEmpty()
+             join i in db.Invoices on p.InvoiceId equals (long?)i.InvoiceId into iJoin
+             from i in iJoin.DefaultIfEmpty()
+-            select new { p, ip, CustomerName = c != null ? c.FullName : "", InvoiceNumber = i != null ? i.InvoiceNumber : null };
++            join q in db.Quotations on i.QuotationId equals (long?)q.QuotationId into qJoin
++            from q in qJoin.DefaultIfEmpty()
++            // quotation-invoice kit (B3): nothing linked to a rejected / not-approved quotation.
++            where i == null || i.QuotationId == null || (q != null && q.Status == QuotationStatus.Approved)
++            select new { p, ip, CustomerName = c != null ? c.FullName : "", InvoiceNumber = i != null ? i.InvoiceNumber : null,
++                         QuotationNumber = q != null ? q.QuotationNumber : null,
++                         InvoiceTotal = i != null ? (decimal?)i.TotalAmount : null, InvoicePaid = i != null ? (decimal?)i.PaidAmount : null,
++                         InvoiceStatus = i != null ? (InvoiceStatus?)i.Status : null };
+ 
+         string source = (request.Source ?? "all").ToLowerInvariant();
+         if (source == "online")
+@@ -466,6 +481,7 @@
+             string s = request.Search.Trim();
+             query = query.Where(x => x.p.PaymentNumber.Contains(s) || (x.p.GatewayOrderId != null && x.p.GatewayOrderId.Contains(s))
+                                      || x.CustomerName.Contains(s) || (x.InvoiceNumber != null && x.InvoiceNumber.Contains(s))
++                                     || (x.QuotationNumber != null && x.QuotationNumber.Contains(s))
+                                      || (x.ip != null && (x.ip.ReceiptNumber.Contains(s) || (x.ip.Reference != null && x.ip.Reference.Contains(s)))));
+         }
+ 
+@@ -474,7 +490,7 @@
+             .Skip((request.Page - 1) * request.PageSize).Take(request.PageSize)
+             .Select(x => new
+             {
+-                x.p, x.ip, x.CustomerName, x.InvoiceNumber,
++                x.p, x.ip, x.CustomerName, x.InvoiceNumber, x.QuotationNumber, x.InvoiceTotal, x.InvoicePaid, x.InvoiceStatus,
+                 Reconciled = db.BankTransactions.Any(t => t.MatchedPaymentId == x.p.PaymentId && t.ReconciliationStatus == ReconciliationStatus.Reconciled)
+                              || db.Set<BankMatchAllocation>().Any(m => m.DocType == BankMatchDocType.CustomerPayment && m.DocId == x.p.PaymentId)
+                              || (x.ip != null && x.ip.BankTransactionId != null)
+@@ -491,7 +507,11 @@
+                 (byte)r.p.PaymentMethod, (byte)r.p.Status, r.p.Gateway, r.p.GatewayOrderId, r.p.GatewayPaymentId, r.p.PaidUtc,
+                 r.p.CreatedDate, offline, modeName, reference, r.p.InvoiceId, r.InvoiceNumber, r.ip?.InvoicePaymentId,
+                 r.ip?.ReceiptNumber, r.ip?.IsReversed ?? false, r.ip?.ReverseReason,
+-                canReverse && r.ip != null && !r.ip.IsReversed && !r.Reconciled && r.p.Status == PaymentStatus.Success, r.Reconciled);
++                canReverse && r.ip != null && !r.ip.IsReversed && !r.Reconciled && r.p.Status == PaymentStatus.Success, r.Reconciled,
++                r.QuotationNumber, r.InvoiceTotal, r.InvoiceTotal - r.InvoicePaid,
++                r.InvoiceStatus != null
++                    ? Regalis.Infrastructure.Services.QuotationInvoice.InvoicePaymentRules.InvoiceLabel(r.InvoiceStatus.Value, r.InvoiceTotal ?? 0m, r.InvoicePaid ?? 0m)
++                    : Regalis.Infrastructure.Services.QuotationInvoice.InvoicePaymentRules.PaymentLabel(r.p.Status));
+         }).ToList();
+         return PagedResult<PaymentRegisterRowDto>.Create(items, request.Page, request.PageSize, total);
+     }

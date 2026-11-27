@@ -550,7 +550,7 @@ export function RecordPaymentDialog({ invoiceId, onClose, onDone }) {
         ? "Enter the amount to see what will happen."
         : after <= 0
           ? `After saving, ${ctx.invoiceNumber} becomes Paid, outstanding ${money(0)}. A receipt numbered ${ctx.nextReceiptNumber} is generated and can be printed or emailed.`
-          : `After saving, ${ctx.invoiceNumber} becomes Part paid with ${money(after)} still outstanding. A receipt numbered ${ctx.nextReceiptNumber} is generated and can be printed or emailed.` }),
+          : `After saving, ${ctx.invoiceNumber} becomes Partially Paid with ${money(after)} still outstanding. A receipt numbered ${ctx.nextReceiptNumber} is generated and can be printed or emailed.` }),
       ctx.payments.length > 0 ? e.jsxs("div", { className: "bf-sub", children: [
         "Earlier on this invoice: ",
         ctx.payments.map((p) => `${p.receiptNumber} ${p.modeName} ${money(p.amount)}${p.isReversed ? " (reversed)" : ""}`).join(" · ")

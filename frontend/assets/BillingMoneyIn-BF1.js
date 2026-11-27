@@ -21,9 +21,13 @@ import {
   useDebounced, errorText, istToday, RecordPaymentDialog, LedgerPanel, MODE_TONE
 } from "./BillingShared-BF1.js";
 
+/* quotation-invoice kit (B4): payment status in the user's words. 1 Pending and 6 Sent are both Due (6 also shows "Sent"). */
 const INVOICE_STATUS = {
-  1: ["Pending", "warning"], 2: ["Paid", "success"], 3: ["Part paid", "warning"], 4: ["Cancelled", "neutral"], 5: ["Refunded", "neutral"], 6: ["Sent", "info"]
+  1: ["Due", "warning"], 2: ["Paid", "success"], 3: ["Partially Paid", "warning"], 4: ["Cancelled", "neutral"], 5: ["Refunded", "neutral"], 6: ["Due", "warning"]
 };
+const INVOICE_FILTER_LABEL = { 6: "Due (marked sent)" };
+/* B5: Payment Status on the Payments page (the invoice's status for an invoice payment, else the payment's own). */
+const PAY_LABEL_TONE = { Due: "warning", "Partially Paid": "warning", Paid: "success", Cancelled: "neutral", Refunded: "neutral", Pending: "warning", Success: "success", Failed: "danger" };
 const PAYMENT_STATUS = { 1: ["Pending", "warning"], 2: ["Success", "success"], 3: ["Failed", "danger"], 4: ["Refunded", "neutral"], 5: ["Cancelled", "neutral"] };
 /** The same chip colours as the Record payment dialog. */
 const MODE_TONE_BY_NAME = { Cash: "success", UPI: "info", "Bank transfer": "neutral", Cheque: "warning", Card: "info", Wallet: "warning", "TDS by customer": "neutral", "Short payment accepted": "danger" };
@@ -150,7 +154,7 @@ export function AdminInvoicesPageBF() {
     { key: "total", header: "Total", num: true, render: (i) => money(i.totalAmount) },
     { key: "paid", header: "Paid", num: true, render: (i) => money(i.paidAmount) },
     { key: "out", header: "Outstanding", num: true, render: (i) => (i.status === 4 ? "—" : e.jsx("span", { className: "bf-strong", children: money(i.outstandingAmount) })) },
-    { key: "status", header: "Status", render: (i) => e.jsxs("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" }, children: [invoiceStatus(i.status), i.isOverdue ? pill("Overdue", "danger") : null] }) },
+    { key: "status", header: "Payment Status", render: (i) => e.jsxs("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" }, children: [invoiceStatus(i.status), i.status === 6 ? pill("Sent", "info") : null, i.isOverdue ? pill("Overdue", "danger") : null] }) },
     { key: "actions", header: "", render: (i) => e.jsx(InvoiceActions, { inv: i, onRecord: setRecording, onChanged: reload }) }
   ];
 
@@ -168,7 +172,7 @@ export function AdminInvoicesPageBF() {
     e.jsxs("div", { className: "bf-toolbar", children: [
       e.jsx(SearchBox, { value: search, onChange: setSearch, placeholder: "Number, customer…" }),
       e.jsx(Select, { label: "Status", value: status, onChange: (ev) => setStatus(ev.target.value), options: [{ value: "", label: "Any status" },
-        ...Object.entries(INVOICE_STATUS).map(([v, [l]]) => ({ value: v, label: l }))] }),
+        ...Object.entries(INVOICE_STATUS).map(([v, [l]]) => ({ value: v, label: INVOICE_FILTER_LABEL[v] ?? l }))] }),
       e.jsx(Chips, { options: [{ value: false, label: "All" }, { value: true, label: "Overdue only" }], value: overdue, onChange: setOverdue })
     ] }),
     e.jsx("div", { className: "bf-panel", children: e.jsxs(e.Fragment, { children: [
@@ -311,22 +315,31 @@ export function AdminPaymentsPageBF() {
   };
 
   const columns = [
-    { key: "payment", header: "Payment", render: (p) => e.jsxs("div", { children: [
-      e.jsx("div", { className: "bf-strong", children: p.receiptNumber ?? p.paymentNumber }),
-      e.jsx("div", { className: "bf-sub", children: `${p.receiptNumber ? `${p.paymentNumber} · ` : ""}${p.customerName}` })
+    /* quotation-invoice kit (B5): Payment ID, Customer Name, Quotation Number, Invoice Number, Payment Date,
+       Payment Method, Total Invoice Amount, Amount Paid, Outstanding, Payment Status (same figures as Invoices). */
+    { key: "payment", header: "Payment ID", render: (p) => e.jsxs("div", { children: [
+      e.jsx("div", { className: "bf-strong", children: p.paymentNumber }),
+      p.receiptNumber ? e.jsx("div", { className: "bf-sub", children: p.receiptNumber }) : null
     ] }) },
-    { key: "mode", header: "Mode", render: (p) => pill(p.modeName, MODE_TONE_BY_NAME[p.modeName] ?? (p.isOffline ? "neutral" : "info")) },
-    { key: "ref", header: "Reference", render: (p) => e.jsxs("div", { children: [e.jsx("div", { children: p.reference ?? "—" }), p.gateway && p.gateway !== "Offline" ? e.jsx("div", { className: "bf-sub", children: p.gateway }) : null] }) },
-    { key: "against", header: "Against", render: (p) => (p.invoiceId
+    { key: "customer", header: "Customer Name", render: (p) => p.customerName || "—" },
+    { key: "quotation", header: "Quotation Number", render: (p) => p.quotationNumber ?? "—" },
+    { key: "against", header: "Invoice Number", render: (p) => (p.invoiceId
       ? e.jsx("button", { type: "button", className: "bf-link", onClick: () => navigate(`/admin/billing/invoices/${p.invoiceId}`), children: p.invoiceNumber })
       : e.jsx("span", { className: "bf-sub", children: "—" })) },
-    { key: "amount", header: "Amount", num: true, render: (p) => e.jsx("span", { className: "bf-strong", children: money(p.amount) }) },
-    { key: "status", header: "Status", render: (p) => e.jsxs("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" }, children: [
-      pill(...(PAYMENT_STATUS[p.status] ?? ["—", "neutral"])),
+    { key: "when", header: "Payment Date", render: (p) => e.jsxs("div", { children: [e.jsx("div", { children: p.paidUtc ? fmtDateTime(p.paidUtc) : "—" }), p.reverseReason ? e.jsx("div", { className: "bf-sub", children: `Reversed: ${p.reverseReason}` }) : null] }) },
+    { key: "mode", header: "Payment Method", render: (p) => e.jsxs("div", { children: [
+      pill(p.modeName, MODE_TONE_BY_NAME[p.modeName] ?? (p.isOffline ? "neutral" : "info")),
+      (p.reference || (p.gateway && p.gateway !== "Offline")) ? e.jsx("div", { className: "bf-sub", children: [p.reference, p.gateway && p.gateway !== "Offline" ? p.gateway : null].filter(Boolean).join(" · ") }) : null
+    ] }) },
+    { key: "invtotal", header: "Total Invoice Amount", num: true, render: (p) => (p.totalInvoiceAmount == null ? "—" : money(p.totalInvoiceAmount)) },
+    { key: "amount", header: "Amount Paid", num: true, render: (p) => e.jsx("span", { className: "bf-strong", children: money(p.amount) }) },
+    { key: "out", header: "Outstanding", num: true, render: (p) => (p.outstandingAmount == null ? "—" : money(p.outstandingAmount)) },
+    { key: "status", header: "Payment Status", render: (p) => e.jsxs("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" }, children: [
+      p.paymentStatus ? pill(p.paymentStatus, PAY_LABEL_TONE[p.paymentStatus] ?? "neutral") : pill(...(PAYMENT_STATUS[p.status] ?? ["—", "neutral"])),
+      p.paymentStatus && p.invoiceId && p.status !== 2 ? pill(...(PAYMENT_STATUS[p.status] ?? ["—", "neutral"])) : null,
       p.isReversed ? pill("Reversed", "neutral") : null,
       p.isReconciled ? pill("Reconciled", "success") : null
     ] }) },
-    { key: "when", header: "Paid (IST)", render: (p) => e.jsxs("div", { children: [e.jsx("div", { children: p.paidUtc ? fmtDateTime(p.paidUtc) : "—" }), p.reverseReason ? e.jsx("div", { className: "bf-sub", children: `Reversed: ${p.reverseReason}` }) : null] }) },
     { key: "actions", header: "", render: (p) => e.jsxs("div", { className: "bf-actions", children: [
       p.status === 2 ? e.jsx(Button, { size: "sm", variant: "ghost", onClick: () => api.open(`/payments/${p.paymentId}/receipt`).catch((x) => toast.error(errorText(x, "Could not open the receipt."))), children: "Receipt" }) : null,
       p.status === 2 ? e.jsx(Button, { size: "sm", variant: "ghost", onClick: () => email(p), children: "Email" }) : null,
@@ -337,7 +350,7 @@ export function AdminPaymentsPageBF() {
   return e.jsxs("div", { children: [
     e.jsx(PageHeader, { title: "Payments", description: "Every payment, whatever its mode — gateway, wallet, cash, UPI, bank transfer, cheque or card — with the receipt and the invoice it settled. A payment is never edited: a mistake is reversed, with a reason." }),
     e.jsxs("div", { className: "bf-toolbar", children: [
-      e.jsx(SearchBox, { value: search, onChange: setSearch, placeholder: "Payment, receipt, customer, invoice, UTR…" }),
+      e.jsx(SearchBox, { value: search, onChange: setSearch, placeholder: "Payment, receipt, customer, quotation, invoice, UTR…" }),
       e.jsx(Select, { label: "Status", value: status, onChange: (ev) => setStatus(ev.target.value), options: [{ value: "", label: "Any status" }, ...Object.entries(PAYMENT_STATUS).map(([v, [l]]) => ({ value: v, label: l }))] }),
       e.jsx(Select, { label: "Mode (recorded)", value: mode, onChange: (ev) => setMode(ev.target.value), options: [{ value: "", label: "Any mode" },
         { value: "1", label: "Cash" }, { value: "2", label: "UPI" }, { value: "3", label: "Bank transfer" }, { value: "4", label: "Cheque" }, { value: "5", label: "Card" }, { value: "6", label: "Wallet" }, { value: "7", label: "TDS by customer" }, { value: "8", label: "Short payment accepted" }] }),

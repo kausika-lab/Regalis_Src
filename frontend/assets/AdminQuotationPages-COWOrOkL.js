@@ -2503,7 +2503,8 @@ function SendQuotationModal({ quotation, onClose, onSent }) {
       });
       const channels = [form.sendEmail && "Email", form.sendWhatsApp && "WhatsApp"]
         .filter(Boolean).join(" and ");
-      toast.success(`Quotation sent by ${channels}.`);
+      // quotation-invoice kit (B1): a success only after the server says it was delivered; it names the recipient.
+      toast.success(`Quotation sent by ${channels}${form.sendEmail ? ` to ${form.emailTo.trim()}` : ""}.`);
       onSent();
     } catch (error) {
       // SS3.5: the failure is shown inside the popup with a Retry, not as a toast
@@ -2634,7 +2635,8 @@ function RecordDecisionModal({ quotation, approved, onClose, onSaved }) {
         approved, mode: Number(mode), confirmedBy: confirmedBy.trim(),
         note: note || null, reasonCode: reasonCode || null,
       });
-      toast.success(approved ? "Recorded as approved." : "Recorded as rejected.");
+      // quotation-invoice kit (B2): approval raises the invoice; say which.
+      toast.success(approved ? (saved && saved.invoiceNumber ? `Recorded as approved. Invoice ${saved.invoiceNumber} raised.` : "Recorded as approved.") : "Recorded as rejected.");
       onSaved(saved);
     } catch (error) {
       toast.error(errorMessage(error, "Could not record the decision."));

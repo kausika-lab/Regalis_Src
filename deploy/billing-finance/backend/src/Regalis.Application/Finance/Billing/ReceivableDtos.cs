@@ -44,7 +44,10 @@ public record PaymentRegisterRowDto(
     long PaymentId, string PaymentNumber, long CustomerId, string CustomerName, decimal Amount, byte PaymentMethod, byte Status,
     string? Gateway, string? GatewayOrderId, string? GatewayPaymentId, DateTime? PaidUtc, DateTime CreatedDate,
     bool IsOffline, string ModeName, string? Reference, long? InvoiceId, string? InvoiceNumber, long? InvoicePaymentId,
-    string? ReceiptNumber, bool IsReversed, string? ReverseReason, bool CanReverse, bool IsReconciled);
+    string? ReceiptNumber, bool IsReversed, string? ReverseReason, bool CanReverse, bool IsReconciled,
+    // quotation-invoice kit (B5): the invoice side of the row, and the Payment Status column
+    // (the invoice's Due / Partially Paid / Paid for an invoice payment, else the payment's own status).
+    string? QuotationNumber = null, decimal? TotalInvoiceAmount = null, decimal? OutstandingAmount = null, string? PaymentStatus = null);
 
 public record CustomerTaxProfileDto(long CustomerId, string? Tan, bool DoNotChase, string? DoNotChaseReason);
 

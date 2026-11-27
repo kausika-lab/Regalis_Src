@@ -26,11 +26,32 @@ import { OfferPicker as RGofferPicker, applyBookingOffers as RGapplyOffers } fro
 import { applyBookingCoupon as RGapplyCoupon } from "./CouponsKit-CP1.js";
 /* offers kit: put the chosen offers on the held booking(s) before paying. If the server refuses
    (the offer ended or no longer applies) the holds are released, so the slot is free to book again. */
-const RGwithOffers = async (ids, offer) => {
+/* admin-booking kit (27 Nov 2026): Admin > Bookings > New booking renders this page with
+   props.admin = { customerId, header, onDone }. Every write then goes to
+   /api/admin/on-behalf/{customerId}/..., which runs the same booking engine for that customer
+   and confirms without payment. Quotes, slots and availability use the same calls as below.
+   Without props.admin (the customer portal) nothing here is used. */
+const RGob = (cid) => ({
+  hold: (workspaceId, startUtc, durationMinutes, notes) => fe(je.post(`/admin/on-behalf/${cid}/bookings`, { workspaceId, startUtc, durationMinutes, notes })),
+  monthlyUrl: `/admin/on-behalf/${cid}/bookings/monthly`,
+  confirm: (bookingId) => fe(je.post(`/admin/on-behalf/${cid}/bookings/${bookingId}/confirm`, {})),
+  applyOffers: (ids, offerIds) => fe(je.post(`/admin/on-behalf/${cid}/offers/bookings/apply`, { bookingIds: ids, offerIds })),
+  applyCoupon: (ids, code) => fe(je.post(`/admin/on-behalf/${cid}/coupons/bookings/apply`, { bookingIds: ids, code })),
+  vo: (body) => fe(je.post(`/admin/on-behalf/${cid}/virtual-office`, body)),
+  offerApi: { offersPreview: `/admin/on-behalf/${cid}/offers/preview`, couponPreview: `/admin/on-behalf/${cid}/coupons/preview` },
+});
+/* admin-booking kit: the single button that replaces the payment choices on the admin screen. */
+const RGconfirm = (busyKey, onClick, label) =>
+  e.jsx("div", {
+    className: "pay-options",
+    "data-rg": "admin-booking-confirm",
+    children: e.jsx(h, { size: "lg", variant: "primary", disabled: busyKey !== null, loading: busyKey === "confirm", onClick, children: label }),
+  });
+const RGwithOffers = async (ids, offer, adm = null) => {
   if (!offer || ((!offer.offerIds || offer.offerIds.length === 0) && !offer.couponCode)) return;
   try {
-    if (offer.couponCode) await RGapplyCoupon(ids, offer.couponCode);
-    else await RGapplyOffers(ids, offer.offerIds);
+    if (offer.couponCode) await (adm ? RGob(adm).applyCoupon(ids, offer.couponCode) : RGapplyCoupon(ids, offer.couponCode));
+    else await (adm ? RGob(adm).applyOffers(ids, offer.offerIds) : RGapplyOffers(ids, offer.offerIds));
   } catch (err) {
     for (const id of ids) {
       try {
@@ -194,7 +215,10 @@ function windowFromSlots(date, slots) {
   };
 }
 
-function Ee() {
+function Ee(RGprops) {
+  /* admin-booking kit: set only by AdminNewBooking-AB1.js (staff booking for a customer). */
+  const RGadm = RGprops && RGprops.admin ? RGprops.admin : null;
+  const RGcid = RGadm ? RGadm.customerId : null;
   const o = ue();
   const [T, R] = a.useState([]);
   const [g, x] = a.useState([]);
@@ -235,12 +259,14 @@ function Ee() {
   /* PAY_LATER: may this customer pay at the front desk (deploy/pay-later). */
   const [payLater, setPayLater] = a.useState(null);
   a.useEffect(() => {
+    if (RGadm) return;
     fe(je.get("/bookings/pay-later")).then(setPayLater).catch(() => setPayLater(null));
   }, []);
   /* Virtual Office pay later (admin-customer-2, 14 Nov 2026): a VO is a membership-type pass,
      so it follows the pass rules (GET /passes/pay-later, kind "Membership"). */
   const [voPayLater, setVoPayLater] = a.useState(null);
   a.useEffect(() => {
+    if (RGadm) return;
     fe(je.get("/passes/pay-later")).then(setVoPayLater).catch(() => setVoPayLater(null));
   }, []);
   const voCanPayLater = !!(voPayLater?.available && (voPayLater.allowedKinds || []).includes("Membership"));
@@ -470,6 +496,7 @@ function Ee() {
         u.length > 0 && M(String(ne(u, z)));
       })
       .catch(() => o.error("Failed to load booking options."));
+    RGadm ||
     fe(je.get("/wallet/me"))
       .then(oe)
       .catch(() => {});
@@ -499,7 +526,7 @@ function Ee() {
     Y(null);
     $(null);
     J(null);
-  }, [b, A, v, j, mMonths]);
+  }, [b, A, v, j, mMonths, RGcid]);
   a.useEffect(() => {
     setVoPlan(null);
   }, [v, j]);
@@ -717,6 +744,7 @@ function Ee() {
       : !1;
 
   const settle = async (bookingId, method) => {
+    if (RGadm) return RGob(RGcid).confirm(bookingId);
     if (method === "paylater") {
       try {
         return await k.confirm(bookingId, { paymentMethod: "paylater" });
@@ -742,12 +770,12 @@ function Ee() {
     if (!d || !i) return;
     N(method);
     try {
-      const t = await k.hold(d.workspaceId, i, m);
-      await RGwithOffers([t.bookingId], RGoffer);
+      const t = await (RGadm ? RGob(RGcid).hold : k.hold)(d.workspaceId, i, m);
+      await RGwithOffers([t.bookingId], RGoffer, RGcid);
       F(await settle(t.bookingId, method));
       r("done");
     } catch (t) {
-      (await V(t)) || o.error(t instanceof y ? t.message : "Payment failed.");
+      (await V(t)) || o.error(t instanceof y ? t.message : (RGadm ? "Could not create the booking." : "Payment failed."));
     } finally {
       N(null);
     }
@@ -759,13 +787,13 @@ function Ee() {
     N(method);
     try {
       const t = await fe(
-        je.post("/bookings/monthly", {
+        je.post(RGadm ? RGob(RGcid).monthlyUrl : "/bookings/monthly", {
           workspaceId: d.workspaceId,
           startDate: b,
           months: mMonths,
         }),
       );
-      await RGwithOffers([t.bookingId], RGoffer);
+      await RGwithOffers([t.bookingId], RGoffer, RGcid);
       F(await settle(t.bookingId, method));
       r("done");
     } catch (t) {
@@ -774,7 +802,7 @@ function Ee() {
             "That workspace was just booked for part of this term. Pick another one.",
           ),
           await de())
-        : o.error(t instanceof y ? t.message : "Payment failed.");
+        : o.error(t instanceof y ? t.message : (RGadm ? "Could not create the booking." : "Payment failed."));
     } finally {
       N(null);
     }
@@ -800,7 +828,7 @@ function Ee() {
       for (let ix = 0; ix < plan.length; ix++) {
         const win = plan[ix];
         holds.push(
-          await k.hold(
+          await (RGadm ? RGob(RGcid).hold : k.hold)(
             d.workspaceId,
             win.startUtc,
             win.minutes,
@@ -820,7 +848,7 @@ function Ee() {
       return;
     }
     try {
-      await RGwithOffers(holds.map((held) => held.bookingId), RGoffer);
+      await RGwithOffers(holds.map((held) => held.bookingId), RGoffer, RGcid);
     } catch (t) {
       (await V(t)) || o.error(t instanceof y ? t.message : "The offer could not be applied. Nothing was charged.");
       N(null);
@@ -834,7 +862,7 @@ function Ee() {
       if (done.length === 0) {
         (await V(t)) ||
           o.error(
-            t instanceof y ? t.message : "Payment failed. Nothing was charged.",
+            t instanceof y ? t.message : RGadm ? "Could not confirm the booking." : "Payment failed. Nothing was charged.",
           );
         N(null);
         return;
@@ -857,7 +885,13 @@ function Ee() {
     N(method);
     try {
       let res;
-      if (method === "wallet" || method === "paylater")
+      if (RGadm)
+        res = await RGob(RGcid).vo({
+          passPlanId: voPlan.passPlanId,
+          validFrom: b,
+          offerIds: RGoffer ? RGoffer.offerIds : null, couponCode: RGoffer ? RGoffer.couponCode : null,
+        });
+      else if (method === "wallet" || method === "paylater")
         res = await PASS.purchase({
           passPlanId: voPlan.passPlanId,
           validFrom: b,
@@ -879,7 +913,7 @@ function Ee() {
       setVoDone(res);
       r("done");
     } catch (t) {
-      o.error(t instanceof y ? t.message : "Payment failed.");
+      o.error(t instanceof y ? t.message : (RGadm ? "Could not create the booking." : "Payment failed."));
     } finally {
       N(null);
     }
@@ -914,7 +948,7 @@ function Ee() {
   );
   const dayRateOf = (t) =>
     plan && plan.length > 0 ? (t.pricePerHour * plan[0].minutes) / 60 : null;
-  const canContinue = !pastStart && (isVO
+  const canContinue = !pastStart && (!RGadm || !!RGcid) && (isVO
     ? !!voPlan && !!b
     : isM
       ? !!mMonths && !!b
@@ -934,6 +968,7 @@ function Ee() {
 
   return e.jsxs(e.Fragment, {
     children: [
+      !RGadm &&
       e.jsx(Ie, {
         title: "Book a Workspace",
       }),
@@ -947,6 +982,21 @@ function Ee() {
             /* customer-ux-1: the workspace comes first. The dates and time only appear once
                one is picked, and the choice is kept while the dates and time change. */
             children: [
+              RGadm &&
+                e.jsxs("div", {
+                  className: "form-grid",
+                  "data-rg": "admin-booking-for",
+                  children: [
+                    RGadm.header,
+                    e.jsx(ve, {
+                      label: "Location",
+                      required: !0,
+                      value: j,
+                      options: g.map((t) => ({ value: String(t.locationId), label: t.locationName })),
+                      onChange: (t) => M(t.target.value),
+                    }),
+                  ],
+                }),
               e.jsx("div", {
                 className: "field__label",
                 children: "1 · Choose your workspace",
@@ -988,7 +1038,7 @@ function Ee() {
                     t.workspaceTypeId,
                   ),
                 ),
-                  customCard(),
+                  RGadm ? null : customCard(),
                 ],
               }),
               !!v &&
@@ -1070,7 +1120,9 @@ function Ee() {
                 ? e.jsx(E, {
                     title: "Pick a workspace first",
                     description:
-                      "Choose Desk, Cabin or Meeting Room, then pick your dates and time — or Virtual Office for a monthly business address. Pick Customisation to tell us what you need.",
+                      RGadm
+                        ? "Choose Desk, Cabin or Meeting Room, then pick the dates and time — or Virtual Office for a monthly business address."
+                        : "Choose Desk, Cabin or Meeting Room, then pick your dates and time — or Virtual Office for a monthly business address. Pick Customisation to tell us what you need.",
                   })
                 : isCustom
                   ? customPanel()
@@ -1223,6 +1275,9 @@ function Ee() {
                         description: `${dayLabel(b)} to ${dayLabel(A)} — both dates included. Every date is booked for the full working day, and the range is only offered if the same workspace is free on all ${nDays} days.`,
                       }),
 
+              RGadm &&
+                !RGcid &&
+                e.jsx("p", { className: "choice-card__meta", "data-rg": "admin-booking-need-customer", style: { margin: 0, color: "var(--color-danger)" }, children: "Choose the customer to book for." }),
               !!v &&
               !isCustom &&
               e.jsx(h, {
@@ -1231,7 +1286,7 @@ function Ee() {
                 loading: busy,
                 onClick: isVO ? () => r("pay") : de,
                 children: isVO
-                  ? "Continue to payment"
+                  ? (RGadm ? "Continue to review" : "Continue to payment")
                   : "Find available workspaces",
               }),
             ],
@@ -1343,7 +1398,7 @@ function Ee() {
         isVO &&
         voPlan &&
         e.jsx(C, {
-          title: "Review & pay",
+          title: RGadm ? "Review & confirm" : "Review & pay",
           actions: e.jsx(h, {
             variant: "ghost",
             onClick: () => r("when"),
@@ -1420,7 +1475,8 @@ function Ee() {
                   }),
                 ],
               }),
-              e.jsx(RGofferPicker, { module: "membership", passPlanId: voPlan.passPlanId, disabled: S !== null, onChange: RGsetOffer }),
+              e.jsx(RGofferPicker, { module: "membership", passPlanId: voPlan.passPlanId, disabled: S !== null, onChange: RGsetOffer, api: RGadm ? RGob(RGcid).offerApi : null, staff: !!RGadm }),
+              RGadm ? RGconfirm(S, () => payVO("confirm"), "Confirm Virtual Office") :
               e.jsxs("div", {
                 className: "pay-options",
                 children: [
@@ -1478,7 +1534,9 @@ function Ee() {
                   fontSize: "var(--font-size-xs)",
                 },
                 children:
-                  "No desk or room is reserved — a Virtual Office is a business address with mail handling. A GST invoice is raised as soon as the payment goes through.",
+                  RGadm
+                    ? "No desk or room is reserved — a Virtual Office is a business address with mail handling. The GST invoice is raised now and stays due; the Virtual Office becomes active once its payment is recorded on the Payments screen."
+                    : "No desk or room is reserved — a Virtual Office is a business address with mail handling. A GST invoice is raised as soon as the payment goes through.",
               }),
             ],
           }),
@@ -1489,7 +1547,7 @@ function Ee() {
         n &&
         d &&
         e.jsx(C, {
-          title: "Review & pay",
+          title: RGadm ? "Review & confirm" : "Review & pay",
           actions: e.jsx(h, {
             variant: "ghost",
             onClick: () => r("workspace"),
@@ -1659,7 +1717,8 @@ function Ee() {
                     ),
                   ),
                 }),
-              e.jsx(RGofferPicker, { module: "booking", workspaceId: d ? d.workspaceId : null, baseAmounts: n ? (n.multi ? n.quotes.map((qq) => qq.baseAmount) : [n.baseAmount]) : null, disabled: S !== null, onChange: RGsetOffer }),
+              e.jsx(RGofferPicker, { module: "booking", workspaceId: d ? d.workspaceId : null, baseAmounts: n ? (n.multi ? n.quotes.map((qq) => qq.baseAmount) : [n.baseAmount]) : null, disabled: S !== null, onChange: RGsetOffer, api: RGadm ? RGob(RGcid).offerApi : null, staff: !!RGadm }),
+              RGadm ? RGconfirm(S, () => (isM ? payMonthly : W ? paySingle : payMulti)("confirm"), n.multi ? `Confirm ${n.days} days` : "Confirm booking") :
               e.jsxs("div", {
                 className: "pay-options",
                 children: [
@@ -1716,7 +1775,14 @@ function Ee() {
                   color: "var(--text-muted)",
                   fontSize: "var(--font-size-xs)",
                 },
-                children: n.monthly
+                children: RGadm
+                  ? (n.monthly
+                      ? `The workspace is held for the customer for every day of the term, ${dayLabel(n.startDate)} to ${dayLabel(n.endDate)}; one GST invoice covers the whole term.`
+                      : n.multi
+                        ? `Every one of the ${n.days} days is held first; if any day cannot be held, the whole range is released.`
+                        : "One GST invoice is raised for the booking.") +
+                    " Nothing is collected here: the booking is confirmed and the invoice stays due until the payment is recorded on the Payments screen."
+                  : n.monthly
                   ? `The workspace is yours for every day of the term, ${dayLabel(n.startDate)} to ${dayLabel(n.endDate)}. It is held for 10 minutes while payment completes; one GST invoice covers the whole term.`
                   : n.multi
                     ? `Each of the ${n.days} days is held for 10 minutes while payment completes. If any day cannot be held, the whole range is released and nothing is charged.`
@@ -1755,7 +1821,7 @@ function Ee() {
                   dayLabel(b),
                   " · ",
                   PR(voDone.pass?.totalAmount ?? voPlan.totalAmount),
-                  voDone.pass?.isPayLater ? " including GST, to pay at the front desk" : " paid, including GST",
+                  voDone.pass?.isPayLater ? (RGadm ? " including GST, due from the customer" : " including GST, to pay at the front desk") : " paid, including GST",
                 ],
               }),
               e.jsx("p", {
@@ -1765,7 +1831,9 @@ function Ee() {
                   fontSize: "var(--font-size-sm)",
                 },
                 children:
-                  "Your GST invoice is under Invoices, and the address service shows under Passes. No desk or room was reserved.",
+                  RGadm
+                    ? "The GST invoice is under Finance > Invoices and the Virtual Office under Passes. It becomes active once its payment is recorded."
+                    : "Your GST invoice is under Invoices, and the address service shows under Passes. No desk or room was reserved.",
               }),
               e.jsx("div", {
                 style: {
@@ -1775,7 +1843,9 @@ function Ee() {
                   marginTop: "var(--space-6)",
                   flexWrap: "wrap",
                 },
-                children: e.jsx(h, { onClick: reset, children: "Done" }),
+                children: RGadm
+                  ? [e.jsx(h, { onClick: reset, children: "Book another" }, "again"), e.jsx(h, { variant: "outline", onClick: RGadm.onDone, children: "Back to bookings" }, "back")]
+                  : e.jsx(h, { onClick: reset, children: "Done" }),
               }),
             ],
           }),
@@ -1831,7 +1901,9 @@ function Ee() {
               ((l && l.isPayLater) || (multi && multi.some((t) => t.isPayLater))) &&
                 e.jsx("p", {
                   style: { marginTop: "var(--space-3)", padding: "var(--space-3) var(--space-4)", borderRadius: "var(--radius-md)", background: "color-mix(in srgb, var(--color-warning) 14%, transparent)", fontWeight: 600 },
-                  children: `Pay ${p(l ? l.booking.totalAmount : multi.reduce((s, t) => s + t.booking.totalAmount, 0))} at the front desk (cash, UPI or card) before you check in. Your QR pass works once it is paid.`,
+                  children: RGadm
+                    ? `${p(l ? l.booking.totalAmount : multi.reduce((s, t) => s + t.booking.totalAmount, 0))} is due from the customer. Record it on the Payments screen when it is paid.`
+                    : `Pay ${p(l ? l.booking.totalAmount : multi.reduce((s, t) => s + t.booking.totalAmount, 0))} at the front desk (cash, UPI or card) before you check in. Your QR pass works once it is paid.`,
                 }),
               multi &&
                 e.jsx("div", {
@@ -1858,6 +1930,7 @@ function Ee() {
                     ),
                   ),
                 }),
+              !RGadm &&
               e.jsxs("p", {
                 style: {
                   color: "var(--text-muted)",
@@ -1912,6 +1985,7 @@ function Ee() {
                       ),
                     ),
                   e.jsx(h, { onClick: reset, children: "Book another" }),
+                  RGadm && e.jsx(h, { variant: "outline", onClick: RGadm.onDone, children: "Back to bookings" }),
                 ],
               }),
             ],

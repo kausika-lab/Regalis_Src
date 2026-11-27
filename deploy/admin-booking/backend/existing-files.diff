@@ -1,0 +1,99 @@
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs (as decompiled from api/, with the offers and coupons kits' lines)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs
+@@ -136,6 +136,8 @@
+ 		services.AddScoped<Regalis.Infrastructure.Services.Coupons.CouponEngine>();
+ 		services.AddScoped<Regalis.Application.Coupons.ICouponAdminService, Regalis.Infrastructure.Services.Coupons.CouponAdminService>();
+ 		services.AddScoped<Regalis.Application.Coupons.ICouponPortalService, Regalis.Infrastructure.Services.Coupons.CouponPortalService>();
++		// Admin booking for a customer (admin-booking kit, 27 Nov 2026).
++		services.AddScoped<Regalis.Application.Bookings.OnBehalf.IOnBehalfBookingService, Regalis.Infrastructure.Services.OnBehalf.OnBehalfBookingService>();
+ 		services.AddScoped<IHousekeepingService, HousekeepingService>();
+ 		services.AddScoped<IMaintenanceService, MaintenanceService>();
+ 		services.AddHostedService<MaintenanceOverdueSweeper>();
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingService.cs (as decompiled from api/, with the earlier kits' lines)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingService.cs
+@@ -39,6 +39,9 @@
+ {
+ 	private sealed record Price(decimal Base, decimal CgstPercent, decimal Cgst, decimal SgstPercent, decimal Sgst, decimal Total);
+ 
++	/// <summary>admin-booking kit: the person who did it; the staff user when staff book for a customer.</summary>
++	private long ActorUserId => (currentUser as IOnBehalfOfCustomer)?.StaffUserId ?? currentUser.UserId;
++
+ 	public async Task<QuoteResponse> QuoteAsync(QuoteRequest request, CancellationToken ct = default(CancellationToken))
+ 	{
+ 		Workspace workspace = await LoadBookableWorkspaceAsync(request.WorkspaceId, ct);
+@@ -143,8 +146,8 @@
+ 				booking2.TotalAmount = price.Total;
+ 				booking2.Status = BookingStatus.Pending;
+ 				booking2.PaymentStatus = BookingPaymentStatus.Pending;
+-				booking2.BookingSource = BookingSource.Customer;
+-				booking2.CreatedByUserId = currentUser.UserId;
++				booking2.BookingSource = (currentUser is IOnBehalfOfCustomer) ? BookingSource.Admin : BookingSource.Customer;
++				booking2.CreatedByUserId = ActorUserId;
+ 				booking2.Notes = request.Notes?.Trim();
+ 				booking2.BillingMonths = billingMonths;
+ 				Booking entity = booking2;
+@@ -153,7 +156,7 @@
+ 				{
+ 					FromStatus = null,
+ 					ToStatus = BookingStatus.Pending,
+-					ChangedByUserId = currentUser.UserId,
++					ChangedByUserId = ActorUserId,
+ 					ChangedUtc = nowUtc,
+ 					Reason = $"Hold created; expires in {holdMinutes} minutes unless payment completes."
+ 				});
+@@ -235,7 +238,9 @@
+ 					// Paid after the 10 minutes, and the slot is still free: re-validated, so it may be confirmed.
+ 					ReviveLapsedHold(booking, num);
+ 				}
+-				if (request.PaymentMethod == "paylater")
++				// admin-booking kit: a booking staff make for a customer is always confirmed without
++				// payment; the customer's own pay-later eligibility does not apply to it.
++				if (request.PaymentMethod == "paylater" && currentUser is not IOnBehalfOfCustomer)
+ 				{
+ 					string text = await PayLaterPolicy.CheckAsync(db, settings, booking, ct);
+ 					if (text != null)
+@@ -384,7 +389,7 @@
+ 			BookingId = booking.BookingId,
+ 			FromStatus = BookingStatus.Pending,
+ 			ToStatus = BookingStatus.Confirmed,
+-			ChangedByUserId = currentUser.UserId,
++			ChangedByUserId = ActorUserId,
+ 			ChangedUtc = nowUtc,
+ 			Reason = (payLater ? $"Confirmed with pay later; ₹{booking.TotalAmount:N2} due at the front desk." : $"Payment {payment.PaymentNumber} ({request.PaymentMethod}) verified.")
+ 		});
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/PassService.cs (as decompiled from api/, with the earlier kits' lines)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/PassService.cs
+@@ -225,7 +225,8 @@
+ 			total2 = offerPrice.Total;
+ 		}
+ 		bool isPayLater = request.PaymentMethod == "paylater";
+-		if (isPayLater)
++		// admin-booking kit: staff reserving a Virtual Office for a customer skip the customer's pay-later eligibility.
++		if (isPayLater && currentUser is not IOnBehalfOfCustomer)
+ 		{
+ 			string text = await PayLaterPolicy.CheckPassAsync(db, settings, customerId, plan, total2, ct);
+ 			if (text != null)
+--- a/src/Regalis.Infrastructure/Services/Offers/OfferPortalService.cs (offers kit file)
++++ b/src/Regalis.Infrastructure/Services/Offers/OfferPortalService.cs
+@@ -209,7 +209,8 @@
+ 			DateTime now = clock.UtcNow;
+ 			foreach (Booking b in bookings)
+ 			{
+-				if (b.Status != BookingStatus.Pending || b.BookingSource != BookingSource.Customer)
++				// admin-booking kit: a hold staff made for the customer (source Admin) takes offers too.
++				if (b.Status != BookingStatus.Pending || (b.BookingSource != BookingSource.Customer && !(currentUser is IOnBehalfOfCustomer && b.BookingSource == BookingSource.Admin)))
+ 				{
+ 					throw new BusinessRuleException($"{b.BookingNumber} is not awaiting payment, so offers cannot be changed on it.", OfferEngine.NotEligible);
+ 				}
+--- a/src/Regalis.Infrastructure/Services/Coupons/CouponPortalService.cs (coupons kit file)
++++ b/src/Regalis.Infrastructure/Services/Coupons/CouponPortalService.cs
+@@ -120,7 +120,8 @@
+ 			DateTime now = clock.UtcNow;
+ 			foreach (Booking b in bookings)
+ 			{
+-				if (b.Status != BookingStatus.Pending || b.BookingSource != BookingSource.Customer)
++				// admin-booking kit: a hold staff made for the customer (source Admin) takes a coupon too.
++				if (b.Status != BookingStatus.Pending || (b.BookingSource != BookingSource.Customer && !(currentUser is IOnBehalfOfCustomer && b.BookingSource == BookingSource.Admin)))
+ 				{
+ 					throw new BusinessRuleException($"{b.BookingNumber} is not awaiting payment, so a coupon cannot be applied to it.", CouponEngine.NotApplicable);
+ 				}

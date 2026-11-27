@@ -146,7 +146,7 @@ export function AdminInvoicesPageBF() {
       e.jsx("button", { type: "button", className: "bf-link", onClick: () => navigate(`/admin/billing/invoices/${i.invoiceId}`), children: i.invoiceNumber }),
       e.jsx("div", { className: "bf-sub", children: `${i.customerName} · ${i.customerEmail}` })
     ] }) },
-    { key: "source", header: "Source", render: (i) => (i.quotationNumber ?? (i.bookingId ? "Booking" : "—")) },
+    { key: "source", header: "Quotation / source", render: (i) => (i.quotationNumber ?? (i.bookingId ? "Booking" : "—")) },
     { key: "date", header: "Date / Due", render: (i) => e.jsxs("div", { children: [
       e.jsx("div", { children: fmtDate(i.invoiceDate) }),
       e.jsx("div", { className: i.isOverdue ? "bf-sub bf-red" : "bf-sub", children: `Due ${fmtDate(i.dueDate)}` })
@@ -170,7 +170,7 @@ export function AdminInvoicesPageBF() {
     missingGstin ? e.jsx("div", { className: "bf-note bf-note--danger", style: { marginBottom: 16 }, children:
       "Invoices on this page were issued without the company GSTIN. Every document headed TAX INVOICE must carry it, or the customer cannot claim input credit. Fill Company.Gstin, Company.Address and Company.Phone in Settings — new invoices pick them up straight away." }) : null,
     e.jsxs("div", { className: "bf-toolbar", children: [
-      e.jsx(SearchBox, { value: search, onChange: setSearch, placeholder: "Number, customer…" }),
+      e.jsx(SearchBox, { value: search, onChange: setSearch, placeholder: "Invoice, quotation or reference no., customer…" }),
       e.jsx(Select, { label: "Status", value: status, onChange: (ev) => setStatus(ev.target.value), options: [{ value: "", label: "Any status" },
         ...Object.entries(INVOICE_STATUS).map(([v, [l]]) => ({ value: v, label: INVOICE_FILTER_LABEL[v] ?? l }))] }),
       e.jsx(Chips, { options: [{ value: false, label: "All" }, { value: true, label: "Overdue only" }], value: overdue, onChange: setOverdue })

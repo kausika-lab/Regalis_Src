@@ -138,6 +138,8 @@ const quotationsApi = {
   revise: (id, reason) => unwrap(api.post(`/quotations/${id}/revise`, { reason: reason ?? null })),
   clone: (id) => unwrap(api.post(`/quotations/${id}/clone`)),
   recordDecision: (id, payload) => unwrap(api.post(`/quotations/${id}/record-decision`, payload)),
+  // quotation-account kit: Convert to invoice for a quotation without a customer account (links or creates it).
+  raiseInvoice: (id, payload) => unwrap(api.post(`/quotations/${id}/raise-invoice`, payload)),
   cancel: (id, reason) => unwrap(api.post(`/quotations/${id}/cancel`, { reason })),
   setInternalNote: (id, note) => unwrap(api.put(`/quotations/${id}/internal-note`, { note })),
   addAttachment: (id, file) => {
@@ -282,6 +284,14 @@ function SummaryCard({ label, value, hint, active, onClick }) {
 
 function errorMessage(error, fallback) {
   return error instanceof ApiClientError ? error.message : fallback;
+}
+
+/* quotation-account kit: the latest "No invoice raised: ..." timeline note of an approved quotation without an invoice. */
+function noInvoiceReason(q) {
+  if (!q || q.invoiceId || q.status !== 4) return null;
+  const notes = (q.events || []).filter((ev) => (ev.summary || "").startsWith("No invoice raised:"));
+  if (notes.length > 0) return notes[notes.length - 1].summary;
+  return q.customerId ? null : "No invoice yet: this quotation has no customer account.";
 }
 
 /* ── 1. List (SS3.1) ────────────────────────────────────────────────────── */
@@ -2636,7 +2646,9 @@ function RecordDecisionModal({ quotation, approved, onClose, onSaved }) {
         note: note || null, reasonCode: reasonCode || null,
       });
       // quotation-invoice kit (B2): approval raises the invoice; say which.
-      toast.success(approved ? (saved && saved.invoiceNumber ? `Recorded as approved. Invoice ${saved.invoiceNumber} raised.` : "Recorded as approved.") : "Recorded as rejected.");
+      // quotation-account kit: when no invoice could be raised, say why (a warning, not a success).
+      if (approved && saved && !saved.invoiceNumber && noInvoiceReason(saved)) toast.warning(`Recorded as approved. ${noInvoiceReason(saved)}`);
+      else toast.success(approved ? (saved && saved.invoiceNumber ? `Recorded as approved. Invoice ${saved.invoiceNumber} raised.` : "Recorded as approved.") : "Recorded as rejected.");
       onSaved(saved);
     } catch (error) {
       toast.error(errorMessage(error, "Could not record the decision."));
@@ -2684,6 +2696,58 @@ function RecordDecisionModal({ quotation, approved, onClose, onSaved }) {
         e.jsx(Input, {
           label: "Note", value: note, onChange: (ev) => setNote(ev.target.value),
         }),
+      ],
+    }),
+  });
+}
+
+/* quotation-account kit: Convert to invoice for a quotation without a customer account. The server links the
+   customer with this email (else mobile) or creates the account, then raises the one invoice. Never a staff account. */
+function RaiseInvoiceModal({ quotation, onClose, onDone }) {
+  const toast = useToast();
+  const [email, setEmail] = React.useState(quotation.customerEmail ?? "");
+  const [mobile, setMobile] = React.useState(quotation.customerMobile ?? "");
+  const [busy, setBusy] = React.useState(false);
+  const [problem, setProblem] = React.useState(null);
+  const reason = noInvoiceReason(quotation);
+
+  const submit = async () => {
+    setBusy(true);
+    setProblem(null);
+    try {
+      const result = await quotationsApi.raiseInvoice(quotation.quotationId, {
+        customerEmail: email.trim() || null, customerMobile: mobile.trim() || null,
+      });
+      toast.success(result?.message ?? `Invoice ${result?.invoiceNumber} raised.`);
+      onDone(result);
+    } catch (error) {
+      setProblem(errorMessage(error, "Could not raise the invoice."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return e.jsx(Modal, {
+    open: true,
+    title: `Convert ${quotation.quotationNumber} to invoice`,
+    onClose,
+    footer: e.jsxs(e.Fragment, {
+      children: [
+        e.jsx(Button, { variant: "ghost", onClick: onClose, disabled: busy, children: "Cancel" }),
+        e.jsx(Button, { loading: busy, disabled: email.trim().length === 0, onClick: submit, children: "Raise invoice" }),
+      ],
+    }),
+    children: e.jsxs("div", {
+      className: "form-stack",
+      "data-testid": "qtn-raise-invoice",
+      children: [
+        e.jsx("p", {
+          children: `${quotation.customerName} has no customer account yet. The invoice goes to the customer account with this email (or else this mobile number); if there is none, one is created from the quotation's details and they sign in with \u201cForgot password\u201d or Google. A staff email is refused.`,
+        }),
+        reason && e.jsx("p", { style: { color: "#8A5A00" }, children: reason }),
+        e.jsx(Input, { label: "Customer email", required: true, type: "email", value: email, onChange: (ev) => setEmail(ev.target.value) }),
+        e.jsx(Input, { label: "Customer mobile", value: mobile, hint: "10 digits or +91\u2026; needed when a new account is created", onChange: (ev) => setMobile(ev.target.value) }),
+        problem && e.jsx("p", { role: "alert", style: { color: "#B42318" }, children: problem }),
       ],
     }),
   });
@@ -2755,6 +2819,11 @@ function StateBanner({ quotation, onConvert, onRevise, busy }) {
         }),
         quotation.invoiceNumber && e.jsxs("span", {
           children: ["Invoiced as ", e.jsx("strong", { children: quotation.invoiceNumber }), "."],
+        }),
+        // quotation-account kit: why there is no invoice, and what to do.
+        !quotation.invoiceNumber && noInvoiceReason(quotation) && e.jsx("span", {
+          "data-testid": "qtn-no-invoice", style: { flexBasis: "100%", color: "#8A5A00" },
+          children: noInvoiceReason(quotation) + (quotation.customerId ? "" : " Convert to invoice links the customer account with this email or mobile, or creates one; you can correct the email or mobile there."),
         }),
       ],
     });
@@ -3048,6 +3117,7 @@ function AdminQuotationDetailPage() {
   const [sending, setSending] = React.useState(false);
   const [cancelling, setCancelling] = React.useState(false);
   const [deciding, setDeciding] = React.useState(null);
+  const [raising, setRaising] = React.useState(false);
 
   const load = React.useCallback(async () => {
     if (!id) return;
@@ -3147,11 +3217,11 @@ function AdminQuotationDetailPage() {
       e.jsx(StateBanner, {
         quotation,
         busy,
-        onConvert: () => void run("raise the invoice", async () => {
+        onConvert: () => (!quotation.customerId ? setRaising(true) : void run("raise the invoice", async () => {
           const invoice = await invoiceApi.fromQuotation(quotation.quotationId);
           toast.success(`Invoice ${invoice.invoiceNumber} raised.`);
           await load();
-        }),
+        })),
         onRevise: () => void run("revise the quotation", async () => {
           const revision = await quotationsApi.revise(quotation.quotationId);
           toast.success(`Revision ${revision.quotationNumber} created.`);
@@ -3210,6 +3280,12 @@ function AdminQuotationDetailPage() {
         approved: deciding.approved,
         onClose: () => setDeciding(null),
         onSaved: (saved) => { setDeciding(null); setQuotation(saved); void load(); },
+      }),
+
+      raising && e.jsx(RaiseInvoiceModal, {
+        quotation,
+        onClose: () => setRaising(false),
+        onDone: () => { setRaising(false); void load(); },
       }),
     ],
   });

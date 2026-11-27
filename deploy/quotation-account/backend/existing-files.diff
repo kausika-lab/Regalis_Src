@@ -1,0 +1,146 @@
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs (as decompiled from local-dev api, with the quotation-invoice kit)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs
+@@ -173,6 +173,9 @@
+ 		services.AddScoped<QuotationDispatcher>();
+ 		services.AddScoped<QuotationMailDispatcher>();
+ 		services.AddScoped<Regalis.Application.Finance.QuotationInvoice.IQuotationInvoicing, Regalis.Infrastructure.Services.QuotationInvoice.QuotationInvoicingService>();
++		// quotation-account kit (27 Nov 2026): a quotation without a customer account is linked / gets one before its invoice.
++		services.AddScoped<Regalis.Application.Finance.QuotationAccount.IQuotationCustomerAccounts, Regalis.Infrastructure.Services.QuotationAccount.QuotationCustomerAccounts>();
++		services.AddScoped<Regalis.Application.Finance.QuotationAccount.IQuotationAccountService, Regalis.Infrastructure.Services.QuotationAccount.QuotationAccountService>();
+ 		services.AddScoped<SandboxPaymentGateway>();
+ 		services.AddHttpClient<RazorpayPaymentGateway>();
+ 		services.AddScoped((IServiceProvider provider) => (!string.Equals(configuration["Payments:Provider"], "Razorpay", StringComparison.OrdinalIgnoreCase)) ? ((IPaymentGateway)provider.GetRequiredService<SandboxPaymentGateway>()) : ((IPaymentGateway)provider.GetRequiredService<RazorpayPaymentGateway>()));
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/QuotationService.cs (as decompiled from local-dev api, with the quotation-invoice kit)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/QuotationService.cs
+@@ -730,12 +730,26 @@
+ 		Quotation quotation = await LoadScopedAsync(quotationId, ct, track: true);
+ 		QuotationStatus status = quotation.Status;
+ 		// quotation-invoice kit (B2): approving an approved quotation again is not an error. It returns
+-		// the quotation with its one invoice (raised now if it has none and has a customer account).
++		// the quotation with its one invoice (raised now if it has none).
++		// quotation-account kit: a quotation without a customer account is linked / gets one first; if that
++		// is refused the quotation is returned as it is (the reason is already on its timeline).
+ 		if (decision == QuotationStatus.Approved && status == QuotationStatus.Approved)
+ 		{
+-			if (!quotation.InvoiceId.HasValue && quotation.CustomerId.HasValue)
++			if (!quotation.InvoiceId.HasValue)
+ 			{
+-				await quotationInvoicing.ConvertAsync(quotationId, ct);
++				try
++				{
++					await quotationInvoicing.ConvertAsync(quotationId, ct);
++				}
++				catch (Regalis.Application.Finance.QuotationAccount.QuotationAccountRefusedException refused)
++				{
++					string note = "No invoice raised: " + refused.Reason;
++					if (!quotation.Events.Any((QuotationEvent ev) => ev.Summary == note))
++					{
++						AddEvent(quotation, QuotationEventType.NoteAdded, QuotationActorType.System, note, clock.UtcNow);
++						await db.SaveChangesAsync(ct);
++					}
++				}
+ 			}
+ 			return await ToDtoAsync(quotation, ct, !onBehalf && currentUser.UserType == UserType.Customer);
+ 		}
+@@ -775,19 +789,26 @@
+ 		AddEvent(quotation, (decision == QuotationStatus.Approved) ? QuotationEventType.Approved : QuotationEventType.Rejected, onBehalf ? QuotationActorType.Admin : QuotationActorType.Customer, onBehalf ? ($"Recorded as {text} on behalf of the customer, confirmed by {confirmedBy} ({mode})." + (string.IsNullOrWhiteSpace(reason) ? "" : (" " + reason.Trim()))) : (quotation.CustomerName + " " + text + " the quotation." + (string.IsNullOrWhiteSpace(reason) ? "" : (" Reason: " + reason.Trim()))), utcNow);
+ 		Notify(quotation, null, NotificationAudience.AllAdmins, "Quotation " + text, $"{quotation.CustomerName} {text} quotation {quotation.QuotationNumber}." + (string.IsNullOrWhiteSpace(reason) ? "" : (" Reason: " + reason.Trim())), $"/admin/billing/quotations/{quotation.QuotationId}", "Open");
+ 		// quotation-invoice kit (B2): an approval raises the quotation's one issued invoice in the same
+-		// transaction, so the decision and the invoice commit together or not at all. A quotation typed
+-		// in for someone without a customer account is approved as before, without an invoice.
+-		if (decision == QuotationStatus.Approved && !quotation.CustomerId.HasValue)
+-		{
+-			AddEvent(quotation, QuotationEventType.NoteAdded, QuotationActorType.System, "No invoice raised: the customer has no account. Create the customer, then raise the invoice.", utcNow);
+-		}
++		// transaction, so the decision and the invoice commit together or not at all.
++		// quotation-account kit: a quotation typed in for someone without a customer account is linked to
++		// the customer with the same email / mobile, or one is created, first (same transaction). When that
++		// is refused (e.g. a staff email) the approval still stands, without an invoice, and the timeline
++		// says exactly why.
+ 		await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+ 		{
+ 			await using IDbContextTransaction decisionTx = await db.Database.BeginTransactionAsync(ct);
+ 			await db.SaveChangesAsync(ct);
+-			if (decision == QuotationStatus.Approved && quotation.CustomerId.HasValue)
++			if (decision == QuotationStatus.Approved)
+ 			{
+-				await quotationInvoicing.ConvertAsync(quotationId, ct);
++				try
++				{
++					await quotationInvoicing.ConvertAsync(quotationId, ct);
++				}
++				catch (Regalis.Application.Finance.QuotationAccount.QuotationAccountRefusedException refused)
++				{
++					AddEvent(quotation, QuotationEventType.NoteAdded, QuotationActorType.System, "No invoice raised: " + refused.Reason, clock.UtcNow);
++					await db.SaveChangesAsync(ct);
++				}
+ 			}
+ 			await decisionTx.CommitAsync(ct);
+ 		});
+@@ -1624,7 +1645,8 @@
+ 		bool canRevise = flag4 && !alreadyRevised && currentUser.HasPermission("QUOTATION.CREATE");
+ 		bool canClone = currentUser.HasPermission("QUOTATION.CREATE");
+ 		bool canRecordDecision = flag3 && !alreadyRevised && currentUser.HasPermission("QUOTATION.EDIT");
+-		bool canConvertToInvoice = quotationStatus == QuotationStatus.Approved && !q.InvoiceId.HasValue && q.CustomerId.HasValue && currentUser.HasPermission("INVOICE.CREATE");
++		// quotation-account kit: also offered without a customer account (Convert links or creates it).
++		bool canConvertToInvoice = quotationStatus == QuotationStatus.Approved && !q.InvoiceId.HasValue && currentUser.HasPermission("INVOICE.CREATE");
+ 		bool canDelete = flag && currentUser.HasPermission("QUOTATION.DELETE");
+ 		bool flag6 = ((quotationStatus - 4 <= QuotationStatus.Draft || quotationStatus - 7 <= QuotationStatus.Draft) ? true : false);
+ 		return new QuotationActionsDto(flag2, canSend, canDownloadPdf, canCopyPortalLink, canRevise, canClone, canRecordDecision, canConvertToInvoice, canDelete, !flag6 && !q.InvoiceId.HasValue && currentUser.HasPermission("QUOTATION.DELETE"));
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/InvoiceService.cs (as decompiled from local-dev api, with the quotation-invoice kit)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/InvoiceService.cs
+@@ -79,7 +79,9 @@
+ 		if (!string.IsNullOrWhiteSpace(request.Search))
+ 		{
+ 			string term = request.Search.Trim();
+-			query = query.Where((Invoice i) => i.InvoiceNumber.Contains(term) || i.CustomerName.Contains(term) || i.CustomerEmail.Contains(term));
++			// quotation-account kit: the search also finds the quotation (number or reference) the invoice was raised from.
++			query = query.Where((Invoice i) => i.InvoiceNumber.Contains(term) || i.CustomerName.Contains(term) || i.CustomerEmail.Contains(term)
++				|| (i.QuotationId != null && db.Quotations.Any((Quotation q) => q.QuotationId == i.QuotationId && (q.QuotationNumber.Contains(term) || (q.ReferenceNumber != null && q.ReferenceNumber.Contains(term))))));
+ 		}
+ 		query = query.OrderByDescending((Invoice i) => i.InvoiceId);
+ 		return PagedResult<InvoiceDto>.Create(totalCount: await query.CountAsync(ct), items: (await query.Skip((request.Page - 1) * request.PageSize).Take(request.PageSize).Include((Invoice i) => i.Lines)
+--- a/deploy/quotation-invoice/backend/src/Regalis.Infrastructure/Services/QuotationInvoice/QuotationInvoicingService.cs (quotation-invoice kit file)
++++ b/deploy/quotation-invoice/backend/src/Regalis.Infrastructure/Services/QuotationInvoice/QuotationInvoicingService.cs
+@@ -33,7 +33,8 @@
+     ISettingService settings,
+     INumberSequenceService numberSequence,
+     IDateTimeProvider clock,
+-    ILogger<QuotationInvoicingService> logger) : IQuotationInvoicing
++    ILogger<QuotationInvoicingService> logger,
++    Regalis.Application.Finance.QuotationAccount.IQuotationCustomerAccounts customerAccounts) : IQuotationInvoicing
+ {
+     public async Task<QuotationInvoiceOutcome> ConvertAsync(long quotationId, CancellationToken ct = default)
+     {
+@@ -53,9 +54,16 @@
+ 
+     private async Task<QuotationInvoiceOutcome> RaiseAsync(long quotationId, CancellationToken ct)
+     {
++        // quotation-account kit: one raise at a time per quotation (concurrent approve / convert calls
++        // queue here and the second one finds the first one's invoice and customer link).
++        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT QuotationId FROM TRN_Quotation WITH (UPDLOCK, HOLDLOCK) WHERE QuotationId = {quotationId}", ct);
+         Quotation quotation = await db.Quotations.Include(q => q.Lines)
+             .FirstOrDefaultAsync(q => q.QuotationId == quotationId, ct)
+             ?? throw new NotFoundException("Quotation", quotationId);
++        if (db.Entry(quotation).State == EntityState.Unchanged)
++        {
++            await db.Entry(quotation).ReloadAsync(ct);
++        }
+         if (quotation.Status != QuotationStatus.Approved)
+         {
+             throw new BusinessRuleException("Only an approved quotation can be invoiced. " + quotation.QuotationNumber + " is " + quotation.Status.ToString().ToLowerInvariant() + ".");
+@@ -80,7 +88,13 @@
+             return new QuotationInvoiceOutcome(linked.InvoiceId, linked.InvoiceNumber, false);
+         }
+ 
+-        long customerId = quotation.CustomerId ?? throw new BusinessRuleException(quotation.QuotationNumber + " was raised for " + quotation.CustomerName + ", who has no customer account. Create the customer, then raise the invoice from Invoices.");
++        // quotation-account kit: no customer account yet -> link the customer with the same email / mobile,
++        // or create the account (refused with the reason for a staff email, missing details, ...).
++        if (!quotation.CustomerId.HasValue)
++        {
++            await customerAccounts.EnsureCustomerAsync(quotation, ct);
++        }
++        long customerId = quotation.CustomerId!.Value;
+         DateOnly invoiceDate = IstClock.IstDateOf(clock.UtcNow);
+         int dueDays = await settings.GetIntAsync("Invoice.DueDays", 7, ct);
+         var invoice = new Invoice

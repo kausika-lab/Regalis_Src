@@ -132,13 +132,20 @@ public sealed class QuotationInvoicingService(
             CompanyGstin = quotation.CompanyGstin,
             CompanyAddress = quotation.CompanyAddress,
             TermsAndConditions = quotation.TermsAndConditions,
-            Notes = "Raised from quotation " + quotation.QuotationNumber + "."
+            // quotation-payment kit: the customer's PO / enquiry reference travels to the invoice too.
+            Notes = "Raised from quotation " + quotation.QuotationNumber
+                    + (string.IsNullOrWhiteSpace(quotation.ReferenceNumber) ? "" : " (customer reference " + quotation.ReferenceNumber.Trim() + ")") + "."
         };
         foreach (QuotationLine line in quotation.Lines.OrderBy(l => l.LineNumber))
         {
-            string description = !line.DurationValue.HasValue
-                ? line.Description
-                : $"{line.Description} ({line.DurationValue:0.###} {line.DurationUnit})".Trim();
+            // quotation-payment kit: a line discount is named on the invoice line (its amount is already net of
+            // it), and the text is kept within the 300 characters of TRN_InvoiceLine.Description (a longer one
+            // made the approval fail).
+            string suffix = (line.DurationValue.HasValue ? $" ({line.DurationValue:0.###} {line.DurationUnit})".TrimEnd() : "")
+                            + (line.DiscountAmount > 0m ? $" (less discount Rs {line.DiscountAmount:N2})" : "");
+            string description = line.Description.Length + suffix.Length <= 300
+                ? (line.Description + suffix).Trim()
+                : (line.Description.Substring(0, Math.Max(0, 297 - suffix.Length)).TrimEnd() + "..." + suffix).Trim();
             invoice.Lines.Add(new InvoiceLine
             {
                 LineNumber = line.LineNumber,

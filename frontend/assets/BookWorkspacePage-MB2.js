@@ -1535,7 +1535,7 @@ function Ee(RGprops) {
                 },
                 children:
                   RGadm
-                    ? "No desk or room is reserved — a Virtual Office is a business address with mail handling. The GST invoice is raised now and stays due; the Virtual Office becomes active once its payment is recorded on the Payments screen."
+                    ? "No desk or room is reserved — a Virtual Office is a business address with mail handling. Nothing is collected here: the Virtual Office is active straight away and is billed through the customer's quotation."
                     : "No desk or room is reserved — a Virtual Office is a business address with mail handling. A GST invoice is raised as soon as the payment goes through.",
               }),
             ],
@@ -1777,11 +1777,11 @@ function Ee(RGprops) {
                 },
                 children: RGadm
                   ? (n.monthly
-                      ? `The workspace is held for the customer for every day of the term, ${dayLabel(n.startDate)} to ${dayLabel(n.endDate)}; one GST invoice covers the whole term.`
+                      ? `The workspace is held for the customer for every day of the term, ${dayLabel(n.startDate)} to ${dayLabel(n.endDate)}, as one booking.`
                       : n.multi
                         ? `Every one of the ${n.days} days is held first; if any day cannot be held, the whole range is released.`
-                        : "One GST invoice is raised for the booking.") +
-                    " Nothing is collected here: the booking is confirmed and the invoice stays due until the payment is recorded on the Payments screen."
+                        : "The booking is confirmed straight away.") +
+                    " Nothing is collected here: the booking is billed through the customer's quotation."
                   : n.monthly
                   ? `The workspace is yours for every day of the term, ${dayLabel(n.startDate)} to ${dayLabel(n.endDate)}. It is held for 10 minutes while payment completes; one GST invoice covers the whole term.`
                   : n.multi
@@ -1821,7 +1821,7 @@ function Ee(RGprops) {
                   dayLabel(b),
                   " · ",
                   PR(voDone.pass?.totalAmount ?? voPlan.totalAmount),
-                  voDone.pass?.isPayLater ? (RGadm ? " including GST, due from the customer" : " including GST, to pay at the front desk") : " paid, including GST",
+                  RGadm ? " including GST" : voDone.pass?.isPayLater ? " including GST, to pay at the front desk" : " paid, including GST",
                 ],
               }),
               e.jsx("p", {
@@ -1832,7 +1832,7 @@ function Ee(RGprops) {
                 },
                 children:
                   RGadm
-                    ? "The GST invoice is under Finance > Invoices and the Virtual Office under Passes. It becomes active once its payment is recorded."
+                    ? "The Virtual Office is under Passes and is active now. It is billed through the customer's quotation."
                     : "Your GST invoice is under Invoices, and the address service shows under Passes. No desk or room was reserved.",
               }),
               e.jsx("div", {
@@ -1898,11 +1898,11 @@ function Ee(RGprops) {
                         L(l.booking.endUtc),
                       ],
                 }),
-              ((l && l.isPayLater) || (multi && multi.some((t) => t.isPayLater))) &&
+              (RGadm || (l && l.isPayLater) || (multi && multi.some((t) => t.isPayLater))) &&
                 e.jsx("p", {
                   style: { marginTop: "var(--space-3)", padding: "var(--space-3) var(--space-4)", borderRadius: "var(--radius-md)", background: "color-mix(in srgb, var(--color-warning) 14%, transparent)", fontWeight: 600 },
                   children: RGadm
-                    ? `${p(l ? l.booking.totalAmount : multi.reduce((s, t) => s + t.booking.totalAmount, 0))} is due from the customer. Record it on the Payments screen when it is paid.`
+                    ? "Nothing is collected for this booking: it is billed through the customer's quotation."
                     : `Pay ${p(l ? l.booking.totalAmount : multi.reduce((s, t) => s + t.booking.totalAmount, 0))} at the front desk (cash, UPI or card) before you check in. Your QR pass works once it is paid.`,
                 }),
               multi &&
@@ -1956,7 +1956,7 @@ function Ee(RGprops) {
                   flexWrap: "wrap",
                 },
                 children: [
-                  l &&
+                  !RGadm && l &&
                     e.jsxs(h, {
                       variant: "outline",
                       onClick: () =>
@@ -1967,7 +1967,7 @@ function Ee(RGprops) {
                         l.invoiceNumber,
                       ],
                     }),
-                  multi &&
+                  !RGadm && multi &&
                     multi.map((t) =>
                       e.jsxs(
                         h,

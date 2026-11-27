@@ -20,6 +20,8 @@ import {
   api, money, fmtDate, fmtDateTime, StatCard, Tabs, Chips, SearchBox, Pager, Table, ReasonModal, Crumbs, pill, useStyles, useLoad,
   useDebounced, errorText, istToday, RecordPaymentDialog, LedgerPanel, MODE_TONE
 } from "./BillingShared-BF1.js";
+/* quotation-payment kit: the Payments screen's Quotations tab. */
+import { QuotationPaymentsPanel } from "./QuotationPayments-QP1.js";
 
 /* quotation-invoice kit (B4): payment status in the user's words. 1 Pending and 6 Sent are both Due (6 also shows "Sent"). */
 const INVOICE_STATUS = {
@@ -291,7 +293,9 @@ export function AdminPaymentsPageBF() {
   useStyles();
   const toast = useToast();
   const navigate = useNavigate();
-  const [search, setSearch] = React.useState("");
+  /* quotation-payment kit: ?view=quotations opens the Quotations tab, ?search= fills the search. */
+  const [view, setView] = React.useState(() => (new URLSearchParams(window.location.search).get("view") === "quotations" ? "quotations" : "payments"));
+  const [search, setSearch] = React.useState(() => new URLSearchParams(window.location.search).get("search") ?? "");
   const [status, setStatus] = React.useState("");
   const [source, setSource] = React.useState("all");
   const [mode, setMode] = React.useState("");
@@ -349,6 +353,8 @@ export function AdminPaymentsPageBF() {
 
   return e.jsxs("div", { children: [
     e.jsx(PageHeader, { title: "Payments", description: "Every payment, whatever its mode — gateway, wallet, cash, UPI, bank transfer, cheque or card — with the receipt and the invoice it settled. A payment is never edited: a mistake is reversed, with a reason." }),
+    e.jsx(Tabs, { value: view, onChange: setView, tabs: [{ value: "payments", label: "All payments" }, { value: "quotations", label: "Quotations" }] }),
+    view === "quotations" ? e.jsx(QuotationPaymentsPanel, { initialSearch: search, onShowPayments: (q) => { setSearch(q); setView("payments"); } }) : e.jsxs(e.Fragment, { children: [
     e.jsxs("div", { className: "bf-toolbar", children: [
       e.jsx(SearchBox, { value: search, onChange: setSearch, placeholder: "Payment, receipt, customer, quotation, invoice, UTR…" }),
       e.jsx(Select, { label: "Status", value: status, onChange: (ev) => setStatus(ev.target.value), options: [{ value: "", label: "Any status" }, ...Object.entries(PAYMENT_STATUS).map(([v, [l]]) => ({ value: v, label: l }))] }),
@@ -362,7 +368,8 @@ export function AdminPaymentsPageBF() {
       e.jsx(Table, { columns, rows: data?.items, loading, rowKey: (p) => p.paymentId, rowClass: (p) => (p.isReversed || p.status === 4 ? "bf-row--muted" : ""),
         empty: e.jsx(EmptyState, { title: "No payments found" }) }),
       e.jsx(Pager, { result: data, page, setPage })
-    ] }) }),
+    ] }) })
+    ] }),
     reversing ? e.jsx(ReasonModal, {
       title: `Reverse ${reversing.receiptNumber ?? reversing.paymentNumber}`,
       intro: `A payment is never edited. Reversing writes an opposite entry of ${money(-reversing.amount)} against ${reversing.invoiceNumber}, keeps both on the record${reversing.modeName === "Wallet" ? ", and puts the money back in the wallet" : ""}.`,

@@ -21,6 +21,11 @@ set "REGALIS_DB=RegalisWorkSpace_Dev"
 set "REGALIS_API_PORT=81"
 set "REGALIS_WEB_PORT=8080"
 set "REGALIS_API_HOST=127.0.0.1"
+rem The API build to run. Default: the repo's api\ (the deploy snapshot). local.env.cmd
+rem can point it at a newer build, e.g. D:\Regalis\local-dev\api, which carries the
+rem installed kits. (quotation-payment kit, 27 Nov 2026: the variable used to be set in
+rem local.env.cmd and ignored here, so the old api\ ran without those kits.)
+set "REGALIS_API_DIR=%ROOT%\api"
 rem Startup seeding is OFF here, unlike appsettings.Development.json.
 rem The build in api\ is older than the Dev database snapshots we restore, and its
 rem seeder lists existing menus with "WHERE IsDeleted = 0" while UX_Menu_Code is a
@@ -40,13 +45,13 @@ if exist "%~dp0local.env.cmd" (
 )
 
 echo [local stack] repo    %ROOT%
-echo [local stack] api     http://localhost:%REGALIS_API_PORT%
+echo [local stack] api     http://localhost:%REGALIS_API_PORT%  from %REGALIS_API_DIR%
 echo [local stack] website http://localhost:%REGALIS_WEB_PORT%
 echo [local stack] db      %REGALIS_SQL_INSTANCE% / %REGALIS_DB%
 
 rem ---- prerequisites -------------------------------------------------------
-if not exist "%ROOT%\api\Regalis.API.exe" (
-  echo [local stack] ERROR: %ROOT%\api\Regalis.API.exe is missing. Is this the Regalis_Src repo?
+if not exist "%REGALIS_API_DIR%\Regalis.API.exe" (
+  echo [local stack] ERROR: %REGALIS_API_DIR%\Regalis.API.exe is missing. Check REGALIS_API_DIR in local.env.cmd.
   exit /b 1
 )
 if not exist "%ROOT%\frontend\index.html" (
@@ -62,8 +67,8 @@ where node >nul 2>&1 || (
   exit /b 1
 )
 
-if not exist "%ROOT%\api\App_Data\uploads" mkdir "%ROOT%\api\App_Data\uploads" >nul 2>&1
-if not exist "%ROOT%\api\logs" mkdir "%ROOT%\api\logs" >nul 2>&1
+if not exist "%REGALIS_API_DIR%\App_Data\uploads" mkdir "%REGALIS_API_DIR%\App_Data\uploads" >nul 2>&1
+if not exist "%REGALIS_API_DIR%\logs" mkdir "%REGALIS_API_DIR%\logs" >nul 2>&1
 
 rem Both windows run their process through "powershell -NoExit" rather than "cmd /k".
 rem Two reasons, both found the hard way on this machine:
@@ -84,7 +89,7 @@ if errorlevel 1 (
   set "ConnectionStrings__Default=Server=%REGALIS_SQL_INSTANCE%;Database=%REGALIS_DB%;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True"
   set "Jwt__SigningKey=%REGALIS_JWT_KEY%"
   set "Database__SeedOnStartup=%REGALIS_SEED%"
-  start "Regalis API :%REGALIS_API_PORT%" /D "%ROOT%\api" powershell -NoProfile -NoExit -ExecutionPolicy Bypass -Command "& '.\Regalis.API.exe'"
+  start "Regalis API :%REGALIS_API_PORT%" /D "%REGALIS_API_DIR%" powershell -NoProfile -NoExit -ExecutionPolicy Bypass -Command "& '.\Regalis.API.exe'"
 ) else (
   call :report %REGALIS_API_PORT%
 )
@@ -111,7 +116,7 @@ goto waitapi
 
 :apilate
 echo [local stack] ERROR: the API never opened port %REGALIS_API_PORT% within 60s.
-echo                Read its window, and api\logs\regalis-api-^<date^>.log.
+echo                Read its window, and %REGALIS_API_DIR%\logs\regalis-api-^<date^>.log.
 echo                Usual causes: the wrong SQL instance in local.env.cmd, a database
 echo                that is not restored yet, or a seeding clash (see REGALIS_SEED above).
 exit /b 1

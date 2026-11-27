@@ -600,7 +600,7 @@ function AdminQuotationsPage() {
               /* Valid-until and the invoice left the table; they live here now. */
               {
                 label: `Open invoice ${q.invoiceNumber}`, show: Boolean(q.invoiceNumber),
-                onSelect: () => navigate("/admin/billing/invoices"),
+                onSelect: () => navigate(q.invoiceId ? `/admin/billing/invoices/${q.invoiceId}` : "/admin/billing/invoices"),
               },
               {
                 label: "Edit", show: q.actions.canEdit,
@@ -2801,6 +2801,7 @@ function CancelQuotationModal({ quotation, onClose, onCancelled }) {
 
 /** The banner under the toolbar, explaining the state in the document's words. */
 function StateBanner({ quotation, onConvert, onRevise, busy }) {
+  const navigate = useNavigate();
   const status = effectiveStatus(quotation);
   if (status === QUOTATION_STATUS.Approved) {
     return e.jsxs("div", {
@@ -2819,6 +2820,15 @@ function StateBanner({ quotation, onConvert, onRevise, busy }) {
         }),
         quotation.invoiceNumber && e.jsxs("span", {
           children: ["Invoiced as ", e.jsx("strong", { children: quotation.invoiceNumber }), "."],
+        }),
+        // quotation-payment kit: straight to the invoice, and to its payment position on the Payments screen.
+        quotation.invoiceId && e.jsx(Button, {
+          size: "sm", variant: "outline", "data-testid": "qtn-open-invoice",
+          onClick: () => navigate(`/admin/billing/invoices/${quotation.invoiceId}`), children: "Open invoice",
+        }),
+        quotation.invoiceId && e.jsx(Button, {
+          size: "sm", variant: "ghost", "data-testid": "qtn-payment-status",
+          onClick: () => navigate(`/admin/billing/payments?view=quotations&search=${encodeURIComponent(quotation.quotationNumber)}`), children: "Payment status",
         }),
         // quotation-account kit: why there is no invoice, and what to do.
         !quotation.invoiceNumber && noInvoiceReason(quotation) && e.jsx("span", {

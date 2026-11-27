@@ -23,17 +23,32 @@ const label = (u) => [u.fullName, u.email, u.mobileNumber].filter(Boolean).join(
 function CustomerField({ customer, onChange }) {
   const [q, setQ] = React.useState("");
   const [found, setFound] = React.useState([]);
+  /* The search term the current results belong to, so an empty result can say so (27 Nov 2026:
+     "kaushika" found nothing for "Kausika R" and the box still read "Search for the customer first"). */
+  const [searched, setSearched] = React.useState("");
   const dq = useDebounce(q, 350);
   React.useEffect(() => {
     if (!dq.trim()) {
       setFound([]);
+      setSearched("");
       return;
     }
     let dead = false;
     users
       .list({ page: 1, pageSize: 8, search: dq.trim(), userType: 1 })
-      .then((r) => dead || setFound((r?.items ?? []).filter((u) => u.status === void 0 || u.status === 1)))
-      .catch(() => dead || setFound([]));
+      .then((r) => {
+        if (dead) return;
+        const list = (r?.items ?? []).filter((u) => u.status === void 0 || u.status === 1);
+        setFound(list);
+        setSearched(dq.trim());
+        /* One match: pick it, so the name shows straight away. */
+        if (list.length === 1) onChange(list[0]);
+      })
+      .catch(() => {
+        if (dead) return;
+        setFound([]);
+        setSearched(dq.trim());
+      });
     return () => {
       dead = true;
     };
@@ -53,7 +68,11 @@ function CustomerField({ customer, onChange }) {
         label: "Customer",
         required: !0,
         value: customer ? String(customer.userId) : "",
-        placeholder: options.length ? "Select customer" : "Search for the customer first",
+        placeholder: options.length
+          ? `Select customer (${options.length} found)`
+          : searched
+            ? `No customer matches "${searched}" - check the spelling or try the email or mobile`
+            : "Search for the customer first",
         options: options.map((u) => ({ value: String(u.userId), label: label(u) })),
         "data-rg": "admin-booking-customer",
         onChange: (e) => onChange(options.find((u) => String(u.userId) === e.target.value) ?? null),

@@ -209,7 +209,8 @@ public class OfferPortalService(RegalisDbContext db, OfferEngine engine, ISettin
 			DateTime now = clock.UtcNow;
 			foreach (Booking b in bookings)
 			{
-				if (b.Status != BookingStatus.Pending || b.BookingSource != BookingSource.Customer)
+				// admin-booking kit: a hold staff made for the customer (source Admin) takes offers too.
+				if (b.Status != BookingStatus.Pending || (b.BookingSource != BookingSource.Customer && !(currentUser is IOnBehalfOfCustomer && b.BookingSource == BookingSource.Admin)))
 				{
 					throw new BusinessRuleException($"{b.BookingNumber} is not awaiting payment, so offers cannot be changed on it.", OfferEngine.NotEligible);
 				}

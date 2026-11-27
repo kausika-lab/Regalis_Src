@@ -120,7 +120,8 @@ public class CouponPortalService(RegalisDbContext db, CouponEngine engine, Offer
 			DateTime now = clock.UtcNow;
 			foreach (Booking b in bookings)
 			{
-				if (b.Status != BookingStatus.Pending || b.BookingSource != BookingSource.Customer)
+				// admin-booking kit: a hold staff made for the customer (source Admin) takes a coupon too.
+				if (b.Status != BookingStatus.Pending || (b.BookingSource != BookingSource.Customer && !(currentUser is IOnBehalfOfCustomer && b.BookingSource == BookingSource.Admin)))
 				{
 					throw new BusinessRuleException($"{b.BookingNumber} is not awaiting payment, so a coupon cannot be applied to it.", CouponEngine.NotApplicable);
 				}

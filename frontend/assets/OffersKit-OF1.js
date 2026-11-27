@@ -201,7 +201,7 @@ export function OfferStrip({ module, heading = "Offers for you", ctaLabel = null
  *   workspaceId  + baseAmounts (price before GST of each booking) for bookings
  *   onChange(sel) sel = { offerIds, discount, total, original, applied } or null when no offer
  */
-export function OfferPicker({ module, passPlanId = null, workspaceId = null, baseAmounts = null, disabled = false, onChange }) {
+export function OfferPicker({ module, passPlanId = null, workspaceId = null, baseAmounts = null, disabled = false, onChange, api = null, staff = false }) {
   useCss();
   const ctx = JSON.stringify([module, passPlanId, workspaceId, baseAmounts]);
   const [sel, setSel] = React.useState([]);
@@ -231,7 +231,7 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
   };
   const preview = (ids, typed, auto = false) =>
     unwrap(
-      http.post("/offers/preview", {
+      http.post(api ? api.offersPreview : "/offers/preview", {
         module,
         offerIds: ids,
         code: typed || null,
@@ -242,6 +242,8 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
       })
     );
   const couponBody = (c) => ({ module, code: c, passPlanId, workspaceId, baseAmounts: module === "booking" ? baseAmounts : null });
+  /* admin-booking kit: on the admin New booking screen (api set) the previews run for the chosen customer. */
+  const RGcp = (body) => (api ? unwrap(http.post(api.couponPreview, body)) : RGpreviewCoupon(body));
 
   /* New purchase context: keep the choice if it still applies there, otherwise drop it. */
   React.useEffect(() => {
@@ -256,7 +258,7 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
     (async () => {
       try {
         if (couponRef.current) {
-          const cp = await RGpreviewCoupon(couponBody(couponRef.current));
+          const cp = await RGcp(couponBody(couponRef.current));
           if (cp.valid) {
             if (!dead) {
               setSel([]);
@@ -324,7 +326,7 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
     setBusy(true);
     setMsg("");
     try {
-      const cp = await RGpreviewCoupon(couponBody(c));
+      const cp = await RGcp(couponBody(c));
       if (!cp.found) {
         notFound.current = cp.error;
         return false;
@@ -433,8 +435,8 @@ export function OfferPicker({ module, passPlanId = null, workspaceId = null, bas
           applied.map((a) => el("div", { key: a.offerId, className: "of-save" }, el("span", null, `${a.code ? a.code : a.title} discount (before GST)`), el("span", null, "− " + money(a.discountAmount)))),
           el("div", null, el("span", null, "Price after discount"), el("span", null, money(data.taxableAmount))),
           el("div", null, el("span", null, `CGST + SGST on the discounted price`), el("span", null, money(data.cgstAmount + data.sgstAmount))),
-          el("div", { className: "of-final" }, el("span", null, "You pay"), el("span", null, el("span", { className: "of-strike" }, money(data.originalTotal)), money(data.totalAmount))),
-          el("div", { className: "of-save", style: { justifyContent: "flex-end" } }, `You save ${money(data.originalTotal - data.totalAmount)}`)
+          el("div", { className: "of-final" }, el("span", null, staff ? "Total after discount" : "You pay"), el("span", null, el("span", { className: "of-strike" }, money(data.originalTotal)), money(data.totalAmount))),
+          el("div", { className: "of-save", style: { justifyContent: "flex-end" } }, staff ? `Saving ${money(data.originalTotal - data.totalAmount)}` : `You save ${money(data.originalTotal - data.totalAmount)}`)
         )
       : null
   );

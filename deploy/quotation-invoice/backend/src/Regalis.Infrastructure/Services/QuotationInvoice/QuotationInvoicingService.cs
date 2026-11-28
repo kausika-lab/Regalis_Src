@@ -33,7 +33,8 @@ public sealed class QuotationInvoicingService(
     ISettingService settings,
     INumberSequenceService numberSequence,
     IDateTimeProvider clock,
-    ILogger<QuotationInvoicingService> logger) : IQuotationInvoicing
+    ILogger<QuotationInvoicingService> logger,
+    Regalis.Application.Finance.QuotationAccount.IQuotationCustomerAccounts customerAccounts) : IQuotationInvoicing
 {
     public async Task<QuotationInvoiceOutcome> ConvertAsync(long quotationId, CancellationToken ct = default)
     {
@@ -53,9 +54,16 @@ public sealed class QuotationInvoicingService(
 
     private async Task<QuotationInvoiceOutcome> RaiseAsync(long quotationId, CancellationToken ct)
     {
+        // quotation-account kit: one raise at a time per quotation (concurrent approve / convert calls
+        // queue here and the second one finds the first one's invoice and customer link).
+        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT QuotationId FROM TRN_Quotation WITH (UPDLOCK, HOLDLOCK) WHERE QuotationId = {quotationId}", ct);
         Quotation quotation = await db.Quotations.Include(q => q.Lines)
             .FirstOrDefaultAsync(q => q.QuotationId == quotationId, ct)
             ?? throw new NotFoundException("Quotation", quotationId);
+        if (db.Entry(quotation).State == EntityState.Unchanged)
+        {
+            await db.Entry(quotation).ReloadAsync(ct);
+        }
         if (quotation.Status != QuotationStatus.Approved)
         {
             throw new BusinessRuleException("Only an approved quotation can be invoiced. " + quotation.QuotationNumber + " is " + quotation.Status.ToString().ToLowerInvariant() + ".");
@@ -80,7 +88,13 @@ public sealed class QuotationInvoicingService(
             return new QuotationInvoiceOutcome(linked.InvoiceId, linked.InvoiceNumber, false);
         }
 
-        long customerId = quotation.CustomerId ?? throw new BusinessRuleException(quotation.QuotationNumber + " was raised for " + quotation.CustomerName + ", who has no customer account. Create the customer, then raise the invoice from Invoices.");
+        // quotation-account kit: no customer account yet -> link the customer with the same email / mobile,
+        // or create the account (refused with the reason for a staff email, missing details, ...).
+        if (!quotation.CustomerId.HasValue)
+        {
+            await customerAccounts.EnsureCustomerAsync(quotation, ct);
+        }
+        long customerId = quotation.CustomerId!.Value;
         DateOnly invoiceDate = IstClock.IstDateOf(clock.UtcNow);
         int dueDays = await settings.GetIntAsync("Invoice.DueDays", 7, ct);
         var invoice = new Invoice
@@ -118,13 +132,20 @@ public sealed class QuotationInvoicingService(
             CompanyGstin = quotation.CompanyGstin,
             CompanyAddress = quotation.CompanyAddress,
             TermsAndConditions = quotation.TermsAndConditions,
-            Notes = "Raised from quotation " + quotation.QuotationNumber + "."
+            // quotation-payment kit: the customer's PO / enquiry reference travels to the invoice too.
+            Notes = "Raised from quotation " + quotation.QuotationNumber
+                    + (string.IsNullOrWhiteSpace(quotation.ReferenceNumber) ? "" : " (customer reference " + quotation.ReferenceNumber.Trim() + ")") + "."
         };
         foreach (QuotationLine line in quotation.Lines.OrderBy(l => l.LineNumber))
         {
-            string description = !line.DurationValue.HasValue
-                ? line.Description
-                : $"{line.Description} ({line.DurationValue:0.###} {line.DurationUnit})".Trim();
+            // quotation-payment kit: a line discount is named on the invoice line (its amount is already net of
+            // it), and the text is kept within the 300 characters of TRN_InvoiceLine.Description (a longer one
+            // made the approval fail).
+            string suffix = (line.DurationValue.HasValue ? $" ({line.DurationValue:0.###} {line.DurationUnit})".TrimEnd() : "")
+                            + (line.DiscountAmount > 0m ? $" (less discount Rs {line.DiscountAmount:N2})" : "");
+            string description = line.Description.Length + suffix.Length <= 300
+                ? (line.Description + suffix).Trim()
+                : (line.Description.Substring(0, Math.Max(0, 297 - suffix.Length)).TrimEnd() + "..." + suffix).Trim();
             invoice.Lines.Add(new InvoiceLine
             {
                 LineNumber = line.LineNumber,

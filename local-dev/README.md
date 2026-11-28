@@ -34,6 +34,7 @@ first and then calls that file, so anything you set there wins.
 | `REGALIS_WEB_PORT` | `8080` | |
 | `REGALIS_SEED` | `false` | Startup seeding, see below |
 | `REGALIS_JWT_KEY` | a fixed local string | Local only; UAT and production take theirs from the host secret store |
+| `REGALIS_API_DIR` | the repo's `api\` | The API build to run, e.g. `D:\Regalis\local-dev\api` (the build with the installed kits). Before 27 Nov 2026 the script ignored this and always ran the repo's older `api\`, so kit behaviour (quotation invoicing, the Payments screen's quotations) was missing locally |
 
 The script passes these to the API as `ConnectionStrings__Default`, `Jwt__SigningKey` and
 `Database__SeedOnStartup`. Environment beats the JSON files, so nothing in

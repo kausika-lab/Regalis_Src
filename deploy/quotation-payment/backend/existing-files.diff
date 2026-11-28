@@ -1,0 +1,1415 @@
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs (as decompiled from local-dev api, with the earlier kits)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure/DependencyInjection.cs
+@@ -176,6 +176,8 @@
+ 		// quotation-account kit (27 Nov 2026): a quotation without a customer account is linked / gets one before its invoice.
+ 		services.AddScoped<Regalis.Application.Finance.QuotationAccount.IQuotationCustomerAccounts, Regalis.Infrastructure.Services.QuotationAccount.QuotationCustomerAccounts>();
+ 		services.AddScoped<Regalis.Application.Finance.QuotationAccount.IQuotationAccountService, Regalis.Infrastructure.Services.QuotationAccount.QuotationAccountService>();
++		// quotation-payment kit (27 Nov 2026): the Payments screen's Quotations view (read-only).
++		services.AddScoped<Regalis.Application.Finance.QuotationPayment.IQuotationPaymentService, Regalis.Infrastructure.Services.QuotationPayment.QuotationPaymentService>();
+ 		services.AddScoped<SandboxPaymentGateway>();
+ 		services.AddHttpClient<RazorpayPaymentGateway>();
+ 		services.AddScoped((IServiceProvider provider) => (!string.Equals(configuration["Payments:Provider"], "Razorpay", StringComparison.OrdinalIgnoreCase)) ? ((IPaymentGateway)provider.GetRequiredService<SandboxPaymentGateway>()) : ((IPaymentGateway)provider.GetRequiredService<RazorpayPaymentGateway>()));
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/InvoiceService.cs (as decompiled from local-dev api, with the earlier kits)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/InvoiceService.cs
+@@ -1,264 +1,279 @@
+-using System;
+-using System.Linq;
+-using System.Threading;
+-using System.Threading.Tasks;
+-using Microsoft.EntityFrameworkCore;
+-using Microsoft.EntityFrameworkCore.Storage;
+-using Regalis.Application.Abstractions;
+-using Regalis.Application.Common.Exceptions;
+-using Regalis.Application.Finance;
+-using Regalis.Domain.Entities.Finance;
+-using Regalis.Domain.Entities.Operations;
+-using Regalis.Domain.Enums;
+-using Regalis.Infrastructure.Persistence;
+-using Regalis.Infrastructure.Reporting;
+-using Regalis.Shared;
+-using Regalis.Shared.Api;
+-
+-namespace Regalis.Infrastructure.Services;
+-
+-/// <summary>
+-/// Invoices. Reads are row-scoped; writes are deliberately narrow. There is no
+-/// free-form create and no edit: an issued invoice is a snapshot, so the only ways to
+-/// change one are to cancel it or to let a payment move its status. The one creation
+-/// path is an approved quotation, whose figures are carried across verbatim.
+-/// </summary>
+-public class InvoiceService(RegalisDbContext db, ISettingService settings, INumberSequenceService numberSequence, ICurrentUser currentUser, IDateTimeProvider clock, Regalis.Application.Finance.QuotationInvoice.IQuotationInvoicing quotationInvoicing) : IInvoiceService
+-{
+-	public async Task<InvoiceDto> GetInvoiceAsync(long invoiceId, CancellationToken ct = default(CancellationToken))
+-	{
+-		return ToDto(await LoadScopedAsync(invoiceId, ct));
+-	}
+-
+-	public async Task<PagedResult<InvoiceDto>> GetMyInvoicesAsync(InvoiceListRequest request, CancellationToken ct = default(CancellationToken))
+-	{
+-		IQueryable<Invoice> query = from i in Regalis.Infrastructure.Services.QuotationInvoice.InvoicePaymentRules.Billable(db.Invoices.AsNoTracking(), db)
+-			where i.CustomerId == currentUser.UserId
+-			select i;
+-		string text = request.Status?.ToLowerInvariant();
+-		IQueryable<Invoice> queryable;
+-		if (text == "pending")
+-		{
+-			queryable = query.Where((Invoice i) => i.Status == InvoiceStatus.Pending || i.Status == InvoiceStatus.PartiallyPaid);
+-		}
+-		else
+-		{
+-			queryable = ((!(text == "paid")) ? query : query.Where((Invoice i) => i.Status == InvoiceStatus.Paid));
+-		}
+-		query = queryable;
+-		query = query.OrderByDescending((Invoice i) => i.InvoiceId);
+-		return PagedResult<InvoiceDto>.Create(totalCount: await query.CountAsync(ct), items: (await query.Skip((request.Page - 1) * request.PageSize).Take(request.PageSize).Include((Invoice i) => i.Lines)
+-			.ToListAsync(ct)).Select(ToDto).ToList(), page: request.Page, pageSize: request.PageSize);
+-	}
+-
+-	public async Task<PagedResult<InvoiceDto>> GetInvoicesAsync(AdminInvoiceListRequest request, CancellationToken ct = default(CancellationToken))
+-	{
+-		// quotation-invoice kit (B3): nothing linked to a rejected / not-approved quotation is listed.
+-		IQueryable<Invoice> query = Regalis.Infrastructure.Services.QuotationInvoice.InvoicePaymentRules.Billable(db.Invoices.AsNoTracking(), db);
+-		if (request.Status.HasValue)
+-		{
+-			query = query.Where((Invoice i) => (int?)(byte)i.Status == (int?)request.Status);
+-		}
+-		if (request.CustomerId.HasValue)
+-		{
+-			query = query.Where((Invoice i) => (long?)i.CustomerId == request.CustomerId);
+-		}
+-		if (request.Overdue == true)
+-		{
+-			DateOnly todayIst = IstClock.IstDateOf(clock.UtcNow);
+-			query = query.Where((Invoice i) => i.DueDate < todayIst && i.OutstandingAmount > 0m && (i.Status == InvoiceStatus.Pending || i.Status == InvoiceStatus.Sent || i.Status == InvoiceStatus.PartiallyPaid));
+-		}
+-		if (request.From.HasValue)
+-		{
+-			query = query.Where((Invoice i) => i.InvoiceDate >= request.From);
+-		}
+-		if (request.To.HasValue)
+-		{
+-			query = query.Where((Invoice i) => i.InvoiceDate <= request.To);
+-		}
+-		if (!string.IsNullOrWhiteSpace(request.Search))
+-		{
+-			string term = request.Search.Trim();
+-			// quotation-account kit: the search also finds the quotation (number or reference) the invoice was raised from.
+-			query = query.Where((Invoice i) => i.InvoiceNumber.Contains(term) || i.CustomerName.Contains(term) || i.CustomerEmail.Contains(term)
+-				|| (i.QuotationId != null && db.Quotations.Any((Quotation q) => q.QuotationId == i.QuotationId && (q.QuotationNumber.Contains(term) || (q.ReferenceNumber != null && q.ReferenceNumber.Contains(term))))));
+-		}
+-		query = query.OrderByDescending((Invoice i) => i.InvoiceId);
+-		return PagedResult<InvoiceDto>.Create(totalCount: await query.CountAsync(ct), items: (await query.Skip((request.Page - 1) * request.PageSize).Take(request.PageSize).Include((Invoice i) => i.Lines)
+-			.ToListAsync(ct)).Select(ToDto).ToList(), page: request.Page, pageSize: request.PageSize);
+-	}
+-
+-	public async Task<byte[]> GetInvoicePdfAsync(long invoiceId, CancellationToken ct = default(CancellationToken))
+-	{
+-		return InvoicePdfGenerator.Generate(await LoadScopedAsync(invoiceId, ct), await PdfExtrasAsync(ct));
+-	}
+-
+-	/// <summary>The company-level parts of the invoice PDF. Place of supply is the
+-	/// Tax.PlaceOfSupply setting, else the home state (Regalis sells space in its own
+-	/// state, so the supply happens there).</summary>
+-	private async Task<InvoicePdfExtras> PdfExtrasAsync(CancellationToken ct)
+-	{
+-		string place = await settings.GetStringAsync("Tax.PlaceOfSupply", "", ct);
+-		if (string.IsNullOrWhiteSpace(place))
+-		{
+-			string text = await settings.GetStringAsync("Quotation.HomeStateCode", "29", ct);
+-			place = (string.IsNullOrWhiteSpace(text) ? "" : (GstStates.NameOf(text) + " (" + text + ")"));
+-		}
+-		byte[] logo = await PdfLogo.LoadAsync(settings, ct);
+-		string placeOfSupply = place;
+-		return new InvoicePdfExtras(logo, placeOfSupply, await settings.GetStringAsync("Company.BankAccountName", "", ct), await settings.GetStringAsync("Company.BankAccountNumber", "", ct), await settings.GetStringAsync("Company.BankIfsc", "", ct), await settings.GetStringAsync("Company.BankBranch", "", ct), await settings.GetStringAsync("Invoice.TermsAndConditions", "", ct));
+-	}
+-
+-	/// <summary>quotation-invoice kit (B2): raised by IQuotationInvoicing, which approval also uses.
+-	/// A quotation that already has its invoice gets that invoice back instead of a 409.</summary>
+-	public async Task<InvoiceDto> CreateFromQuotationAsync(long quotationId, CancellationToken ct = default(CancellationToken))
+-	{
+-		return await GetInvoiceAsync((await quotationInvoicing.ConvertAsync(quotationId, ct)).InvoiceId, ct);
+-	}
+-
+-	public async Task<InvoiceDto> CreateAdvanceFromQuotationAsync(long quotationId, CancellationToken ct = default(CancellationToken))
+-	{
+-		Quotation quotation = (await db.Quotations.Include((Quotation q) => q.Lines.OrderBy((QuotationLine l) => l.LineNumber)).FirstOrDefaultAsync((Quotation q) => q.QuotationId == quotationId, ct)) ?? throw new NotFoundException("Quotation", quotationId);
+-		if (quotation.Status != QuotationStatus.Approved)
+-		{
+-			throw new BusinessRuleException("An advance invoice follows the customer's approval.");
+-		}
+-		if (!quotation.AdvanceInvoiceEnabled)
+-		{
+-			throw new BusinessRuleException(quotation.QuotationNumber + " does not ask for an advance invoice.");
+-		}
+-		decimal amount = AdvanceAmountOf(quotation);
+-		if (amount <= 0m)
+-		{
+-			throw new BusinessRuleException("The advance works out to nothing. Check the deposit setting on the quotation.");
+-		}
+-		DateOnly invoiceDate = IstClock.IstDateOf(clock.UtcNow);
+-		int value = await settings.GetIntAsync("Invoice.DueDays", 7, ct);
+-		string description = ((quotation.AdvanceType == QuotationAdvanceType.Months) ? $"Security deposit — {quotation.AdvanceValue:0.##} month(s) of rent (quotation {quotation.QuotationNumber})" : ("Security deposit (quotation " + quotation.QuotationNumber + ")"));
+-		Invoice invoice = new Invoice
+-		{
+-			CustomerId = CustomerOf(quotation),
+-			LocationId = quotation.LocationId,
+-			InvoiceDate = invoiceDate,
+-			DueDate = invoiceDate.AddDays(value),
+-			SubTotal = amount,
+-			TaxableAmount = amount,
+-			TotalAmount = amount,
+-			PaidAmount = 0m,
+-			Status = InvoiceStatus.Pending,
+-			CustomerName = quotation.CustomerName,
+-			CustomerEmail = quotation.CustomerEmail,
+-			CustomerMobile = quotation.CustomerMobile,
+-			CustomerGstin = quotation.CustomerGstin,
+-			CustomerCompanyName = quotation.CustomerCompanyName,
+-			BillingAddress = quotation.BillingAddress,
+-			CompanyName = quotation.CompanyName,
+-			CompanyGstin = quotation.CompanyGstin,
+-			CompanyAddress = quotation.CompanyAddress,
+-			TermsAndConditions = quotation.TermsAndConditions,
+-			Notes = "Refundable security deposit against quotation " + quotation.QuotationNumber + "."
+-		};
+-		invoice.Lines.Add(new InvoiceLine
+-		{
+-			LineNumber = 1,
+-			Description = description,
+-			Quantity = 1m,
+-			UnitPrice = amount,
+-			LineAmount = amount,
+-			TaxPercent = 0m,
+-			TaxAmount = 0m,
+-			TotalAmount = amount
+-		});
+-		return await GetInvoiceAsync(await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+-		{
+-			long invoiceId;
+-			await using (IDbContextTransaction dbTransaction = await db.Database.BeginTransactionAsync(ct))
+-			{
+-				Invoice invoice2 = invoice;
+-				invoice2.InvoiceNumber = await numberSequence.NextAsync("Invoice", ct);
+-				db.Invoices.Add(invoice);
+-				await db.SaveChangesAsync(ct);
+-				await dbTransaction.CommitAsync(ct);
+-				invoiceId = invoice.InvoiceId;
+-			}
+-			return invoiceId;
+-		}), ct);
+-	}
+-
+-	/// <summary>An invoice is always raised to a customer account. A quotation whose
+-	/// customer was typed in by hand has none, so it cannot be invoiced as it stands.</summary>
+-	private static long CustomerOf(Quotation quotation)
+-	{
+-		return quotation.CustomerId ?? throw new BusinessRuleException(quotation.QuotationNumber + " was raised for " + quotation.CustomerName + ", who has no customer account. Create the customer, then raise the invoice from Invoices.");
+-	}
+-
+-	/// <summary>Months of rent, or the flat sum. "A month's rent" is one month of the
+-	/// lines actually priced by the month; an hourly meeting room is not rent.</summary>
+-	private static decimal AdvanceAmountOf(Quotation quotation)
+-	{
+-		if (quotation.AdvanceType == QuotationAdvanceType.FixedAmount)
+-		{
+-			return Math.Round(quotation.AdvanceValue, 2, MidpointRounding.AwayFromZero);
+-		}
+-		return Math.Round(quotation.Lines.Where((QuotationLine l) => l.LineType != QuotationLineType.Header && string.Equals(l.DurationUnit, "Month", StringComparison.OrdinalIgnoreCase)).Sum((QuotationLine l) => l.Quantity * l.UnitPrice) * quotation.AdvanceValue, 2, MidpointRounding.AwayFromZero);
+-	}
+-
+-	public async Task<InvoiceDto> SendAsync(long invoiceId, CancellationToken ct = default(CancellationToken))
+-	{
+-		Invoice invoice = (await db.Invoices.FirstOrDefaultAsync((Invoice i) => i.InvoiceId == invoiceId, ct)) ?? throw new NotFoundException("Invoice", invoiceId);
+-		if (invoice.Status != InvoiceStatus.Pending)
+-		{
+-			throw new BusinessRuleException("Only a pending invoice can be marked as sent.");
+-		}
+-		invoice.Status = InvoiceStatus.Sent;
+-		await db.SaveChangesAsync(ct);
+-		return await GetInvoiceAsync(invoiceId, ct);
+-	}
+-
+-	public async Task<InvoiceDto> CancelAsync(long invoiceId, string reason, CancellationToken ct = default(CancellationToken))
+-	{
+-		Invoice invoice = (await db.Invoices.FirstOrDefaultAsync((Invoice i) => i.InvoiceId == invoiceId, ct)) ?? throw new NotFoundException("Invoice", invoiceId);
+-		if (string.IsNullOrWhiteSpace(reason))
+-		{
+-			throw new AppValidationException(new _003C_003Ez__ReadOnlySingleElementList<ApiError>(new ApiError("VALIDATION_ERROR", "Give a reason for cancelling the invoice.", "reason")));
+-		}
+-		if (invoice.Status == InvoiceStatus.Cancelled)
+-		{
+-			throw new BusinessRuleException("This invoice is already cancelled.");
+-		}
+-		if (invoice.PaidAmount > 0m)
+-		{
+-			throw new BusinessRuleException("This invoice has payments against it and cannot be cancelled. Refund the payment first.");
+-		}
+-		invoice.Status = InvoiceStatus.Cancelled;
+-		invoice.CancellationReason = reason.Trim();
+-		await db.SaveChangesAsync(ct);
+-		return await GetInvoiceAsync(invoiceId, ct);
+-	}
+-
+-	/// <summary>Customers read their own invoices only, whatever id they pass.</summary>
+-	private async Task<Invoice> LoadScopedAsync(long invoiceId, CancellationToken ct)
+-	{
+-		Invoice invoice = (await db.Invoices.AsNoTracking().Include((Invoice i) => i.Lines.OrderBy((InvoiceLine l) => l.LineNumber)).FirstOrDefaultAsync((Invoice i) => i.InvoiceId == invoiceId, ct)) ?? throw new NotFoundException("Invoice", invoiceId);
+-		if (currentUser.UserType == UserType.Customer && invoice.CustomerId != currentUser.UserId)
+-		{
+-			throw new NotFoundException("Invoice", invoiceId);
+-		}
+-		return invoice;
+-	}
+-
+-	private InvoiceDto ToDto(Invoice i)
+-	{
+-		bool flag = i.DueDate < IstClock.IstDateOf(clock.UtcNow) && i.OutstandingAmount > 0m;
+-		if (flag)
+-		{
+-			InvoiceStatus status = i.Status;
+-			bool flag2 = ((status == InvoiceStatus.Pending || status == InvoiceStatus.PartiallyPaid || status == InvoiceStatus.Sent) ? true : false);
+-			flag = flag2;
+-		}
+-		bool isOverdue = flag;
+-		return new InvoiceDto(i.InvoiceId, i.InvoiceNumber, i.CustomerId, i.BookingId, i.QuotationId, (from q in db.Quotations
+-			where (long?)q.QuotationId == i.QuotationId
+-			select q.QuotationNumber).FirstOrDefault(), i.InvoiceDate, i.DueDate, i.SubTotal, i.DiscountAmount, i.TaxableAmount, i.CgstPercent, i.CgstAmount, i.SgstPercent, i.SgstAmount, i.IgstPercent, i.IgstAmount, i.TotalAmount, i.PaidAmount, i.OutstandingAmount, (byte)i.Status, isOverdue, i.PaidUtc, i.CancellationReason, i.TermsAndConditions, i.CustomerName, i.CustomerEmail, i.CompanyName, i.CompanyGstin, i.Lines.Select((InvoiceLine l) => new InvoiceLineDto(l.LineNumber, l.Description, l.HsnSacCode, l.Quantity, l.UnitPrice, l.LineAmount, l.TaxPercent, l.TaxAmount, l.TotalAmount)).ToList());
+-	}
+-}
++using System;
++using System.Linq;
++using System.Threading;
++using System.Threading.Tasks;
++using Microsoft.EntityFrameworkCore;
++using Microsoft.EntityFrameworkCore.Storage;
++using Regalis.Application.Abstractions;
++using Regalis.Application.Common.Exceptions;
++using Regalis.Application.Finance;
++using Regalis.Domain.Entities.Finance;
++using Regalis.Domain.Entities.Operations;
++using Regalis.Domain.Enums;
++using Regalis.Infrastructure.Persistence;
++using Regalis.Infrastructure.Reporting;
++using Regalis.Shared;
++using Regalis.Shared.Api;
++
++namespace Regalis.Infrastructure.Services;
++
++/// <summary>
++/// Invoices. Reads are row-scoped; writes are deliberately narrow. There is no
++/// free-form create and no edit: an issued invoice is a snapshot, so the only ways to
++/// change one are to cancel it or to let a payment move its status. The one creation
++/// path is an approved quotation, whose figures are carried across verbatim.
++/// </summary>
++public class InvoiceService(RegalisDbContext db, ISettingService settings, INumberSequenceService numberSequence, ICurrentUser currentUser, IDateTimeProvider clock, Regalis.Application.Finance.QuotationInvoice.IQuotationInvoicing quotationInvoicing) : IInvoiceService
++{
++	public async Task<InvoiceDto> GetInvoiceAsync(long invoiceId, CancellationToken ct = default(CancellationToken))
++	{
++		return ToDto(await LoadScopedAsync(invoiceId, ct));
++	}
++
++	public async Task<PagedResult<InvoiceDto>> GetMyInvoicesAsync(InvoiceListRequest request, CancellationToken ct = default(CancellationToken))
++	{
++		IQueryable<Invoice> query = from i in Regalis.Infrastructure.Services.QuotationInvoice.InvoicePaymentRules.Billable(db.Invoices.AsNoTracking(), db)
++			where i.CustomerId == currentUser.UserId
++			select i;
++		string text = request.Status?.ToLowerInvariant();
++		IQueryable<Invoice> queryable;
++		if (text == "pending")
++		{
++			queryable = query.Where((Invoice i) => i.Status == InvoiceStatus.Pending || i.Status == InvoiceStatus.PartiallyPaid);
++		}
++		else
++		{
++			queryable = ((!(text == "paid")) ? query : query.Where((Invoice i) => i.Status == InvoiceStatus.Paid));
++		}
++		query = queryable;
++		query = query.OrderByDescending((Invoice i) => i.InvoiceId);
++		return PagedResult<InvoiceDto>.Create(totalCount: await query.CountAsync(ct), items: (await query.Skip((request.Page - 1) * request.PageSize).Take(request.PageSize).Include((Invoice i) => i.Lines)
++			.ToListAsync(ct)).Select(ToDto).ToList(), page: request.Page, pageSize: request.PageSize);
++	}
++
++	public async Task<PagedResult<InvoiceDto>> GetInvoicesAsync(AdminInvoiceListRequest request, CancellationToken ct = default(CancellationToken))
++	{
++		// quotation-invoice kit (B3): nothing linked to a rejected / not-approved quotation is listed.
++		IQueryable<Invoice> query = Regalis.Infrastructure.Services.QuotationInvoice.InvoicePaymentRules.Billable(db.Invoices.AsNoTracking(), db);
++		if (request.Status.HasValue)
++		{
++			query = query.Where((Invoice i) => (int?)(byte)i.Status == (int?)request.Status);
++		}
++		if (request.CustomerId.HasValue)
++		{
++			query = query.Where((Invoice i) => (long?)i.CustomerId == request.CustomerId);
++		}
++		if (request.Overdue == true)
++		{
++			DateOnly todayIst = IstClock.IstDateOf(clock.UtcNow);
++			query = query.Where((Invoice i) => i.DueDate < todayIst && i.OutstandingAmount > 0m && (i.Status == InvoiceStatus.Pending || i.Status == InvoiceStatus.Sent || i.Status == InvoiceStatus.PartiallyPaid));
++		}
++		if (request.From.HasValue)
++		{
++			query = query.Where((Invoice i) => i.InvoiceDate >= request.From);
++		}
++		if (request.To.HasValue)
++		{
++			query = query.Where((Invoice i) => i.InvoiceDate <= request.To);
++		}
++		if (!string.IsNullOrWhiteSpace(request.Search))
++		{
++			string term = request.Search.Trim();
++			// quotation-account kit: the search also finds the quotation (number or reference) the invoice was raised from.
++			query = query.Where((Invoice i) => i.InvoiceNumber.Contains(term) || i.CustomerName.Contains(term) || i.CustomerEmail.Contains(term)
++				|| (i.QuotationId != null && db.Quotations.Any((Quotation q) => q.QuotationId == i.QuotationId && (q.QuotationNumber.Contains(term) || (q.ReferenceNumber != null && q.ReferenceNumber.Contains(term))))));
++		}
++		query = query.OrderByDescending((Invoice i) => i.InvoiceId);
++		return PagedResult<InvoiceDto>.Create(totalCount: await query.CountAsync(ct), items: (await query.Skip((request.Page - 1) * request.PageSize).Take(request.PageSize).Include((Invoice i) => i.Lines)
++			.ToListAsync(ct)).Select(ToDto).ToList(), page: request.Page, pageSize: request.PageSize);
++	}
++
++	public async Task<byte[]> GetInvoicePdfAsync(long invoiceId, CancellationToken ct = default(CancellationToken))
++	{
++		Invoice invoice = await LoadScopedAsync(invoiceId, ct);
++		InvoicePdfExtras extras = await PdfExtrasAsync(ct);
++		// quotation-payment kit: an invoice raised from an inter-state quotation prints that quotation's place of supply
++		// (it decided IGST instead of CGST + SGST). Intra-state quotation invoices and all other invoices print as before.
++		if (invoice.QuotationId.HasValue)
++		{
++			var supply = await db.Quotations.AsNoTracking().Where((Quotation q) => (long?)q.QuotationId == invoice.QuotationId)
++				.Select((Quotation q) => new { q.PlaceOfSupply, q.PlaceOfSupplyStateCode }).FirstOrDefaultAsync(ct);
++			string homeState = await settings.GetStringAsync("Quotation.HomeStateCode", "29", ct);
++			if (supply != null && !string.IsNullOrWhiteSpace(supply.PlaceOfSupplyStateCode) && supply.PlaceOfSupplyStateCode != homeState)
++			{
++				string name = string.IsNullOrWhiteSpace(supply.PlaceOfSupply) ? GstStates.NameOf(supply.PlaceOfSupplyStateCode) : supply.PlaceOfSupply.Trim();
++				extras = extras with { PlaceOfSupply = name + " (" + supply.PlaceOfSupplyStateCode + ")" };
++			}
++		}
++		return InvoicePdfGenerator.Generate(invoice, extras);
++	}
++
++	/// <summary>The company-level parts of the invoice PDF. Place of supply is the
++	/// Tax.PlaceOfSupply setting, else the home state (Regalis sells space in its own
++	/// state, so the supply happens there).</summary>
++	private async Task<InvoicePdfExtras> PdfExtrasAsync(CancellationToken ct)
++	{
++		string place = await settings.GetStringAsync("Tax.PlaceOfSupply", "", ct);
++		if (string.IsNullOrWhiteSpace(place))
++		{
++			string text = await settings.GetStringAsync("Quotation.HomeStateCode", "29", ct);
++			place = (string.IsNullOrWhiteSpace(text) ? "" : (GstStates.NameOf(text) + " (" + text + ")"));
++		}
++		byte[] logo = await PdfLogo.LoadAsync(settings, ct);
++		string placeOfSupply = place;
++		return new InvoicePdfExtras(logo, placeOfSupply, await settings.GetStringAsync("Company.BankAccountName", "", ct), await settings.GetStringAsync("Company.BankAccountNumber", "", ct), await settings.GetStringAsync("Company.BankIfsc", "", ct), await settings.GetStringAsync("Company.BankBranch", "", ct), await settings.GetStringAsync("Invoice.TermsAndConditions", "", ct));
++	}
++
++	/// <summary>quotation-invoice kit (B2): raised by IQuotationInvoicing, which approval also uses.
++	/// A quotation that already has its invoice gets that invoice back instead of a 409.</summary>
++	public async Task<InvoiceDto> CreateFromQuotationAsync(long quotationId, CancellationToken ct = default(CancellationToken))
++	{
++		return await GetInvoiceAsync((await quotationInvoicing.ConvertAsync(quotationId, ct)).InvoiceId, ct);
++	}
++
++	public async Task<InvoiceDto> CreateAdvanceFromQuotationAsync(long quotationId, CancellationToken ct = default(CancellationToken))
++	{
++		Quotation quotation = (await db.Quotations.Include((Quotation q) => q.Lines.OrderBy((QuotationLine l) => l.LineNumber)).FirstOrDefaultAsync((Quotation q) => q.QuotationId == quotationId, ct)) ?? throw new NotFoundException("Quotation", quotationId);
++		if (quotation.Status != QuotationStatus.Approved)
++		{
++			throw new BusinessRuleException("An advance invoice follows the customer's approval.");
++		}
++		if (!quotation.AdvanceInvoiceEnabled)
++		{
++			throw new BusinessRuleException(quotation.QuotationNumber + " does not ask for an advance invoice.");
++		}
++		decimal amount = AdvanceAmountOf(quotation);
++		if (amount <= 0m)
++		{
++			throw new BusinessRuleException("The advance works out to nothing. Check the deposit setting on the quotation.");
++		}
++		DateOnly invoiceDate = IstClock.IstDateOf(clock.UtcNow);
++		int value = await settings.GetIntAsync("Invoice.DueDays", 7, ct);
++		string description = ((quotation.AdvanceType == QuotationAdvanceType.Months) ? $"Security deposit — {quotation.AdvanceValue:0.##} month(s) of rent (quotation {quotation.QuotationNumber})" : ("Security deposit (quotation " + quotation.QuotationNumber + ")"));
++		Invoice invoice = new Invoice
++		{
++			CustomerId = CustomerOf(quotation),
++			LocationId = quotation.LocationId,
++			InvoiceDate = invoiceDate,
++			DueDate = invoiceDate.AddDays(value),
++			SubTotal = amount,
++			TaxableAmount = amount,
++			TotalAmount = amount,
++			PaidAmount = 0m,
++			Status = InvoiceStatus.Pending,
++			CustomerName = quotation.CustomerName,
++			CustomerEmail = quotation.CustomerEmail,
++			CustomerMobile = quotation.CustomerMobile,
++			CustomerGstin = quotation.CustomerGstin,
++			CustomerCompanyName = quotation.CustomerCompanyName,
++			BillingAddress = quotation.BillingAddress,
++			CompanyName = quotation.CompanyName,
++			CompanyGstin = quotation.CompanyGstin,
++			CompanyAddress = quotation.CompanyAddress,
++			TermsAndConditions = quotation.TermsAndConditions,
++			Notes = "Refundable security deposit against quotation " + quotation.QuotationNumber + "."
++		};
++		invoice.Lines.Add(new InvoiceLine
++		{
++			LineNumber = 1,
++			Description = description,
++			Quantity = 1m,
++			UnitPrice = amount,
++			LineAmount = amount,
++			TaxPercent = 0m,
++			TaxAmount = 0m,
++			TotalAmount = amount
++		});
++		return await GetInvoiceAsync(await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
++		{
++			long invoiceId;
++			await using (IDbContextTransaction dbTransaction = await db.Database.BeginTransactionAsync(ct))
++			{
++				Invoice invoice2 = invoice;
++				invoice2.InvoiceNumber = await numberSequence.NextAsync("Invoice", ct);
++				db.Invoices.Add(invoice);
++				await db.SaveChangesAsync(ct);
++				await dbTransaction.CommitAsync(ct);
++				invoiceId = invoice.InvoiceId;
++			}
++			return invoiceId;
++		}), ct);
++	}
++
++	/// <summary>An invoice is always raised to a customer account. A quotation whose
++	/// customer was typed in by hand has none, so it cannot be invoiced as it stands.</summary>
++	private static long CustomerOf(Quotation quotation)
++	{
++		return quotation.CustomerId ?? throw new BusinessRuleException(quotation.QuotationNumber + " was raised for " + quotation.CustomerName + ", who has no customer account. Create the customer, then raise the invoice from Invoices.");
++	}
++
++	/// <summary>Months of rent, or the flat sum. "A month's rent" is one month of the
++	/// lines actually priced by the month; an hourly meeting room is not rent.</summary>
++	private static decimal AdvanceAmountOf(Quotation quotation)
++	{
++		if (quotation.AdvanceType == QuotationAdvanceType.FixedAmount)
++		{
++			return Math.Round(quotation.AdvanceValue, 2, MidpointRounding.AwayFromZero);
++		}
++		return Math.Round(quotation.Lines.Where((QuotationLine l) => l.LineType != QuotationLineType.Header && string.Equals(l.DurationUnit, "Month", StringComparison.OrdinalIgnoreCase)).Sum((QuotationLine l) => l.Quantity * l.UnitPrice) * quotation.AdvanceValue, 2, MidpointRounding.AwayFromZero);
++	}
++
++	public async Task<InvoiceDto> SendAsync(long invoiceId, CancellationToken ct = default(CancellationToken))
++	{
++		Invoice invoice = (await db.Invoices.FirstOrDefaultAsync((Invoice i) => i.InvoiceId == invoiceId, ct)) ?? throw new NotFoundException("Invoice", invoiceId);
++		if (invoice.Status != InvoiceStatus.Pending)
++		{
++			throw new BusinessRuleException("Only a pending invoice can be marked as sent.");
++		}
++		invoice.Status = InvoiceStatus.Sent;
++		await db.SaveChangesAsync(ct);
++		return await GetInvoiceAsync(invoiceId, ct);
++	}
++
++	public async Task<InvoiceDto> CancelAsync(long invoiceId, string reason, CancellationToken ct = default(CancellationToken))
++	{
++		Invoice invoice = (await db.Invoices.FirstOrDefaultAsync((Invoice i) => i.InvoiceId == invoiceId, ct)) ?? throw new NotFoundException("Invoice", invoiceId);
++		if (string.IsNullOrWhiteSpace(reason))
++		{
++			throw new AppValidationException(new _003C_003Ez__ReadOnlySingleElementList<ApiError>(new ApiError("VALIDATION_ERROR", "Give a reason for cancelling the invoice.", "reason")));
++		}
++		if (invoice.Status == InvoiceStatus.Cancelled)
++		{
++			throw new BusinessRuleException("This invoice is already cancelled.");
++		}
++		if (invoice.PaidAmount > 0m)
++		{
++			throw new BusinessRuleException("This invoice has payments against it and cannot be cancelled. Refund the payment first.");
++		}
++		invoice.Status = InvoiceStatus.Cancelled;
++		invoice.CancellationReason = reason.Trim();
++		await db.SaveChangesAsync(ct);
++		return await GetInvoiceAsync(invoiceId, ct);
++	}
++
++	/// <summary>Customers read their own invoices only, whatever id they pass.</summary>
++	private async Task<Invoice> LoadScopedAsync(long invoiceId, CancellationToken ct)
++	{
++		Invoice invoice = (await db.Invoices.AsNoTracking().Include((Invoice i) => i.Lines.OrderBy((InvoiceLine l) => l.LineNumber)).FirstOrDefaultAsync((Invoice i) => i.InvoiceId == invoiceId, ct)) ?? throw new NotFoundException("Invoice", invoiceId);
++		if (currentUser.UserType == UserType.Customer && invoice.CustomerId != currentUser.UserId)
++		{
++			throw new NotFoundException("Invoice", invoiceId);
++		}
++		return invoice;
++	}
++
++	private InvoiceDto ToDto(Invoice i)
++	{
++		bool flag = i.DueDate < IstClock.IstDateOf(clock.UtcNow) && i.OutstandingAmount > 0m;
++		if (flag)
++		{
++			InvoiceStatus status = i.Status;
++			bool flag2 = ((status == InvoiceStatus.Pending || status == InvoiceStatus.PartiallyPaid || status == InvoiceStatus.Sent) ? true : false);
++			flag = flag2;
++		}
++		bool isOverdue = flag;
++		return new InvoiceDto(i.InvoiceId, i.InvoiceNumber, i.CustomerId, i.BookingId, i.QuotationId, (from q in db.Quotations
++			where (long?)q.QuotationId == i.QuotationId
++			select q.QuotationNumber).FirstOrDefault(), i.InvoiceDate, i.DueDate, i.SubTotal, i.DiscountAmount, i.TaxableAmount, i.CgstPercent, i.CgstAmount, i.SgstPercent, i.SgstAmount, i.IgstPercent, i.IgstAmount, i.TotalAmount, i.PaidAmount, i.OutstandingAmount, (byte)i.Status, isOverdue, i.PaidUtc, i.CancellationReason, i.TermsAndConditions, i.CustomerName, i.CustomerEmail, i.CompanyName, i.CompanyGstin, i.Lines.Select((InvoiceLine l) => new InvoiceLineDto(l.LineNumber, l.Description, l.HsnSacCode, l.Quantity, l.UnitPrice, l.LineAmount, l.TaxPercent, l.TaxAmount, l.TotalAmount)).ToList());
++	}
++}
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingService.cs (as decompiled from local-dev api, with the earlier kits)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/BookingService.cs
+@@ -345,7 +345,10 @@
+ 	private async Task<ConfirmBookingResponse> SettleAndFinalizeAsync(Booking booking, ConfirmBookingRequest request, CancellationToken ct)
+ 	{
+ 		DateTime nowUtc = clock.UtcNow;
+-		bool payLater = request.PaymentMethod == "paylater";
++		// quotation-payment kit (user, 27 Nov 2026): a booking staff make in the admin portal (on-behalf New booking) is
++		// billed through the customer's quotation invoice. It gets no invoice, no payment and no pay-later tracking.
++		bool staffManual = currentUser is IOnBehalfOfCustomer;
++		bool payLater = request.PaymentMethod == "paylater" && !staffManual;
+ 		Payment payment = request.PaymentMethod switch
+ 		{
+ 			"wallet" => await SettleWithWalletAsync(booking, ct), 
+@@ -356,12 +359,18 @@
+ 			_ => throw new BusinessRuleException("Unknown payment method."), 
+ 		};
+ 		await db.SaveChangesAsync(ct);
+-		Invoice invoice = await BuildInvoiceAsync(booking, payment, ct);
+-		db.Invoices.Add(invoice);
+-		await db.SaveChangesAsync(ct);
+-		if (payment != null)
+-		{
+-			payment.InvoiceId = invoice.InvoiceId;
++		// quotation-payment kit (user, 27 Nov 2026): a booking staff make in the admin portal (on-behalf New booking)
++		// raises no invoice. The amount stays due on the booking (pay later) and is collected on Cash Collections.
++		Invoice? invoice = null;
++		if (currentUser is not IOnBehalfOfCustomer)
++		{
++			invoice = await BuildInvoiceAsync(booking, payment, ct);
++			db.Invoices.Add(invoice);
++			await db.SaveChangesAsync(ct);
++			if (payment != null)
++			{
++				payment.InvoiceId = invoice.InvoiceId;
++			}
+ 		}
+ 		AccessToken accessToken = BuildAccessToken(booking);
+ 		db.AccessTokens.Add(accessToken);
+@@ -371,9 +380,16 @@
+ 			notification.Message += $" Please pay ₹{booking.TotalAmount:N2} at the front desk (cash, UPI or card) before you check in.";
+ 		}
+ 		db.Notifications.Add(notification);
+-		await AdminAlerts.BookingAsync(db, booking, "Booking confirmed", nowUtc, ct, payLater ? $"Pay later: ₹{booking.TotalAmount:N2} to collect at the front desk." : ("Paid by " + request.PaymentMethod + "."));
++		await AdminAlerts.BookingAsync(db, booking, "Booking confirmed", nowUtc, ct, staffManual ? "Booked by staff in the admin portal; billed through the quotation (no invoice, nothing to collect)." : payLater ? $"Pay later: ₹{booking.TotalAmount:N2} to collect at the front desk." : ("Paid by " + request.PaymentMethod + "."));
+ 		booking.Status = BookingStatus.Confirmed;
+-		if (payLater)
++		if (staffManual)
++		{
++			booking.IsPayLater = false;
++			booking.AmountPaid = 0m;
++			booking.PaymentStatus = BookingPaymentStatus.Pending;
++			booking.PaymentDueUtc = null;
++		}
++		else if (payLater)
+ 		{
+ 			booking.IsPayLater = true;
+ 			booking.AmountPaid = 0m;
+@@ -391,10 +407,10 @@
+ 			ToStatus = BookingStatus.Confirmed,
+ 			ChangedByUserId = ActorUserId,
+ 			ChangedUtc = nowUtc,
+-			Reason = (payLater ? $"Confirmed with pay later; ₹{booking.TotalAmount:N2} due at the front desk." : $"Payment {payment.PaymentNumber} ({request.PaymentMethod}) verified.")
++			Reason = (staffManual ? "Confirmed by staff in the admin portal; billed through the quotation, no invoice or payment on the booking." : payLater ? $"Confirmed with pay later; ₹{booking.TotalAmount:N2} due at the front desk." : $"Payment {payment.PaymentNumber} ({request.PaymentMethod}) verified.")
+ 		});
+ 		await db.SaveChangesAsync(ct);
+-		return new ConfirmBookingResponse(ToDto(booking, await settings.GetIntAsync("Booking.PendingHoldMinutes", 10, ct)), payment?.PaymentId ?? 0, payment?.PaymentNumber ?? "", invoice.InvoiceId, invoice.InvoiceNumber, accessToken.TokenValue, accessToken.QrPayload, payLater);
++		return new ConfirmBookingResponse(ToDto(booking, await settings.GetIntAsync("Booking.PendingHoldMinutes", 10, ct)), payment?.PaymentId ?? 0, payment?.PaymentNumber ?? "", invoice?.InvoiceId ?? 0, invoice?.InvoiceNumber ?? "", accessToken.TokenValue, accessToken.QrPayload, payLater);
+ 	}
+ 
+ 	private async Task<Payment> SettleWithWalletAsync(Booking booking, CancellationToken ct)
+--- a/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/PassService.cs (as decompiled from local-dev api, with the earlier kits)
++++ b/src/Regalis.Infrastructure/Regalis.Infrastructure.Services/PassService.cs
+@@ -234,6 +234,10 @@
+ 				throw new BusinessRuleException(text, "PAY_LATER_NOT_ALLOWED");
+ 			}
+ 		}
++		// quotation-payment kit (user, 27 Nov 2026): a Virtual Office staff set up in the admin portal is billed through the
++		// quotation invoice: active at once, no invoice, no payment, no pay-later tracking.
++		bool staffManual = isPayLater && currentUser is IOnBehalfOfCustomer;
++		bool payLaterPass = isPayLater && !staffManual;
+ 		PurchasePassResponse purchasePassResponse = await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+ 		{
+ 			db.ChangeTracker.Clear();
+@@ -340,11 +344,11 @@
+ 				customerPass2.Price = taxable;
+ 				customerPass2.TaxAmount = cgst2 + sgst2;
+ 				customerPass2.TotalAmount = total2;
+-				customerPass2.Status = (isPayLater ? CustomerPassStatus.AwaitingPayment : CustomerPassStatus.Active);
++				customerPass2.Status = (payLaterPass ? CustomerPassStatus.AwaitingPayment : CustomerPassStatus.Active);
+ 				customerPass2.PaymentId = payment2?.PaymentId;
+-				customerPass2.IsPayLater = isPayLater;
++				customerPass2.IsPayLater = payLaterPass;
+ 				customerPass2.AmountPaid = (isPayLater ? 0m : total2);
+-				customerPass2.PaymentDueUtc = (isPayLater ? new DateTime?(PayLaterPolicy.PassDueUtc(validFrom)) : ((DateTime?)null));
++				customerPass2.PaymentDueUtc = (payLaterPass ? new DateTime?(PayLaterPolicy.PassDueUtc(validFrom)) : ((DateTime?)null));
+ 				CustomerPass pass = customerPass2;
+ 				db.CustomerPasses.Add(pass);
+ 				await db.SaveChangesAsync(ct);
+@@ -356,6 +360,11 @@
+ 				{
+ 					payment2.CustomerPassId = pass.CustomerPassId;
+ 				}
++				// quotation-payment kit (user, 27 Nov 2026): a Virtual Office staff sell in the admin portal (on-behalf New
++				// booking) raises no invoice. The amount stays due on the pass (pay later), collected on Cash Collections.
++				Invoice? invoice6 = null;
++				if (currentUser is not IOnBehalfOfCustomer)
++				{
+ 				DateOnly invoiceDate = IstClock.IstDateOf(nowUtc);
+ 				Invoice invoice = new Invoice();
+ 				Invoice invoice2 = invoice;
+@@ -389,7 +398,7 @@
+ 				invoice4.CompanyGstin = await settings.GetStringAsync("Company.Gstin", "", ct);
+ 				Invoice invoice5 = invoice;
+ 				invoice5.CompanyAddress = await settings.GetStringAsync("Company.Address", "", ct);
+-				Invoice invoice6 = invoice;
++				invoice6 = invoice;
+ 				invoice6.Lines.Add(new InvoiceLine
+ 				{
+ 					LineNumber = 1,
+@@ -408,6 +417,7 @@
+ 				{
+ 					payment2.InvoiceId = invoice6.InvoiceId;
+ 				}
++				}
+ 				string tokenValue = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+ 				AccessToken accessToken = new AccessToken
+ 				{
+@@ -426,8 +436,8 @@
+ 				{
+ 					UserId = customerId,
+ 					Audience = NotificationAudience.SingleUser,
+-					Title = (isPayLater ? "Pass reserved - pay at the front desk" : (quote.IsUpgrade ? "Pass upgraded" : "Pass activated")),
+-					Message = $"{plan.PlanName} ({pass.PassNumber}) is valid {pass.ValidFrom:dd MMM} – {pass.ValidTo:dd MMM yyyy}. " + ((quote.IsUpgrade && existing != null) ? $"It replaces {existing.PassNumber}, whose {quote.RemainingDays} unused day(s) were credited. " : "") + (isPayLater ? $"It becomes active once ₹{total2:N2} is paid at the front desk (cash, UPI or card), before {pass.ValidFrom:dd MMM}. Until then it cannot be used for entry." : "Your QR access pass is ready."),
++					Title = (payLaterPass ? "Pass reserved - pay at the front desk" : (quote.IsUpgrade ? "Pass upgraded" : "Pass activated")),
++					Message = $"{plan.PlanName} ({pass.PassNumber}) is valid {pass.ValidFrom:dd MMM} – {pass.ValidTo:dd MMM yyyy}. " + ((quote.IsUpgrade && existing != null) ? $"It replaces {existing.PassNumber}, whose {quote.RemainingDays} unused day(s) were credited. " : "") + (payLaterPass ? $"It becomes active once ₹{total2:N2} is paid at the front desk (cash, UPI or card), before {pass.ValidFrom:dd MMM}. Until then it cannot be used for entry." : "Your QR access pass is ready."),
+ 					Category = NotificationCategory.Pass,
+ 					Priority = NotificationPriority.Normal,
+ 					ReferenceType = "CustomerPass",
+@@ -436,13 +446,13 @@
+ 					ActionRoute = "/passes/my",
+ 					SentUtc = nowUtc
+ 				});
+-				if (isPayLater)
++				if (payLaterPass)
+ 				{
+ 					AdminAlerts.Raise(db, new AdminEvent(AdminNotificationType.Payment, "paylater.pass", "Pay later — " + plan.PlanName, $"{customer.FullName} bought {pass.PassNumber} with pay later: ₹{total2:N2} to collect at the front desk before {pass.ValidFrom:dd MMM yyyy}.", AdminNotificationSeverity.Info, customerId, "CustomerPass", pass.CustomerPassId, pass.PassNumber, "Open Cash Collections", "/admin/billing/cash-collections"), nowUtc);
+ 				}
+ 				await db.SaveChangesAsync(ct);
+ 				await transaction.CommitAsync(ct);
+-				result = new PurchasePassResponse(ToDto(pass, customer.FullName, plan.PlanName), payment2?.PaymentNumber ?? "", invoice6.InvoiceId, invoice6.InvoiceNumber, accessToken.TokenValue, accessToken.QrPayload);
++				result = new PurchasePassResponse(ToDto(pass, customer.FullName, plan.PlanName), payment2?.PaymentNumber ?? "", invoice6?.InvoiceId ?? 0, invoice6?.InvoiceNumber ?? "", accessToken.TokenValue, accessToken.QrPayload);
+ 			}
+ 			return result;
+ 		});
+@@ -486,7 +496,9 @@
+ 					throw new BusinessRuleException("Only active passes can be cancelled.");
+ 				}
+ 				DateOnly todayIst = IstClock.IstDateOf(clock.UtcNow);
+-				decimal refundBase = (pass.IsPayLater ? pass.AmountPaid : pass.TotalAmount);
++				// quotation-payment kit: a pass with no payment and no invoice (set up by staff, billed through the quotation)
++				// refunds only what was paid on it (nothing), never its price.
++				decimal refundBase = ((pass.IsPayLater || (pass.PaymentId == null && pass.InvoiceId == null)) ? pass.AmountPaid : pass.TotalAmount);
+ 				if (pass.IsPayLater && pass.AmountPaid == 0m && pass.InvoiceId.HasValue)
+ 				{
+ 					Invoice invoice = await db.Invoices.FirstOrDefaultAsync((Invoice i) => (long?)i.InvoiceId == pass.InvoiceId && i.Status == InvoiceStatus.Pending && i.PaidAmount == 0m, ct);
+--- a/deploy/quotation-invoice/.../QuotationInvoicingService.cs (quotation-invoice kit file; edited in place in the repo)
++++ b/deploy/quotation-invoice/.../QuotationInvoicingService.cs
+@@ -1,188 +1,195 @@
+-using System;
+-using System.Linq;
+-using System.Threading;
+-using System.Threading.Tasks;
+-using Microsoft.EntityFrameworkCore;
+-using Microsoft.EntityFrameworkCore.Storage;
+-using Microsoft.Extensions.Logging;
+-using Regalis.Application.Abstractions;
+-using Regalis.Application.Common.Exceptions;
+-using Regalis.Application.Finance.QuotationInvoice;
+-using Regalis.Domain.Entities.Finance;
+-using Regalis.Domain.Entities.Operations;
+-using Regalis.Domain.Enums;
+-using Regalis.Infrastructure.Persistence;
+-using Regalis.Shared;
+-
+-namespace Regalis.Infrastructure.Services.QuotationInvoice;
+-
+-/// <summary>
+-/// quotation-invoice kit (27 Nov 2026), B2. Raises the one invoice of an approved quotation.
+-///
+-/// The invoice is built exactly as <c>InvoiceService.CreateFromQuotationAsync</c> built it before
+-/// this kit (moved here, figures carried across verbatim): customer and company snapshot, lines,
+-/// quantity, unit price, discount, CGST/SGST/IGST, TDS, adjustment, round-off and total; status
+-/// Pending (shown as Due), paid 0, due after Invoice.DueDays. The quotation keeps its status
+-/// (Approved); its InvoiceId points at the invoice and a "Converted" event is written.
+-///
+-/// Idempotent: a quotation that already has its invoice returns it (Created = false). A raced
+-/// second insert is stopped by UX_Invoice_Quotation and rolls back with its transaction.
+-/// </summary>
+-public sealed class QuotationInvoicingService(
+-    RegalisDbContext db,
+-    ISettingService settings,
+-    INumberSequenceService numberSequence,
+-    IDateTimeProvider clock,
+-    ILogger<QuotationInvoicingService> logger,
+-    Regalis.Application.Finance.QuotationAccount.IQuotationCustomerAccounts customerAccounts) : IQuotationInvoicing
+-{
+-    public async Task<QuotationInvoiceOutcome> ConvertAsync(long quotationId, CancellationToken ct = default)
+-    {
+-        if (db.Database.CurrentTransaction != null)
+-        {
+-            // The caller (approval) owns the transaction: the decision and the invoice commit together.
+-            return await RaiseAsync(quotationId, ct);
+-        }
+-        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+-        {
+-            await using IDbContextTransaction tx = await db.Database.BeginTransactionAsync(ct);
+-            QuotationInvoiceOutcome outcome = await RaiseAsync(quotationId, ct);
+-            await tx.CommitAsync(ct);
+-            return outcome;
+-        });
+-    }
+-
+-    private async Task<QuotationInvoiceOutcome> RaiseAsync(long quotationId, CancellationToken ct)
+-    {
+-        // quotation-account kit: one raise at a time per quotation (concurrent approve / convert calls
+-        // queue here and the second one finds the first one's invoice and customer link).
+-        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT QuotationId FROM TRN_Quotation WITH (UPDLOCK, HOLDLOCK) WHERE QuotationId = {quotationId}", ct);
+-        Quotation quotation = await db.Quotations.Include(q => q.Lines)
+-            .FirstOrDefaultAsync(q => q.QuotationId == quotationId, ct)
+-            ?? throw new NotFoundException("Quotation", quotationId);
+-        if (db.Entry(quotation).State == EntityState.Unchanged)
+-        {
+-            await db.Entry(quotation).ReloadAsync(ct);
+-        }
+-        if (quotation.Status != QuotationStatus.Approved)
+-        {
+-            throw new BusinessRuleException("Only an approved quotation can be invoiced. " + quotation.QuotationNumber + " is " + quotation.Status.ToString().ToLowerInvariant() + ".");
+-        }
+-
+-        // Already invoiced: hand back that invoice, never a second one.
+-        if (quotation.InvoiceId.HasValue)
+-        {
+-            string? number = await db.Invoices.AsNoTracking().Where(i => i.InvoiceId == quotation.InvoiceId.Value)
+-                .Select(i => i.InvoiceNumber).FirstOrDefaultAsync(ct);
+-            if (number != null)
+-            {
+-                return new QuotationInvoiceOutcome(quotation.InvoiceId.Value, number, false);
+-            }
+-        }
+-        var linked = await db.Invoices.AsNoTracking().Where(i => i.QuotationId == quotationId)
+-            .Select(i => new { i.InvoiceId, i.InvoiceNumber }).FirstOrDefaultAsync(ct);
+-        if (linked != null)
+-        {
+-            quotation.InvoiceId = linked.InvoiceId;
+-            await db.SaveChangesAsync(ct);
+-            return new QuotationInvoiceOutcome(linked.InvoiceId, linked.InvoiceNumber, false);
+-        }
+-
+-        // quotation-account kit: no customer account yet -> link the customer with the same email / mobile,
+-        // or create the account (refused with the reason for a staff email, missing details, ...).
+-        if (!quotation.CustomerId.HasValue)
+-        {
+-            await customerAccounts.EnsureCustomerAsync(quotation, ct);
+-        }
+-        long customerId = quotation.CustomerId!.Value;
+-        DateOnly invoiceDate = IstClock.IstDateOf(clock.UtcNow);
+-        int dueDays = await settings.GetIntAsync("Invoice.DueDays", 7, ct);
+-        var invoice = new Invoice
+-        {
+-            CustomerId = customerId,
+-            QuotationId = quotation.QuotationId,
+-            LocationId = quotation.LocationId,
+-            InvoiceDate = invoiceDate,
+-            DueDate = invoiceDate.AddDays(dueDays),
+-            SubTotal = quotation.SubTotal,
+-            DiscountAmount = quotation.DiscountAmount,
+-            TaxableAmount = quotation.TaxableAmount,
+-            CgstPercent = quotation.CgstPercent,
+-            SgstPercent = quotation.SgstPercent,
+-            IgstPercent = quotation.IgstPercent,
+-            CgstAmount = quotation.CgstAmount,
+-            SgstAmount = quotation.SgstAmount,
+-            IgstAmount = quotation.IgstAmount,
+-            TdsLabel = quotation.TdsLabel,
+-            TdsPercent = quotation.TdsPercent,
+-            TdsAmount = quotation.TdsAmount,
+-            AdjustmentLabel = quotation.AdjustmentLabel,
+-            AdjustmentAmount = quotation.AdjustmentAmount,
+-            RoundOffAmount = quotation.RoundOffAmount,
+-            TotalAmount = quotation.TotalAmount,
+-            PaidAmount = 0m,
+-            Status = InvoiceStatus.Pending,
+-            CustomerName = quotation.CustomerName,
+-            CustomerEmail = quotation.CustomerEmail,
+-            CustomerMobile = quotation.CustomerMobile,
+-            CustomerGstin = quotation.CustomerGstin,
+-            CustomerCompanyName = quotation.CustomerCompanyName,
+-            BillingAddress = quotation.BillingAddress,
+-            CompanyName = quotation.CompanyName,
+-            CompanyGstin = quotation.CompanyGstin,
+-            CompanyAddress = quotation.CompanyAddress,
+-            TermsAndConditions = quotation.TermsAndConditions,
+-            Notes = "Raised from quotation " + quotation.QuotationNumber + "."
+-        };
+-        foreach (QuotationLine line in quotation.Lines.OrderBy(l => l.LineNumber))
+-        {
+-            string description = !line.DurationValue.HasValue
+-                ? line.Description
+-                : $"{line.Description} ({line.DurationValue:0.###} {line.DurationUnit})".Trim();
+-            invoice.Lines.Add(new InvoiceLine
+-            {
+-                LineNumber = line.LineNumber,
+-                Description = description,
+-                HsnSacCode = line.HsnSacCode,
+-                Quantity = line.Quantity,
+-                UnitPrice = line.UnitPrice,
+-                LineAmount = line.LineAmount,
+-                TaxPercent = line.TaxPercent,
+-                TaxAmount = line.TaxAmount,
+-                TotalAmount = line.TotalAmount
+-            });
+-        }
+-
+-        DateTime nowUtc = clock.UtcNow;
+-        invoice.InvoiceNumber = await numberSequence.NextAsync("Invoice", ct);
+-        db.Invoices.Add(invoice);
+-        await db.SaveChangesAsync(ct);
+-        quotation.InvoiceId = invoice.InvoiceId;
+-        db.Notifications.Add(new Notification
+-        {
+-            UserId = invoice.CustomerId,
+-            Audience = NotificationAudience.SingleUser,
+-            Title = "Your invoice is ready",
+-            Message = $"Invoice {invoice.InvoiceNumber} for Rs {invoice.TotalAmount:N2} is due on {invoice.DueDate:dd MMM yyyy}.",
+-            Category = NotificationCategory.Invoice,
+-            Priority = NotificationPriority.Normal,
+-            ReferenceType = "Invoice",
+-            ReferenceId = invoice.InvoiceId,
+-            ActionLabel = "View invoice",
+-            ActionRoute = "/invoices",
+-            SentUtc = nowUtc
+-        });
+-        db.Set<QuotationEvent>().Add(new QuotationEvent
+-        {
+-            QuotationId = quotation.QuotationId,
+-            EventType = QuotationEventType.Converted,
+-            ActorType = QuotationActorType.System,
+-            ActorUserId = null,
+-            Summary = $"Invoice {invoice.InvoiceNumber} raised for Rs {invoice.TotalAmount:N2}.",
+-            CreatedUtc = nowUtc
+-        });
+-        await db.SaveChangesAsync(ct);
+-        logger.LogInformation("Invoice {InvoiceNumber} raised from quotation {QuotationNumber}", invoice.InvoiceNumber, quotation.QuotationNumber);
+-        return new QuotationInvoiceOutcome(invoice.InvoiceId, invoice.InvoiceNumber, true);
+-    }
+-}
++using System;
++using System.Linq;
++using System.Threading;
++using System.Threading.Tasks;
++using Microsoft.EntityFrameworkCore;
++using Microsoft.EntityFrameworkCore.Storage;
++using Microsoft.Extensions.Logging;
++using Regalis.Application.Abstractions;
++using Regalis.Application.Common.Exceptions;
++using Regalis.Application.Finance.QuotationInvoice;
++using Regalis.Domain.Entities.Finance;
++using Regalis.Domain.Entities.Operations;
++using Regalis.Domain.Enums;
++using Regalis.Infrastructure.Persistence;
++using Regalis.Shared;
++
++namespace Regalis.Infrastructure.Services.QuotationInvoice;
++
++/// <summary>
++/// quotation-invoice kit (27 Nov 2026), B2. Raises the one invoice of an approved quotation.
++///
++/// The invoice is built exactly as <c>InvoiceService.CreateFromQuotationAsync</c> built it before
++/// this kit (moved here, figures carried across verbatim): customer and company snapshot, lines,
++/// quantity, unit price, discount, CGST/SGST/IGST, TDS, adjustment, round-off and total; status
++/// Pending (shown as Due), paid 0, due after Invoice.DueDays. The quotation keeps its status
++/// (Approved); its InvoiceId points at the invoice and a "Converted" event is written.
++///
++/// Idempotent: a quotation that already has its invoice returns it (Created = false). A raced
++/// second insert is stopped by UX_Invoice_Quotation and rolls back with its transaction.
++/// </summary>
++public sealed class QuotationInvoicingService(
++    RegalisDbContext db,
++    ISettingService settings,
++    INumberSequenceService numberSequence,
++    IDateTimeProvider clock,
++    ILogger<QuotationInvoicingService> logger,
++    Regalis.Application.Finance.QuotationAccount.IQuotationCustomerAccounts customerAccounts) : IQuotationInvoicing
++{
++    public async Task<QuotationInvoiceOutcome> ConvertAsync(long quotationId, CancellationToken ct = default)
++    {
++        if (db.Database.CurrentTransaction != null)
++        {
++            // The caller (approval) owns the transaction: the decision and the invoice commit together.
++            return await RaiseAsync(quotationId, ct);
++        }
++        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
++        {
++            await using IDbContextTransaction tx = await db.Database.BeginTransactionAsync(ct);
++            QuotationInvoiceOutcome outcome = await RaiseAsync(quotationId, ct);
++            await tx.CommitAsync(ct);
++            return outcome;
++        });
++    }
++
++    private async Task<QuotationInvoiceOutcome> RaiseAsync(long quotationId, CancellationToken ct)
++    {
++        // quotation-account kit: one raise at a time per quotation (concurrent approve / convert calls
++        // queue here and the second one finds the first one's invoice and customer link).
++        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT QuotationId FROM TRN_Quotation WITH (UPDLOCK, HOLDLOCK) WHERE QuotationId = {quotationId}", ct);
++        Quotation quotation = await db.Quotations.Include(q => q.Lines)
++            .FirstOrDefaultAsync(q => q.QuotationId == quotationId, ct)
++            ?? throw new NotFoundException("Quotation", quotationId);
++        if (db.Entry(quotation).State == EntityState.Unchanged)
++        {
++            await db.Entry(quotation).ReloadAsync(ct);
++        }
++        if (quotation.Status != QuotationStatus.Approved)
++        {
++            throw new BusinessRuleException("Only an approved quotation can be invoiced. " + quotation.QuotationNumber + " is " + quotation.Status.ToString().ToLowerInvariant() + ".");
++        }
++
++        // Already invoiced: hand back that invoice, never a second one.
++        if (quotation.InvoiceId.HasValue)
++        {
++            string? number = await db.Invoices.AsNoTracking().Where(i => i.InvoiceId == quotation.InvoiceId.Value)
++                .Select(i => i.InvoiceNumber).FirstOrDefaultAsync(ct);
++            if (number != null)
++            {
++                return new QuotationInvoiceOutcome(quotation.InvoiceId.Value, number, false);
++            }
++        }
++        var linked = await db.Invoices.AsNoTracking().Where(i => i.QuotationId == quotationId)
++            .Select(i => new { i.InvoiceId, i.InvoiceNumber }).FirstOrDefaultAsync(ct);
++        if (linked != null)
++        {
++            quotation.InvoiceId = linked.InvoiceId;
++            await db.SaveChangesAsync(ct);
++            return new QuotationInvoiceOutcome(linked.InvoiceId, linked.InvoiceNumber, false);
++        }
++
++        // quotation-account kit: no customer account yet -> link the customer with the same email / mobile,
++        // or create the account (refused with the reason for a staff email, missing details, ...).
++        if (!quotation.CustomerId.HasValue)
++        {
++            await customerAccounts.EnsureCustomerAsync(quotation, ct);
++        }
++        long customerId = quotation.CustomerId!.Value;
++        DateOnly invoiceDate = IstClock.IstDateOf(clock.UtcNow);
++        int dueDays = await settings.GetIntAsync("Invoice.DueDays", 7, ct);
++        var invoice = new Invoice
++        {
++            CustomerId = customerId,
++            QuotationId = quotation.QuotationId,
++            LocationId = quotation.LocationId,
++            InvoiceDate = invoiceDate,
++            DueDate = invoiceDate.AddDays(dueDays),
++            SubTotal = quotation.SubTotal,
++            DiscountAmount = quotation.DiscountAmount,
++            TaxableAmount = quotation.TaxableAmount,
++            CgstPercent = quotation.CgstPercent,
++            SgstPercent = quotation.SgstPercent,
++            IgstPercent = quotation.IgstPercent,
++            CgstAmount = quotation.CgstAmount,
++            SgstAmount = quotation.SgstAmount,
++            IgstAmount = quotation.IgstAmount,
++            TdsLabel = quotation.TdsLabel,
++            TdsPercent = quotation.TdsPercent,
++            TdsAmount = quotation.TdsAmount,
++            AdjustmentLabel = quotation.AdjustmentLabel,
++            AdjustmentAmount = quotation.AdjustmentAmount,
++            RoundOffAmount = quotation.RoundOffAmount,
++            TotalAmount = quotation.TotalAmount,
++            PaidAmount = 0m,
++            Status = InvoiceStatus.Pending,
++            CustomerName = quotation.CustomerName,
++            CustomerEmail = quotation.CustomerEmail,
++            CustomerMobile = quotation.CustomerMobile,
++            CustomerGstin = quotation.CustomerGstin,
++            CustomerCompanyName = quotation.CustomerCompanyName,
++            BillingAddress = quotation.BillingAddress,
++            CompanyName = quotation.CompanyName,
++            CompanyGstin = quotation.CompanyGstin,
++            CompanyAddress = quotation.CompanyAddress,
++            TermsAndConditions = quotation.TermsAndConditions,
++            // quotation-payment kit: the customer's PO / enquiry reference travels to the invoice too.
++            Notes = "Raised from quotation " + quotation.QuotationNumber
++                    + (string.IsNullOrWhiteSpace(quotation.ReferenceNumber) ? "" : " (customer reference " + quotation.ReferenceNumber.Trim() + ")") + "."
++        };
++        foreach (QuotationLine line in quotation.Lines.OrderBy(l => l.LineNumber))
++        {
++            // quotation-payment kit: a line discount is named on the invoice line (its amount is already net of
++            // it), and the text is kept within the 300 characters of TRN_InvoiceLine.Description (a longer one
++            // made the approval fail).
++            string suffix = (line.DurationValue.HasValue ? $" ({line.DurationValue:0.###} {line.DurationUnit})".TrimEnd() : "")
++                            + (line.DiscountAmount > 0m ? $" (less discount Rs {line.DiscountAmount:N2})" : "");
++            string description = line.Description.Length + suffix.Length <= 300
++                ? (line.Description + suffix).Trim()
++                : (line.Description.Substring(0, Math.Max(0, 297 - suffix.Length)).TrimEnd() + "..." + suffix).Trim();
++            invoice.Lines.Add(new InvoiceLine
++            {
++                LineNumber = line.LineNumber,
++                Description = description,
++                HsnSacCode = line.HsnSacCode,
++                Quantity = line.Quantity,
++                UnitPrice = line.UnitPrice,
++                LineAmount = line.LineAmount,
++                TaxPercent = line.TaxPercent,
++                TaxAmount = line.TaxAmount,
++                TotalAmount = line.TotalAmount
++            });
++        }
++
++        DateTime nowUtc = clock.UtcNow;
++        invoice.InvoiceNumber = await numberSequence.NextAsync("Invoice", ct);
++        db.Invoices.Add(invoice);
++        await db.SaveChangesAsync(ct);
++        quotation.InvoiceId = invoice.InvoiceId;
++        db.Notifications.Add(new Notification
++        {
++            UserId = invoice.CustomerId,
++            Audience = NotificationAudience.SingleUser,
++            Title = "Your invoice is ready",
++            Message = $"Invoice {invoice.InvoiceNumber} for Rs {invoice.TotalAmount:N2} is due on {invoice.DueDate:dd MMM yyyy}.",
++            Category = NotificationCategory.Invoice,
++            Priority = NotificationPriority.Normal,
++            ReferenceType = "Invoice",
++            ReferenceId = invoice.InvoiceId,
++            ActionLabel = "View invoice",
++            ActionRoute = "/invoices",
++            SentUtc = nowUtc
++        });
++        db.Set<QuotationEvent>().Add(new QuotationEvent
++        {
++            QuotationId = quotation.QuotationId,
++            EventType = QuotationEventType.Converted,
++            ActorType = QuotationActorType.System,
++            ActorUserId = null,
++            Summary = $"Invoice {invoice.InvoiceNumber} raised for Rs {invoice.TotalAmount:N2}.",
++            CreatedUtc = nowUtc
++        });
++        await db.SaveChangesAsync(ct);
++        logger.LogInformation("Invoice {InvoiceNumber} raised from quotation {QuotationNumber}", invoice.InvoiceNumber, quotation.QuotationNumber);
++        return new QuotationInvoiceOutcome(invoice.InvoiceId, invoice.InvoiceNumber, true);
++    }
++}
+--- a/deploy/admin-booking/.../OnBehalfBookingService.cs (admin-booking kit file; edited in place in the repo)
++++ b/deploy/admin-booking/.../OnBehalfBookingService.cs
+@@ -1,151 +1,152 @@
+-using System;
+-using System.Collections.Generic;
+-using System.Linq;
+-using System.Text.RegularExpressions;
+-using System.Threading;
+-using System.Threading.Tasks;
+-using Microsoft.EntityFrameworkCore;
+-using Microsoft.Extensions.DependencyInjection;
+-using Microsoft.Extensions.Logging;
+-using Regalis.Application.Abstractions;
+-using Regalis.Application.Bookings;
+-using Regalis.Application.Bookings.OnBehalf;
+-using Regalis.Application.Common.Exceptions;
+-using Regalis.Application.Coupons;
+-using Regalis.Application.Finance;
+-using Regalis.Application.Offers;
+-using Regalis.Domain.Enums;
+-using Regalis.Infrastructure.Persistence;
+-using Regalis.Infrastructure.Services.Coupons;
+-using Regalis.Infrastructure.Services.Offers;
+-
+-namespace Regalis.Infrastructure.Services.OnBehalf;
+-
+-/// <summary>
+-/// admin-booking kit (27 Nov 2026). Runs the customer booking engine (BookingService,
+-/// PassService, OfferPortalService, CouponPortalService: the very classes behind the customer
+-/// "Book a Workspace" screen) with an <see cref="OnBehalfCurrentUser"/>, so a staff booking
+-/// gets the same validation, availability, closed-day, conflict (409), GST, monthly, Virtual
+-/// Office, offer and coupon rules as a customer booking. Nothing here prices, validates or
+-/// writes a booking itself.
+-///
+-/// What differs, by decision of 27 Nov 2026:
+-///  - settlement is always pay later: no payment, receipt or wallet row; the invoice stays due
+-///    and is paid on the Payments screen. The customer's pay-later eligibility is not checked
+-///    (BookingService / PassService skip PayLaterPolicy for an <see cref="IOnBehalfOfCustomer"/>);
+-///  - the booking's source is Admin ("Front desk") and CreatedByUserId is the staff user (set
+-///    in BookingService.HoldAsync). The audit interceptors keep using the real staff user.
+-/// Only holds made on this screen (source Admin) can be confirmed or discounted here.
+-/// </summary>
+-public partial class OnBehalfBookingService(IServiceProvider services, RegalisDbContext db, ICurrentUser currentUser, ILogger<OnBehalfBookingService> logger) : IOnBehalfBookingService
+-{
+-	/// <summary>Virtual Office plans: MEM-VIRTUAL-{n}M, as the customer screen reads them.</summary>
+-	[GeneratedRegex("^MEM-VIRTUAL-\\d+M$", RegexOptions.IgnoreCase)]
+-	private static partial Regex VirtualOfficeCode();
+-
+-	/// <summary>The staff caller acting for an active customer.</summary>
+-	private async Task<OnBehalfCurrentUser> ActAsAsync(long customerId, CancellationToken ct)
+-	{
+-		if (!currentUser.IsAuthenticated || currentUser.UserType is null or UserType.Customer || currentUser is IOnBehalfOfCustomer)
+-		{
+-			throw new ForbiddenException("Booking for a customer is for staff users.");
+-		}
+-		var customer = await db.Users.AsNoTracking()
+-			.Where(u => u.UserId == customerId && u.UserType == UserType.Customer && u.Status == UserStatus.Active)
+-			.Select(u => new { u.UserId, u.Email, u.FullName })
+-			.FirstOrDefaultAsync(ct) ?? throw new BusinessRuleException("Choose an active customer to book for.", "CUSTOMER_NOT_FOUND");
+-		return new OnBehalfCurrentUser(currentUser, customer.UserId, customer.Email, customer.FullName);
+-	}
+-
+-	/// <summary>A customer-engine service built for this request with the on-behalf identity
+-	/// (and any other replacement dependency); everything else comes from the request scope,
+-	/// so it shares the scope's RegalisDbContext and its audit interceptors.</summary>
+-	private T Engine<T>(OnBehalfCurrentUser who, params object[] more) =>
+-		ActivatorUtilities.CreateInstance<T>(services, new object[] { who }.Concat(more).ToArray());
+-
+-	private PassService Passes(OnBehalfCurrentUser who) => Engine<PassService>(who);
+-
+-	/// <summary>Every booking id belongs to the customer and was started on this screen.</summary>
+-	private async Task RequireScreenHoldsAsync(long customerId, IReadOnlyList<long>? bookingIds, CancellationToken ct)
+-	{
+-		long[] ids = (bookingIds ?? Array.Empty<long>()).Distinct().ToArray();
+-		var rows = await db.Bookings.AsNoTracking().Where(b => ids.Contains(b.BookingId))
+-			.Select(b => new { b.BookingId, b.BookingNumber, b.CustomerId, b.BookingSource }).ToListAsync(ct);
+-		foreach (long id in ids)
+-		{
+-			var b = rows.FirstOrDefault(r => r.BookingId == id);
+-			if (b == null || b.CustomerId != customerId)
+-			{
+-				throw new NotFoundException("Booking", id);
+-			}
+-			if (b.BookingSource != BookingSource.Admin)
+-			{
+-				throw new BusinessRuleException($"{b.BookingNumber} was not started on the admin booking screen, so it cannot be changed here.");
+-			}
+-		}
+-	}
+-
+-	public async Task<BookingDto> CreateHoldAsync(long customerId, CreateBookingRequest request, CancellationToken ct = default)
+-	{
+-		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
+-		BookingDto hold = await Engine<BookingService>(who).CreateHoldAsync(request, ct);
+-		logger.LogInformation("Staff {StaffId} held {BookingNumber} for customer {CustomerId}", who.StaffUserId, hold.BookingNumber, customerId);
+-		return hold;
+-	}
+-
+-	public async Task<BookingDto> CreateMonthlyHoldAsync(long customerId, MonthlyBookingRequest request, CancellationToken ct = default)
+-	{
+-		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
+-		BookingDto hold = await Engine<BookingService>(who).CreateMonthlyHoldAsync(request, ct);
+-		logger.LogInformation("Staff {StaffId} held monthly {BookingNumber} for customer {CustomerId}", who.StaffUserId, hold.BookingNumber, customerId);
+-		return hold;
+-	}
+-
+-	public async Task<ConfirmBookingResponse> ConfirmAsync(long customerId, long bookingId, CancellationToken ct = default)
+-	{
+-		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
+-		await RequireScreenHoldsAsync(customerId, new[] { bookingId }, ct);
+-		ConfirmBookingResponse done = await Engine<BookingService>(who).ConfirmAsync(bookingId, new ConfirmBookingRequest(PaymentMethods.PayLater, null, null, null), ct);
+-		logger.LogInformation("Staff {StaffId} confirmed {BookingNumber} for customer {CustomerId} without payment; invoice {InvoiceNumber} due", who.StaffUserId, done.Booking.BookingNumber, customerId, done.InvoiceNumber);
+-		return done;
+-	}
+-
+-	public async Task<OfferPreviewDto> PreviewOffersAsync(long customerId, OfferPreviewRequest request, CancellationToken ct = default)
+-	{
+-		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
+-		return await Engine<OfferPortalService>(who, (IPassService)Passes(who)).PreviewAsync(request, ct);
+-	}
+-
+-	public async Task<ApplyBookingOffersResultDto> ApplyOffersAsync(long customerId, ApplyBookingOffersRequest request, CancellationToken ct = default)
+-	{
+-		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
+-		await RequireScreenHoldsAsync(customerId, request.BookingIds, ct);
+-		return await Engine<OfferPortalService>(who, (IPassService)Passes(who)).ApplyToBookingsAsync(request, ct);
+-	}
+-
+-	public async Task<CouponPreviewDto> PreviewCouponAsync(long customerId, CouponPreviewRequest request, CancellationToken ct = default)
+-	{
+-		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
+-		return await Engine<CouponPortalService>(who, (IPassService)Passes(who)).PreviewAsync(request, ct);
+-	}
+-
+-	public async Task<ApplyBookingOffersResultDto> ApplyCouponAsync(long customerId, ApplyBookingCouponRequest request, CancellationToken ct = default)
+-	{
+-		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
+-		await RequireScreenHoldsAsync(customerId, request.BookingIds, ct);
+-		return await Engine<CouponPortalService>(who, (IPassService)Passes(who)).ApplyToBookingsAsync(request, ct);
+-	}
+-
+-	public async Task<PurchasePassResponse> PurchaseVirtualOfficeAsync(long customerId, OnBehalfPassRequest request, CancellationToken ct = default)
+-	{
+-		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
+-		string? code = await db.PassPlans.AsNoTracking().Where(p => p.PassPlanId == request.PassPlanId).Select(p => p.PlanCode).FirstOrDefaultAsync(ct);
+-		if (code == null || !VirtualOfficeCode().IsMatch(code))
+-		{
+-			throw new BusinessRuleException("Only Virtual Office plans can be bought on the admin booking screen.");
+-		}
+-		PurchasePassResponse done = await Passes(who).PurchaseAsync(new PurchasePassRequest(request.PassPlanId, request.ValidFrom, PaymentMethods.PayLater, null, null, null, request.OfferIds, request.CouponCode), ct);
+-		logger.LogInformation("Staff {StaffId} reserved Virtual Office {PassNumber} for customer {CustomerId} without payment", who.StaffUserId, done.Pass.PassNumber, customerId);
+-		return done;
+-	}
+-}
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using System.Text.RegularExpressions;
++using System.Threading;
++using System.Threading.Tasks;
++using Microsoft.EntityFrameworkCore;
++using Microsoft.Extensions.DependencyInjection;
++using Microsoft.Extensions.Logging;
++using Regalis.Application.Abstractions;
++using Regalis.Application.Bookings;
++using Regalis.Application.Bookings.OnBehalf;
++using Regalis.Application.Common.Exceptions;
++using Regalis.Application.Coupons;
++using Regalis.Application.Finance;
++using Regalis.Application.Offers;
++using Regalis.Domain.Enums;
++using Regalis.Infrastructure.Persistence;
++using Regalis.Infrastructure.Services.Coupons;
++using Regalis.Infrastructure.Services.Offers;
++
++namespace Regalis.Infrastructure.Services.OnBehalf;
++
++/// <summary>
++/// admin-booking kit (27 Nov 2026). Runs the customer booking engine (BookingService,
++/// PassService, OfferPortalService, CouponPortalService: the very classes behind the customer
++/// "Book a Workspace" screen) with an <see cref="OnBehalfCurrentUser"/>, so a staff booking
++/// gets the same validation, availability, closed-day, conflict (409), GST, monthly, Virtual
++/// Office, offer and coupon rules as a customer booking. Nothing here prices, validates or
++/// writes a booking itself.
++///
++/// What differs, by decision of 27 Nov 2026:
++///  - settlement is always pay later: no payment, receipt or wallet row. quotation-payment kit (user,
++///    27 Nov 2026): no invoice either; the amount stays due on the booking / pass and is collected
++///    on Cash Collections. The customer's pay-later eligibility is not checked
++///    (BookingService / PassService skip PayLaterPolicy for an <see cref="IOnBehalfOfCustomer"/>);
++///  - the booking's source is Admin ("Front desk") and CreatedByUserId is the staff user (set
++///    in BookingService.HoldAsync). The audit interceptors keep using the real staff user.
++/// Only holds made on this screen (source Admin) can be confirmed or discounted here.
++/// </summary>
++public partial class OnBehalfBookingService(IServiceProvider services, RegalisDbContext db, ICurrentUser currentUser, ILogger<OnBehalfBookingService> logger) : IOnBehalfBookingService
++{
++	/// <summary>Virtual Office plans: MEM-VIRTUAL-{n}M, as the customer screen reads them.</summary>
++	[GeneratedRegex("^MEM-VIRTUAL-\\d+M$", RegexOptions.IgnoreCase)]
++	private static partial Regex VirtualOfficeCode();
++
++	/// <summary>The staff caller acting for an active customer.</summary>
++	private async Task<OnBehalfCurrentUser> ActAsAsync(long customerId, CancellationToken ct)
++	{
++		if (!currentUser.IsAuthenticated || currentUser.UserType is null or UserType.Customer || currentUser is IOnBehalfOfCustomer)
++		{
++			throw new ForbiddenException("Booking for a customer is for staff users.");
++		}
++		var customer = await db.Users.AsNoTracking()
++			.Where(u => u.UserId == customerId && u.UserType == UserType.Customer && u.Status == UserStatus.Active)
++			.Select(u => new { u.UserId, u.Email, u.FullName })
++			.FirstOrDefaultAsync(ct) ?? throw new BusinessRuleException("Choose an active customer to book for.", "CUSTOMER_NOT_FOUND");
++		return new OnBehalfCurrentUser(currentUser, customer.UserId, customer.Email, customer.FullName);
++	}
++
++	/// <summary>A customer-engine service built for this request with the on-behalf identity
++	/// (and any other replacement dependency); everything else comes from the request scope,
++	/// so it shares the scope's RegalisDbContext and its audit interceptors.</summary>
++	private T Engine<T>(OnBehalfCurrentUser who, params object[] more) =>
++		ActivatorUtilities.CreateInstance<T>(services, new object[] { who }.Concat(more).ToArray());
++
++	private PassService Passes(OnBehalfCurrentUser who) => Engine<PassService>(who);
++
++	/// <summary>Every booking id belongs to the customer and was started on this screen.</summary>
++	private async Task RequireScreenHoldsAsync(long customerId, IReadOnlyList<long>? bookingIds, CancellationToken ct)
++	{
++		long[] ids = (bookingIds ?? Array.Empty<long>()).Distinct().ToArray();
++		var rows = await db.Bookings.AsNoTracking().Where(b => ids.Contains(b.BookingId))
++			.Select(b => new { b.BookingId, b.BookingNumber, b.CustomerId, b.BookingSource }).ToListAsync(ct);
++		foreach (long id in ids)
++		{
++			var b = rows.FirstOrDefault(r => r.BookingId == id);
++			if (b == null || b.CustomerId != customerId)
++			{
++				throw new NotFoundException("Booking", id);
++			}
++			if (b.BookingSource != BookingSource.Admin)
++			{
++				throw new BusinessRuleException($"{b.BookingNumber} was not started on the admin booking screen, so it cannot be changed here.");
++			}
++		}
++	}
++
++	public async Task<BookingDto> CreateHoldAsync(long customerId, CreateBookingRequest request, CancellationToken ct = default)
++	{
++		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
++		BookingDto hold = await Engine<BookingService>(who).CreateHoldAsync(request, ct);
++		logger.LogInformation("Staff {StaffId} held {BookingNumber} for customer {CustomerId}", who.StaffUserId, hold.BookingNumber, customerId);
++		return hold;
++	}
++
++	public async Task<BookingDto> CreateMonthlyHoldAsync(long customerId, MonthlyBookingRequest request, CancellationToken ct = default)
++	{
++		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
++		BookingDto hold = await Engine<BookingService>(who).CreateMonthlyHoldAsync(request, ct);
++		logger.LogInformation("Staff {StaffId} held monthly {BookingNumber} for customer {CustomerId}", who.StaffUserId, hold.BookingNumber, customerId);
++		return hold;
++	}
++
++	public async Task<ConfirmBookingResponse> ConfirmAsync(long customerId, long bookingId, CancellationToken ct = default)
++	{
++		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
++		await RequireScreenHoldsAsync(customerId, new[] { bookingId }, ct);
++		ConfirmBookingResponse done = await Engine<BookingService>(who).ConfirmAsync(bookingId, new ConfirmBookingRequest(PaymentMethods.PayLater, null, null, null), ct);
++		logger.LogInformation("Staff {StaffId} confirmed {BookingNumber} for customer {CustomerId} without payment or invoice; Rs {Total} due", who.StaffUserId, done.Booking.BookingNumber, customerId, done.Booking.TotalAmount);
++		return done;
++	}
++
++	public async Task<OfferPreviewDto> PreviewOffersAsync(long customerId, OfferPreviewRequest request, CancellationToken ct = default)
++	{
++		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
++		return await Engine<OfferPortalService>(who, (IPassService)Passes(who)).PreviewAsync(request, ct);
++	}
++
++	public async Task<ApplyBookingOffersResultDto> ApplyOffersAsync(long customerId, ApplyBookingOffersRequest request, CancellationToken ct = default)
++	{
++		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
++		await RequireScreenHoldsAsync(customerId, request.BookingIds, ct);
++		return await Engine<OfferPortalService>(who, (IPassService)Passes(who)).ApplyToBookingsAsync(request, ct);
++	}
++
++	public async Task<CouponPreviewDto> PreviewCouponAsync(long customerId, CouponPreviewRequest request, CancellationToken ct = default)
++	{
++		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
++		return await Engine<CouponPortalService>(who, (IPassService)Passes(who)).PreviewAsync(request, ct);
++	}
++
++	public async Task<ApplyBookingOffersResultDto> ApplyCouponAsync(long customerId, ApplyBookingCouponRequest request, CancellationToken ct = default)
++	{
++		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
++		await RequireScreenHoldsAsync(customerId, request.BookingIds, ct);
++		return await Engine<CouponPortalService>(who, (IPassService)Passes(who)).ApplyToBookingsAsync(request, ct);
++	}
++
++	public async Task<PurchasePassResponse> PurchaseVirtualOfficeAsync(long customerId, OnBehalfPassRequest request, CancellationToken ct = default)
++	{
++		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
++		string? code = await db.PassPlans.AsNoTracking().Where(p => p.PassPlanId == request.PassPlanId).Select(p => p.PlanCode).FirstOrDefaultAsync(ct);
++		if (code == null || !VirtualOfficeCode().IsMatch(code))
++		{
++			throw new BusinessRuleException("Only Virtual Office plans can be bought on the admin booking screen.");
++		}
++		PurchasePassResponse done = await Passes(who).PurchaseAsync(new PurchasePassRequest(request.PassPlanId, request.ValidFrom, PaymentMethods.PayLater, null, null, null, request.OfferIds, request.CouponCode), ct);
++		logger.LogInformation("Staff {StaffId} reserved Virtual Office {PassNumber} for customer {CustomerId} without payment", who.StaffUserId, done.Pass.PassNumber, customerId);
++		return done;
++	}
++}

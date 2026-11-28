@@ -30,8 +30,9 @@ namespace Regalis.Infrastructure.Services.OnBehalf;
 /// writes a booking itself.
 ///
 /// What differs, by decision of 27 Nov 2026:
-///  - settlement is always pay later: no payment, receipt or wallet row; the invoice stays due
-///    and is paid on the Payments screen. The customer's pay-later eligibility is not checked
+///  - settlement is always pay later: no payment, receipt or wallet row. quotation-payment kit (user,
+///    27 Nov 2026): no invoice either; the amount stays due on the booking / pass and is collected
+///    on Cash Collections. The customer's pay-later eligibility is not checked
 ///    (BookingService / PassService skip PayLaterPolicy for an <see cref="IOnBehalfOfCustomer"/>);
 ///  - the booking's source is Admin ("Front desk") and CreatedByUserId is the staff user (set
 ///    in BookingService.HoldAsync). The audit interceptors keep using the real staff user.
@@ -106,7 +107,7 @@ public partial class OnBehalfBookingService(IServiceProvider services, RegalisDb
 		OnBehalfCurrentUser who = await ActAsAsync(customerId, ct);
 		await RequireScreenHoldsAsync(customerId, new[] { bookingId }, ct);
 		ConfirmBookingResponse done = await Engine<BookingService>(who).ConfirmAsync(bookingId, new ConfirmBookingRequest(PaymentMethods.PayLater, null, null, null), ct);
-		logger.LogInformation("Staff {StaffId} confirmed {BookingNumber} for customer {CustomerId} without payment; invoice {InvoiceNumber} due", who.StaffUserId, done.Booking.BookingNumber, customerId, done.InvoiceNumber);
+		logger.LogInformation("Staff {StaffId} confirmed {BookingNumber} for customer {CustomerId} without payment or invoice; Rs {Total} due", who.StaffUserId, done.Booking.BookingNumber, customerId, done.Booking.TotalAmount);
 		return done;
 	}
 

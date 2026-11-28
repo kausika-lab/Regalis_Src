@@ -91,7 +91,7 @@ export function AdminNewBooking({ onClose, onDone }) {
     children: [
       X.jsx(PageHeader, {
         title: "New booking",
-        description: "Book for a customer with the same steps as the customer portal. The booking is confirmed straight away; its invoice stays due until the payment is recorded on the Payments screen.",
+        description: "Book for a customer with the same steps as the customer portal. The booking is confirmed straight away. Nothing is collected here: it is billed through the customer's quotation.",
         actions: X.jsx(Button, { variant: "ghost", onClick: onClose, children: "Back to bookings" }),
       }),
       X.jsx(BookWorkspacePage, {

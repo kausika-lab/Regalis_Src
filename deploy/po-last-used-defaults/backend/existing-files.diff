@@ -1,0 +1,118 @@
+# po-last-used-defaults: edits to EXISTING server source files (apply by hand; the server source has drifted,
+# so match on the context lines, not the line numbers). Decompiled baseline: the Dev API DLLs of 27 Nov 23:58.
+# New file (copy as is): Regalis.Infrastructure/Services/PurchaseOrderDefaults/PurchaseOrderLastUsed.cs
+# The PdfGenerator "Shipping to" caption belongs to deploy/po-shipping-label (same text as its diff).
+
+--- a/Regalis.Infrastructure/Services/PurchaseOrderService.cs
++++ b/Regalis.Infrastructure/Services/PurchaseOrderService.cs
+@@ -10,6 +10,7 @@
+ using Microsoft.EntityFrameworkCore;
+ using Microsoft.EntityFrameworkCore.ChangeTracking;
+ using Microsoft.EntityFrameworkCore.Storage;
++using Microsoft.Extensions.Caching.Memory;
+ using Microsoft.Extensions.Options;
+ using Regalis.Application.Abstractions;
+ using Regalis.Application.Common.Exceptions;
+@@ -22,6 +23,7 @@
+ using Regalis.Domain.Enums;
+ using Regalis.Infrastructure.Persistence;
+ using Regalis.Infrastructure.Reporting;
++using Regalis.Infrastructure.Services.PurchaseOrderDefaults;
+ using Regalis.Shared;
+ using Regalis.Shared.Api;
+ 
+@@ -45,7 +47,7 @@
+ /// coded asset records — together with the line receipts and the header status inside
+ /// one serializable transaction: stock and the order can never disagree (Invariant 11).
+ /// </summary>
+-public class PurchaseOrderService(RegalisDbContext db, INumberSequenceService numberSequence, ICurrentUser currentUser, IDateTimeProvider clock, ISettingService settings, IOptions<StorageOptions> storageOptions, AssetOperations assetOperations) : IPurchaseOrderService
++public class PurchaseOrderService(RegalisDbContext db, INumberSequenceService numberSequence, ICurrentUser currentUser, IDateTimeProvider clock, ISettingService settings, IOptions<StorageOptions> storageOptions, AssetOperations assetOperations, IMemoryCache cache) : IPurchaseOrderService
+ {
+ 	private const int MaxAttachments = 10;
+ 
+@@ -117,7 +119,14 @@
+ 		IReadOnlyList<decimal> gstRateOptions = ParseRates(await settings.GetStringAsync("Purchase.GstRateOptions", "0,5,12,18,28", ct));
+ 		IReadOnlyList<string> shipmentPreferences = Csv(await settings.GetStringAsync("Purchase.ShipmentPreferences", "Supplier delivery,Pickup,Courier,Other", ct));
+ 		IReadOnlyList<string> accountCategories = accounts;
+-		return new PurchaseOrderFormOptionsDto(nextPoNumber, requireApproval, defaultGstPercent, gstRateOptions, shipmentPreferences, accountCategories, await settings.GetStringAsync("Purchase.TermsAndConditions", "", ct), await HomeStateCodeAsync(ct), await LoadTdsOptionsAsync(ct), GstStates.All, 10, 10485760L);
++		return new PurchaseOrderFormOptionsDto(nextPoNumber, requireApproval, defaultGstPercent, gstRateOptions, shipmentPreferences, accountCategories, await settings.GetStringAsync("Purchase.TermsAndConditions", "", ct), await HomeStateCodeAsync(ct), await LoadTdsOptionsAsync(ct), GstStates.All, 10, 10485760L, await LastDeliveryLocationIdAsync(ct), NullIfBlank(await settings.GetStringAsync(PurchaseOrderLastUsed.AddressKey, "", ct)), NullIfBlank(await settings.GetStringAsync(PurchaseOrderLastUsed.ShipToNameKey, "", ct)));
++	}
++
++	/// <summary>po-last-used-defaults: the location of the last PO saved, or null before the first one.</summary>
++	private async Task<int?> LastDeliveryLocationIdAsync(CancellationToken ct)
++	{
++		int id = await settings.GetIntAsync(PurchaseOrderLastUsed.LocationKey, 0, ct);
++		return (id > 0) ? new int?(id) : null;
+ 	}
+ 
+ 	public async Task<PurchaseOrderDto> CreateAsync(SavePurchaseOrderRequest request, CancellationToken ct = default(CancellationToken))
+@@ -146,8 +155,18 @@
+ 				await db.SaveChangesAsync(ct);
+ 				AddHistory(order, null, PurchaseOrderStatus.Draft, "Created", null);
+ 				AddAudit(order, "PO_CREATED", null, PurchaseOrderStatus.Draft, null);
++				PurchaseOrderLastUsed.Changes lastUsed = await PurchaseOrderLastUsed.StageAsync(db, order.TermsAndConditions, order.LocationId, order.DeliveryAddress, ct);
++				if (lastUsed.Terms)
++				{
++					AddAudit(order, "PO_DEFAULT_TERMS_UPDATED", null, order.Status, PurchaseOrderLastUsed.TermsKey);
++				}
++				if (lastUsed.Delivery)
++				{
++					AddAudit(order, "PO_DEFAULT_DELIVERY_UPDATED", null, order.Status, PurchaseOrderLastUsed.AddressKey);
++				}
+ 				await db.SaveChangesAsync(ct);
+ 				await dbTransaction.CommitAsync(ct);
++				PurchaseOrderLastUsed.Evict(cache);
+ 				purchaseOrderId = order.PurchaseOrderId;
+ 			}
+ 			return purchaseOrderId;
+@@ -177,8 +196,18 @@
+ 				order.Lines.Clear();
+ 				await ApplyAsync(order, request, supplier, location, ct);
+ 				AddAudit(order, "PO_EDITED", order.Status, order.Status, null);
++				PurchaseOrderLastUsed.Changes lastUsed = await PurchaseOrderLastUsed.StageAsync(db, order.TermsAndConditions, order.LocationId, order.DeliveryAddress, ct);
++				if (lastUsed.Terms)
++				{
++					AddAudit(order, "PO_DEFAULT_TERMS_UPDATED", order.Status, order.Status, PurchaseOrderLastUsed.TermsKey);
++				}
++				if (lastUsed.Delivery)
++				{
++					AddAudit(order, "PO_DEFAULT_DELIVERY_UPDATED", order.Status, order.Status, PurchaseOrderLastUsed.AddressKey);
++				}
+ 				await db.SaveChangesAsync(ct);
+ 				await dbTransaction.CommitAsync(ct);
++				PurchaseOrderLastUsed.Evict(cache);
+ 				result = true;
+ 			}
+ 			return result;
+@@ -528,7 +557,7 @@
+ 		string companyAddress = NullIfBlank(await settings.GetStringAsync("Company.Address", "", ct)) ?? AddressOf(location);
+ 		string companyGstin = NullIfBlank(await settings.GetStringAsync("Company.Gstin", "", ct));
+ 		string companyPhone = NullIfBlank(await settings.GetStringAsync("Company.Phone", "", ct)) ?? location?.ContactNumber;
+-		PurchaseOrderPdfContext context = new PurchaseOrderPdfContext(companyName, companyAddress, companyGstin, companyPhone, NullIfBlank(await settings.GetStringAsync("Company.Email", "", ct)) ?? location?.Email, location?.LocationName, approvedBy, logo);
++		PurchaseOrderPdfContext context = new PurchaseOrderPdfContext(companyName, companyAddress, companyGstin, companyPhone, NullIfBlank(await settings.GetStringAsync("Company.Email", "", ct)) ?? location?.Email, NullIfBlank(await settings.GetStringAsync(PurchaseOrderLastUsed.ShipToNameKey, "", ct)) ?? location?.LocationName, approvedBy, logo);
+ 		return PurchaseOrderPdfGenerator.Generate(order, context);
+ 	}
+ 
+--- a/Regalis.Application/Finance/PurchaseOrderFormOptionsDto.cs
++++ b/Regalis.Application/Finance/PurchaseOrderFormOptionsDto.cs
+@@ -3,5 +3,7 @@
+ namespace Regalis.Application.Finance;
+ 
+ /// <summary>Everything the purchase-order form needs in one call, all from settings
+-/// and masters so nothing is hard-coded in the client.</summary>
+-public record PurchaseOrderFormOptionsDto(string NextPoNumber, bool RequireApproval, decimal DefaultGstPercent, IReadOnlyList<decimal> GstRateOptions, IReadOnlyList<string> ShipmentPreferences, IReadOnlyList<string> AccountCategories, string? DefaultTermsAndConditions, string HomeStateCode, IReadOnlyList<QuotationTdsOptionDto> TdsOptions, IReadOnlyList<QuotationStateOptionDto> States, int MaxAttachments, long MaxAttachmentBytes);
++/// and masters so nothing is hard-coded in the client.
++/// LastDeliveryLocationId / LastDeliveryAddress: what the last PO saved used (po-last-used-defaults);
++/// ShipToName: Purchase.ShipToName, shown in place of the location name on PO screens and the PDF.</summary>
++public record PurchaseOrderFormOptionsDto(string NextPoNumber, bool RequireApproval, decimal DefaultGstPercent, IReadOnlyList<decimal> GstRateOptions, IReadOnlyList<string> ShipmentPreferences, IReadOnlyList<string> AccountCategories, string? DefaultTermsAndConditions, string HomeStateCode, IReadOnlyList<QuotationTdsOptionDto> TdsOptions, IReadOnlyList<QuotationStateOptionDto> States, int MaxAttachments, long MaxAttachmentBytes, int? LastDeliveryLocationId = null, string? LastDeliveryAddress = null, string? ShipToName = null);
+--- a/Regalis.Infrastructure/Reporting/PurchaseOrderPdfGenerator.cs
++++ b/Regalis.Infrastructure/Reporting/PurchaseOrderPdfGenerator.cs
+@@ -152,7 +152,7 @@
+ 							.Padding(9f)
+ 							.Column((ColumnDescriptor ship) =>
+ 							{
+-								Caption(ship, "Deliver to");
++								Caption(ship, "Shipping to");
+ 								ship.Item().Text(context.CompanyName).Bold();
+ 								if (!string.IsNullOrWhiteSpace(context.LocationName))
+ 								{

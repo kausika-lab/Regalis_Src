@@ -175,6 +175,8 @@ function supplierStateCode(supplier, states) {
   if (gstin && /^\d\d/.test(gstin)) return gstin.slice(0, 2);
   return stateCodeOf(supplier?.state, states);
 }
+/* po-last-used-defaults: Purchase.ShipToName, shown in place of the location name on PO screens. */
+const poShipTo = (opts) => String(opts?.shipToName ?? "").trim();
 const addressOfLocation = (loc) =>
   loc ? [loc.addressLine1, loc.addressLine2, [loc.city, loc.postalCode].filter(Boolean).join(" "), loc.state].map((p) => (p ?? "").trim()).filter(Boolean).join(", ") : "";
 const addressOfSupplier = (s) =>
@@ -998,8 +1000,8 @@ function fe() {
                 }),
                 e.jsxs("div", {
                   children: [
-                    e.jsx("h3", { className: "po-block-title", children: "Deliver to" }),
-                    e.jsx("div", { style: { fontWeight: 700 }, children: order.locationName ?? "—" }),
+                    e.jsx("h3", { className: "po-block-title", children: "Shipping to" }),
+                    e.jsx("div", { style: { fontWeight: 700 }, children: poShipTo(options) || (order.locationName ?? "—") }),
                     e.jsx("div", { className: "po-sub", children: order.deliveryAddress ?? "" })
                   ]
                 }),
@@ -1190,12 +1192,12 @@ function SupplierModal({ supplier, states, onClose, onSaved }) {
 }
 
 /** Pick the branch the goods go to, and optionally type a different address for it. */
-function DeliveryModal({ locations, locationId, address, onClose, onSaved }) {
+function DeliveryModal({ locations, locationId, address, shipToName, onClose, onSaved }) {
   const [picked, setPicked] = l.useState(String(locationId ?? ""));
   const [text, setText] = l.useState(address ?? "");
   const choose = (loc) => {
     setPicked(String(loc.locationId));
-    setText(addressOfLocation(loc) || loc.locationName);
+    setText(addressOfLocation(loc) || shipToName || loc.locationName);
   };
   return e.jsx(G, {
     open: true,
@@ -1216,7 +1218,7 @@ function DeliveryModal({ locations, locationId, address, onClose, onSaved }) {
                 className: `pof-radio${picked === String(loc.locationId) ? " pof-radio--on" : ""}`,
                 children: [
                   e.jsx("input", { type: "radio", name: "po-location", checked: picked === String(loc.locationId), onChange: () => choose(loc) }),
-                  e.jsxs("span", { children: [e.jsx("strong", { children: loc.locationName }), loc.isDefault && e.jsx("span", { className: "po-sub", children: " · default" }), e.jsx("div", { className: "po-sub", children: addressOfLocation(loc) || "No address saved for this location" })] })
+                  e.jsxs("span", { children: [e.jsx("strong", { children: shipToName || loc.locationName }), loc.isDefault && e.jsx("span", { className: "po-sub", children: " · default" }), e.jsx("div", { className: "po-sub", children: addressOfLocation(loc) || "No address saved for this location" })] })
                 ]
               },
               loc.locationId
@@ -1361,12 +1363,15 @@ function AdminPurchaseOrderFormPage() {
           setRows(order.lines.map((ln) => ({ ...newRow(gst), inventoryItemId: ln.inventoryItemId ? String(ln.inventoryItemId) : "", itemName: ln.itemName, remarks: ln.remarks ?? "", hsnSacCode: ln.hsnSacCode ?? "", unit: ln.unit ?? "", accountCategory: ln.accountCategory ?? "", quantity: Number(ln.quantity).toFixed(Number.isInteger(Number(ln.quantity)) ? 2 : 3).replace(/0$/, ""), rate: Number(ln.rate).toFixed(2), taxPercent: String(ln.taxPercent) })).concat([newRow()]));
         } else {
           const def = locationPage.items.find((l2) => l2.isDefault) ?? (locationPage.items.length === 1 ? locationPage.items[0] : null);
+          /* po-last-used-defaults: start from the last PO's location + address while that location is active */
+          const last = opts.lastDeliveryLocationId && String(opts.lastDeliveryAddress ?? "").trim()
+            ? locationPage.items.find((l2) => l2.locationId === opts.lastDeliveryLocationId && l2.isActive !== false) : null;
           setHead((h) => ({
             ...h,
             terms: opts.defaultTermsAndConditions ?? "",
             shipmentPreference: opts.shipmentPreferences[0] ?? "",
-            locationId: def ? String(def.locationId) : "",
-            deliveryAddress: def ? addressOfLocation(def) || def.locationName : ""
+            locationId: last ? String(last.locationId) : def ? String(def.locationId) : "",
+            deliveryAddress: last ? opts.lastDeliveryAddress : def ? addressOfLocation(def) || poShipTo(opts) || def.locationName : ""
           }));
           setRows([newRow()]);
         }
@@ -1867,7 +1872,7 @@ function AdminPurchaseOrderFormPage() {
                     e.jsxs("div", {
                       className: "pof__deliver",
                       children: [
-                        e.jsxs("div", { children: [e.jsx("b", { children: "Deliver to: " }), location ? e.jsx("span", { children: head.deliveryAddress || location.locationName }) : e.jsx("span", { className: "po-sub", children: "Not chosen" })] }),
+                        e.jsxs("div", { children: [e.jsx("b", { children: "Shipping to: " }), location ? e.jsx("span", { children: head.deliveryAddress || poShipTo(options) || location.locationName }) : e.jsx("span", { className: "po-sub", children: "Not chosen" })] }),
                         err("deliveryAddress") && e.jsx("div", { className: "field__error", role: "alert", children: err("deliveryAddress") }),
                         e.jsx("button", { type: "button", className: "pof__link", style: { marginTop: 6 }, onClick: () => setModal({ kind: "delivery" }), children: "Change delivery address" })
                       ]
@@ -2046,7 +2051,7 @@ function AdminPurchaseOrderFormPage() {
             children: e.jsxs("div", {
               className: "pof__terms",
               children: [
-                e.jsx(TextArea, { id: "po-terms", label: "Terms & conditions", required: true, rows: 4, maxLength: 4000, value: head.terms, error: err("terms") ?? err("termsAndConditions"), hint: "Pre-filled from Settings → Billing → Default purchase order terms. Editable for this PO.", onChange: (v) => setH("terms", v) }),
+                e.jsx(TextArea, { id: "po-terms", label: "Terms & conditions", required: true, rows: 4, maxLength: 4000, value: head.terms, error: err("terms") ?? err("termsAndConditions"), hint: "Pre-filled with the terms saved on the last purchase order. The terms you save here become the default for the next new PO.", onChange: (v) => setH("terms", v) }),
                 e.jsxs("div", {
                   className: "pof__attach",
                   children: [
@@ -2100,6 +2105,7 @@ function AdminPurchaseOrderFormPage() {
       modal?.kind === "delivery" &&
         e.jsx(DeliveryModal, {
           locations,
+          shipToName: poShipTo(options),
           locationId: head.locationId,
           address: head.deliveryAddress,
           onClose: () => setModal(null),

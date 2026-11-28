@@ -1,0 +1,8 @@
+Server source (Downloads\Regalis-live\backend). Line found by decompiling the deployed
+Regalis.Infrastructure.dll; the method is Generate(), the "ship" column of the header boxes.
+
+--- a/src/Regalis.Infrastructure/Reporting/PurchaseOrderPdfGenerator.cs
++++ b/src/Regalis.Infrastructure/Reporting/PurchaseOrderPdfGenerator.cs
+@@
+-        Caption(ship, "Deliver to");
++        Caption(ship, "Shipping to");
